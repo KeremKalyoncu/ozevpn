@@ -7,6 +7,10 @@ func TestCleanDomain(t *testing.T) {
 		"https://www.Discord.com/channels/1": "discord.com",
 		"  http://ROBLOX.com:443/home  ":     "roblox.com",
 		"*.gov.tr":                           "gov.tr",
+		"-help":                              "",
+		"evil.com;calc.exe":                  "",
+		"127.0.0.1":                          "",
+		"192.168.1.1":                        "",
 		"":                                   "",
 	}
 	for in, want := range cases {

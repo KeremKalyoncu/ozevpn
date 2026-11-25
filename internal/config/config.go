@@ -2,11 +2,16 @@ package config
 
 import (
 	"encoding/json"
+	"fmt"
+	"net"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"sync"
 )
+
+var validDomainRe = regexp.MustCompile(`^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)+$`)
 
 type Mode string
 
@@ -246,7 +251,40 @@ func CleanDomain(raw string) string {
 	}
 	d = strings.TrimPrefix(d, "*.")
 	d = strings.TrimPrefix(d, "www.")
-	return strings.TrimSpace(d)
+	d = strings.TrimSpace(d)
+	if len(d) == 0 || len(d) > 253 {
+		return ""
+	}
+	if net.ParseIP(d) != nil {
+		return ""
+	}
+	if !validDomainRe.MatchString(d) {
+		return ""
+	}
+	return d
+}
+
+// ValidateConfig enforces strict enum allowlists and list-size caps for API updates.
+func ValidateConfig(c Config) error {
+	if c.Mode != "" && c.Mode != ModeGlobalUnrestricted && c.Mode != ModeSmartSplit && c.Mode != ModeProxyPAC {
+		return fmt.Errorf("geçersiz mod: %s", c.Mode)
+	}
+	if c.EngineProfile != "" && c.EngineProfile != "hybrid_eu" && c.EngineProfile != "tor_eu" && c.EngineProfile != "warp_fast" && c.EngineProfile != "custom" {
+		return fmt.Errorf("geçersiz motor profili: %s", c.EngineProfile)
+	}
+	if c.Protocol != "" && c.Protocol != "Auto" && c.Protocol != "WireGuard" && c.Protocol != "MASQUE" {
+		return fmt.Errorf("geçersiz protokol: %s", c.Protocol)
+	}
+	if c.DNSFamilies != "" && c.DNSFamilies != "off" && c.DNSFamilies != "malware" && c.DNSFamilies != "full" {
+		return fmt.Errorf("geçersiz DNS filtresi: %s", c.DNSFamilies)
+	}
+	if c.InstallStyle != "" && c.InstallStyle != InstallResident && c.InstallStyle != InstallOnDemand {
+		return fmt.Errorf("geçersiz kurulum stili: %s", c.InstallStyle)
+	}
+	if len(c.CustomBypass) > 200 || len(c.CustomTunnel) > 200 {
+		return fmt.Errorf("özel domain listesi en fazla 200 öğe içerebilir")
+	}
+	return nil
 }
 
 func (c Config) ActiveBypassDomains() []string {

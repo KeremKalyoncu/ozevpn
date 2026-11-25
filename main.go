@@ -144,7 +144,9 @@ func buildHandler(store *config.Store, eng *engine.Manager) http.Handler {
 			EngineProfile string              `json:"engine_profile"`
 			ConnectNow    bool                `json:"connect_now"`
 		}
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		dec := json.NewDecoder(r.Body)
+		dec.DisallowUnknownFields()
+		if err := dec.Decode(&req); err != nil {
 			writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
 			return
 		}
@@ -206,8 +208,14 @@ func buildHandler(store *config.Store, eng *engine.Manager) http.Handler {
 			writeJSON(w, http.StatusOK, store.Get())
 		case http.MethodPost:
 			var incoming config.Config
-			if err := json.NewDecoder(r.Body).Decode(&incoming); err != nil {
+			dec := json.NewDecoder(r.Body)
+			dec.DisallowUnknownFields()
+			if err := dec.Decode(&incoming); err != nil {
 				writeJSON(w, http.StatusBadRequest, map[string]string{"error": "Geçersiz JSON: " + err.Error()})
+				return
+			}
+			if err := config.ValidateConfig(incoming); err != nil {
+				writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
 				return
 			}
 			incoming.CustomBypass = cleanSlice(incoming.CustomBypass)
@@ -339,13 +347,15 @@ func buildHandler(store *config.Store, eng *engine.Manager) http.Handler {
 			Domain  string `json:"domain"`
 			AddToEU bool   `json:"add_to_eu"`
 		}
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		dec := json.NewDecoder(r.Body)
+		dec.DisallowUnknownFields()
+		if err := dec.Decode(&req); err != nil {
 			writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
 			return
 		}
 		dom := config.CleanDomain(req.Domain)
-		if dom == "" {
-			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "Geçerli bir alan adı girin (örn: orneksite.com)"})
+		if dom == "" || probe.IsBlockedInternalTarget(dom) {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "Geçerli bir genel alan adı girin (yerel/özel IP ve iç ağ hedefleri engellidir)"})
 			return
 		}
 		if req.AddToEU {

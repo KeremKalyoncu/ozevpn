@@ -8,8 +8,33 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"strings"
 	"time"
 )
+
+// IsBlockedInternalTarget blocks loopback, private (RFC1918/ULA), link-local, and local hostnames
+// to prevent SSRF / internal LAN scanning via /api/rescue.
+func IsBlockedInternalTarget(host string) bool {
+	h := strings.ToLower(strings.TrimSpace(host))
+	if h == "" || h == "localhost" || strings.HasSuffix(h, ".local") || strings.HasSuffix(h, ".internal") || strings.HasSuffix(h, ".localhost") {
+		return true
+	}
+	if ip := net.ParseIP(h); ip != nil {
+		return isPrivateIP(ip)
+	}
+	if ips, err := net.LookupIP(h); err == nil {
+		for _, ip := range ips {
+			if isPrivateIP(ip) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func isPrivateIP(ip net.IP) bool {
+	return ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() || ip.IsMulticast() || ip.IsUnspecified()
+}
 
 type SpeedResult struct {
 	DownloadMbps float64 `json:"download_mbps"`

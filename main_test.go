@@ -118,3 +118,33 @@ func TestPanicRecoveryReturnsJSON500(t *testing.T) {
 		t.Fatalf("expected JSON error body on panic recovery, got: %s", rec.Body.String())
 	}
 }
+
+func TestStrictSchemaValidationAndSSRFGuard(t *testing.T) {
+	tmp := t.TempDir()
+	store, _ := config.NewStore(filepath.Join(tmp, "ozevpn.json"))
+	eng := engine.NewManager(tmp, warp.NewClient())
+	h := buildHandler(store, eng)
+
+	// 1. Unknown JSON field rejected
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, localReq(http.MethodPost, "/api/config", `{"unknown_field":123}`))
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 for unknown field, got %d", rec.Code)
+	}
+
+	// 2. Invalid enum rejected
+	rec2 := httptest.NewRecorder()
+	h.ServeHTTP(rec2, localReq(http.MethodPost, "/api/config", `{"mode":"invalid_mode"}`))
+	if rec2.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 for invalid mode enum, got %d", rec2.Code)
+	}
+
+	// 3. Internal / loopback SSRF targets rejected in /api/rescue
+	for _, target := range []string{"127.0.0.1", "192.168.1.1", "localhost", "router.local"} {
+		rec3 := httptest.NewRecorder()
+		h.ServeHTTP(rec3, localReq(http.MethodPost, "/api/rescue", `{"domain":"`+target+`"}`))
+		if rec3.Code != http.StatusBadRequest {
+			t.Fatalf("expected 400 for internal SSRF target %q, got %d", target, rec3.Code)
+		}
+	}
+}
