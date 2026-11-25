@@ -2,16 +2,35 @@ let appConfig = null;
 let engineStatus = null;
 let installStatus = null;
 let busy = false;
+let consecutiveStatusFails = 0;
 
 let wizardInstallChoice = 'resident';
-let wizardModeChoice = 'smart';
+let wizardModeChoice = 'full';
+
+let activeModal = null;
+let lastFocusedBeforeModal = null;
+let confirmResolve = null;
 
 const els = {
+  appShell: document.getElementById('appShell'),
+  offlineBanner: document.getElementById('offlineBanner'),
+  offlineBannerText: document.getElementById('offlineBannerText'),
+  retryConnBtn: document.getElementById('retryConnBtn'),
+  themeToggleBtn: document.getElementById('themeToggleBtn'),
+
   wizardOverlay: document.getElementById('wizardOverlay'),
   wizardInstallChoices: document.getElementById('wizardInstallChoices'),
   wizardModeChoices: document.getElementById('wizardModeChoices'),
+  wizardError: document.getElementById('wizardError'),
   wizardSkipBtn: document.getElementById('wizardSkipBtn'),
   wizardFinishBtn: document.getElementById('wizardFinishBtn'),
+
+  confirmOverlay: document.getElementById('confirmOverlay'),
+  confirmTitle: document.getElementById('confirmTitle'),
+  confirmDesc: document.getElementById('confirmDesc'),
+  confirmCancelBtn: document.getElementById('confirmCancelBtn'),
+  confirmOkBtn: document.getElementById('confirmOkBtn'),
+
   openWizardBtn: document.getElementById('openWizardBtn'),
   quitAppBtn: document.getElementById('quitAppBtn'),
   newIpBtn: document.getElementById('newIpBtn'),
@@ -37,6 +56,7 @@ const els = {
   protocolSelect: document.getElementById('protocolSelect'),
   customServerBox: document.getElementById('customServerBox'),
   customServerInput: document.getElementById('customServerInput'),
+  customServerErr: document.getElementById('customServerErr'),
   saveServerBtn: document.getElementById('saveServerBtn'),
   residentTitle: document.getElementById('residentTitle'),
   residentSub: document.getElementById('residentSub'),
@@ -53,9 +73,11 @@ const els = {
   bypassPresets: document.getElementById('bypassPresets'),
   tunnelPresets: document.getElementById('tunnelPresets'),
   customBypassInput: document.getElementById('customBypassInput'),
+  bypassErr: document.getElementById('bypassErr'),
   addBypassBtn: document.getElementById('addBypassBtn'),
   customBypassChips: document.getElementById('customBypassChips'),
   customTunnelInput: document.getElementById('customTunnelInput'),
+  tunnelErr: document.getElementById('tunnelErr'),
   addTunnelBtn: document.getElementById('addTunnelBtn'),
   customTunnelChips: document.getElementById('customTunnelChips'),
 };
@@ -65,19 +87,224 @@ function addLog(msg) {
   div.className = 'log-line';
   div.textContent = msg;
   els.logBox.appendChild(div);
+  while (els.logBox.children.length > 200) {
+    els.logBox.removeChild(els.logBox.firstChild);
+  }
   els.logBox.scrollTop = els.logBox.scrollHeight;
 }
 
-async function api(path, opts = {}) {
-  const res = await fetch(path, {
-    headers: { 'Content-Type': 'application/json' },
-    ...opts,
-  });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || 'İstek başarısız');
-  return data;
+function showInlineError(el, inputEl, msg) {
+  if (el) {
+    el.textContent = msg || '';
+    el.classList.toggle('hidden', !msg);
+  }
+  if (inputEl) {
+    if (msg) {
+      inputEl.setAttribute('aria-invalid', 'true');
+    } else {
+      inputEl.removeAttribute('aria-invalid');
+    }
+  }
 }
 
+/* ---------- Theme Manager (Light / Dark + System + Persistence) ---------- */
+function applyTheme(theme, persist) {
+  const t = theme === 'light' ? 'light' : 'dark';
+  document.documentElement.dataset.theme = t;
+  if (persist) {
+    try { localStorage.setItem('ozevpn_theme', t); } catch {}
+  }
+  if (els.themeToggleBtn) {
+    const isLight = t === 'light';
+    els.themeToggleBtn.textContent = isLight ? '🌙 Koyu Tema' : '☀️ Açık Tema';
+    els.themeToggleBtn.setAttribute('aria-pressed', String(isLight));
+  }
+}
+
+applyTheme(document.documentElement.dataset.theme || 'dark', false);
+
+if (els.themeToggleBtn) {
+  els.themeToggleBtn.addEventListener('click', () => {
+    const next = document.documentElement.dataset.theme === 'light' ? 'dark' : 'light';
+    applyTheme(next, true);
+  });
+}
+
+if (window.matchMedia) {
+  window.matchMedia('(prefers-color-scheme: light)').addEventListener('change', (e) => {
+    let saved = null;
+    try { saved = localStorage.getItem('ozevpn_theme'); } catch {}
+    if (!saved) {
+      applyTheme(e.matches ? 'light' : 'dark', false);
+    }
+  });
+}
+
+/* ---------- Accessible Modal Manager (Focus Trap, Inert, Escape, Focus Restore) ---------- */
+function getFocusableElements(container) {
+  return Array.from(container.querySelectorAll(
+    'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+  )).filter(el => el.offsetParent !== null && !el.closest('.hidden'));
+}
+
+function openModal(overlayEl, triggerEl) {
+  lastFocusedBeforeModal = triggerEl || document.activeElement;
+  activeModal = overlayEl;
+  overlayEl.classList.remove('hidden');
+  if (els.appShell) els.appShell.inert = true;
+  const focusables = getFocusableElements(overlayEl);
+  if (focusables.length > 0) {
+    focusables[0].focus();
+  } else {
+    const card = overlayEl.querySelector('.wizard-card');
+    if (card) card.focus();
+  }
+}
+
+function closeModal(overlayEl) {
+  overlayEl.classList.add('hidden');
+  if (activeModal === overlayEl) activeModal = null;
+  const anyOpen = !els.wizardOverlay.classList.contains('hidden') || !els.confirmOverlay.classList.contains('hidden');
+  if (!anyOpen && els.appShell) {
+    els.appShell.inert = false;
+  }
+  if (lastFocusedBeforeModal && typeof lastFocusedBeforeModal.focus === 'function') {
+    lastFocusedBeforeModal.focus();
+  }
+  lastFocusedBeforeModal = null;
+}
+
+document.addEventListener('keydown', (e) => {
+  if (!activeModal) return;
+  if (e.key === 'Escape') {
+    e.preventDefault();
+    if (activeModal === els.confirmOverlay) {
+      finishConfirm(false);
+    } else if (activeModal === els.wizardOverlay) {
+      closeModal(els.wizardOverlay);
+    }
+    return;
+  }
+  if (e.key === 'Tab') {
+    const focusables = getFocusableElements(activeModal);
+    if (focusables.length === 0) return;
+    const first = focusables[0];
+    const last = focusables[focusables.length - 1];
+    if (e.shiftKey) {
+      if (document.activeElement === first || !activeModal.contains(document.activeElement)) {
+        e.preventDefault();
+        last.focus();
+      }
+    } else {
+      if (document.activeElement === last || !activeModal.contains(document.activeElement)) {
+        e.preventDefault();
+        first.focus();
+      }
+    }
+  }
+});
+
+els.wizardOverlay.addEventListener('click', (e) => {
+  if (e.target === els.wizardOverlay) {
+    closeModal(els.wizardOverlay);
+  }
+});
+
+function askConfirm(title, desc, okLabel, triggerEl) {
+  return new Promise((resolve) => {
+    confirmResolve = resolve;
+    els.confirmTitle.textContent = title;
+    els.confirmDesc.textContent = desc;
+    els.confirmOkBtn.textContent = okLabel || 'Onayla';
+    openModal(els.confirmOverlay, triggerEl);
+  });
+}
+
+function finishConfirm(answer) {
+  const r = confirmResolve;
+  confirmResolve = null;
+  closeModal(els.confirmOverlay);
+  if (r) r(answer);
+}
+
+els.confirmCancelBtn.addEventListener('click', () => finishConfirm(false));
+els.confirmOkBtn.addEventListener('click', () => finishConfirm(true));
+els.confirmOverlay.addEventListener('click', (e) => {
+  if (e.target === els.confirmOverlay) finishConfirm(false);
+});
+
+/* ---------- Safe API Client (Timeout + Safe JSON/Text Parse + 429) ---------- */
+async function api(path, opts = {}, timeoutMs = 15000) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const res = await fetch(path, {
+      headers: { 'Content-Type': 'application/json' },
+      signal: controller.signal,
+      ...opts,
+    });
+    const raw = await res.text();
+    let data = {};
+    if (raw) {
+      try {
+        data = JSON.parse(raw);
+      } catch {
+        data = { error: res.ok ? '' : 'Sunucu beklenmeyen bir yanıt döndürdü.' };
+      }
+    }
+    if (!res.ok) {
+      if (res.status === 429) {
+        throw new Error(data.error || 'Çok fazla eşzamanlı istek; lütfen birkaç saniye bekleyip tekrar dene.');
+      }
+      throw new Error(data.error || `İstek başarısız (HTTP ${res.status})`);
+    }
+    return data;
+  } catch (err) {
+    if (err && err.name === 'AbortError') {
+      throw new Error('İstek zaman aşımına uğradı; lütfen tekrar dene.');
+    }
+    throw err;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+function setOfflineState(isOffline) {
+  if (!els.offlineBanner) return;
+  els.offlineBanner.classList.toggle('hidden', !isOffline);
+  if (isOffline) {
+    els.statusText.textContent = 'Servis Yanıt Vermiyor';
+    els.statusSub.textContent = 'OzeVPN arka plan sunucusuyla bağlantı kesildi.';
+  }
+}
+
+/* ---------- Config Sync with Rollback ---------- */
+async function saveConfig() {
+  appConfig = await api('/api/config', {
+    method: 'POST',
+    body: JSON.stringify(appConfig),
+  });
+}
+
+async function commitConfig(mutator, logMsg) {
+  if (!appConfig) return false;
+  const snapshot = JSON.parse(JSON.stringify(appConfig));
+  try {
+    mutator(appConfig);
+    renderConfig();
+    await saveConfig();
+    renderConfig();
+    if (logMsg) addLog(logMsg);
+    return true;
+  } catch (err) {
+    appConfig = snapshot;
+    renderConfig();
+    addLog('Ayar kaydedilemedi: ' + err.message);
+    return false;
+  }
+}
+
+/* ---------- Renderers ---------- */
 function renderInstall() {
   if (!installStatus) return;
   if (installStatus.resident_enabled) {
@@ -96,13 +323,17 @@ function renderInstall() {
 function renderStatus() {
   if (!engineStatus) return;
   const st = (engineStatus.state || 'Disconnected').toLowerCase();
-  els.powerBtn.className = 'power-btn ' + (st === 'connected' ? 'connected' : st === 'connecting' ? 'connecting' : 'disconnected');
-  els.brandDot.className = 'logo-dot ' + (st === 'connected' ? 'connected' : st === 'connecting' ? 'connecting' : '');
+  const isConn = st === 'connected';
+  const isConnIng = st === 'connecting';
+  els.powerBtn.className = 'power-btn ' + (isConn ? 'connected' : isConnIng ? 'connecting' : 'disconnected');
+  els.powerBtn.setAttribute('aria-pressed', String(isConn));
+  els.powerBtn.setAttribute('aria-label', isConn ? 'Bağlantıyı Kes' : isConnIng ? 'Bağlanıyor' : 'Bağlan');
+  els.brandDot.className = 'logo-dot ' + (isConn ? 'connected' : isConnIng ? 'connecting' : '');
 
-  if (st === 'connected') {
+  if (isConn) {
     els.statusText.textContent = 'Bağlı — Tüm Dünya Engelsiz';
     els.statusSub.textContent = `${engineStatus.capture_layer || 'sing-box Aktif'} • Motor: ${engineStatus.active_profile || 'hybrid_eu'}`;
-  } else if (st === 'connecting') {
+  } else if (isConnIng) {
     els.statusText.textContent = 'Bağlanıyor...';
     els.statusSub.textContent = 'Hibrit sing-box motoru başlatılıyor...';
   } else {
@@ -123,11 +354,12 @@ function renderStatus() {
 function renderConfig() {
   if (!appConfig) return;
   document.querySelectorAll('.mode-card').forEach(btn => {
-    btn.classList.toggle('active', btn.dataset.mode === appConfig.mode);
+    const isAct = btn.dataset.mode === appConfig.mode;
+    btn.classList.toggle('active', isAct);
+    btn.setAttribute('aria-pressed', String(isAct));
   });
   els.engineProfileSelect.value = appConfig.engine_profile || 'hybrid_eu';
   els.protocolSelect.value = appConfig.protocol || 'Auto';
-  els.customServerInput.value = '';
   els.customServerInput.placeholder = appConfig.custom_server_set
     ? '🔒 Kayıtlı özel sunucu aktif (değiştirmek için yenisini yapıştır)'
     : 'vless://, socks5:// veya WireGuard .conf yapıştır';
@@ -162,9 +394,13 @@ function renderPresets(container, list) {
     cb.type = 'checkbox';
     cb.checked = !!p.enabled;
     cb.addEventListener('change', async () => {
-      p.enabled = cb.checked;
-      await saveConfig();
-      addLog(`Liste güncellendi: ${p.name}`);
+      const nextVal = cb.checked;
+      cb.disabled = true;
+      await commitConfig((cfg) => {
+        const target = (cfg.bypass_presets || []).concat(cfg.tunnel_presets || []).find(item => item.id === p.id);
+        if (target) target.enabled = nextVal;
+      }, `Liste güncellendi: ${p.name}`);
+      cb.disabled = false;
     });
     row.append(info, cb);
     container.appendChild(row);
@@ -178,41 +414,75 @@ function renderChips(container, domains, kind) {
     chip.className = 'chip';
     const label = document.createTextNode(d + ' ');
     const btn = document.createElement('button');
-    btn.title = 'Sil';
+    btn.type = 'button';
+    btn.title = `${d} sil`;
+    btn.setAttribute('aria-label', `${d} sitesini listeden sil`);
     btn.textContent = '×';
     btn.addEventListener('click', async () => {
-      if (kind === 'bypass') {
-        appConfig.custom_bypass = appConfig.custom_bypass.filter(x => x !== d);
-      } else {
-        appConfig.custom_tunnel = appConfig.custom_tunnel.filter(x => x !== d);
-      }
-      await saveConfig();
-      renderConfig();
+      btn.disabled = true;
+      await commitConfig((cfg) => {
+        if (kind === 'bypass') {
+          cfg.custom_bypass = (cfg.custom_bypass || []).filter(x => x !== d);
+        } else {
+          cfg.custom_tunnel = (cfg.custom_tunnel || []).filter(x => x !== d);
+        }
+      }, `Domain silindi (${kind}): ${d}`);
     });
     chip.append(label, btn);
     container.appendChild(chip);
   });
 }
 
-async function saveConfig() {
-  appConfig = await api('/api/config', {
-    method: 'POST',
-    body: JSON.stringify(appConfig),
+/* ---------- Wizard State Synchronization ---------- */
+function syncWizardChoicesUI() {
+  els.wizardInstallChoices.querySelectorAll('.wizard-choice').forEach(b => {
+    const active = b.dataset.install === wizardInstallChoice;
+    b.classList.toggle('active', active);
+    b.setAttribute('aria-pressed', String(active));
+  });
+  els.wizardModeChoices.querySelectorAll('.wizard-choice').forEach(b => {
+    const active = b.dataset.mode === wizardModeChoice;
+    b.classList.toggle('active', active);
+    b.setAttribute('aria-pressed', String(active));
   });
 }
 
+function openWizard(triggerEl) {
+  wizardInstallChoice = (installStatus && installStatus.resident_enabled) ? 'resident' : (appConfig && appConfig.setup_completed ? (appConfig.install_style || 'on_demand') : 'resident');
+  if (appConfig && appConfig.setup_completed && (appConfig.mode === 'full' || appConfig.mode === 'smart')) {
+    wizardModeChoice = appConfig.mode;
+  } else {
+    wizardModeChoice = 'full';
+  }
+  showInlineError(els.wizardError, null, '');
+  syncWizardChoicesUI();
+  openModal(els.wizardOverlay, triggerEl);
+}
+
+/* ---------- Status & Network Polling ---------- */
 async function refreshStatus() {
   try {
-    engineStatus = await api('/api/status');
+    engineStatus = await api('/api/status', {}, 6000);
+    if (consecutiveStatusFails > 0) {
+      consecutiveStatusFails = 0;
+      setOfflineState(false);
+      addLog('Arka plan servisiyle bağlantı yeniden kuruldu.');
+    }
     renderStatus();
   } catch (err) {
-    addLog('Durum alınamadı: ' + err.message);
+    consecutiveStatusFails++;
+    if (consecutiveStatusFails === 1) {
+      addLog('Durum alınamadı: ' + err.message);
+    }
+    if (consecutiveStatusFails >= 2) {
+      setOfflineState(true);
+    }
   }
 }
 
 async function refreshNetInfo() {
   try {
-    const ni = await api('/api/netinfo');
+    const ni = await api('/api/netinfo', {}, 10000);
     const ctry = ni.country && ni.country !== 'AUTO' ? ` • Ülke: ${ni.country}` : '';
     els.modemHint.textContent = (ni.modem_hint || 'Tespit edilemedi') + ctry;
     els.dnsInfo.textContent = (ni.dns_servers && ni.dns_servers.length) ? ni.dns_servers.slice(0, 2).join(', ') : 'Otomatik';
@@ -230,14 +500,14 @@ async function togglePower() {
     const isRunning = engineStatus && engineStatus.running;
     if (isRunning) {
       addLog('OzeVPN motoru durduruluyor...');
-      await api('/api/disconnect', { method: 'POST' });
+      await api('/api/disconnect', { method: 'POST' }, 20000);
       addLog('Bağlantı kesildi, sistem normal hatta döndü.');
     } else {
       els.powerBtn.className = 'power-btn connecting';
       els.statusText.textContent = 'Bağlanıyor...';
       els.statusSub.textContent = 'sing-box + Avrupa çıkış motoru başlatılıyor (~10 sn)...';
-      addLog('OzeVPN v3 (sing-box Hibrit Motor) başlatılıyor...');
-      const res = await api('/api/connect', { method: 'POST' });
+      addLog('OzeVPN v6 (sing-box Hibrit Motor) başlatılıyor...');
+      const res = await api('/api/connect', { method: 'POST' }, 45000);
       (res.logs || []).forEach(addLog);
     }
   } catch (err) {
@@ -258,7 +528,7 @@ async function runProbe() {
   loading.textContent = 'Discord, Roblox, Pastebin, Google ve e-Devlet ölçülüyor...';
   els.probeGrid.appendChild(loading);
   try {
-    const rep = await api('/api/probe');
+    const rep = await api('/api/probe', {}, 25000);
     const t = rep.trace || {};
     if (t.ip) {
       const viaTxt = rep.via_proxy ? 'OzeVPN Tüneli Aktif' : 'Direkt Hat';
@@ -299,32 +569,33 @@ async function runProbe() {
   }
 }
 
-// Wizard bindings
+/* ---------- Event Listeners ---------- */
 els.wizardInstallChoices.addEventListener('click', (e) => {
   const btn = e.target.closest('.wizard-choice');
   if (!btn) return;
   wizardInstallChoice = btn.dataset.install;
-  els.wizardInstallChoices.querySelectorAll('.wizard-choice').forEach(b => b.classList.toggle('active', b === btn));
+  syncWizardChoicesUI();
 });
 
 els.wizardModeChoices.addEventListener('click', (e) => {
   const btn = e.target.closest('.wizard-choice');
   if (!btn) return;
   wizardModeChoice = btn.dataset.mode;
-  els.wizardModeChoices.querySelectorAll('.wizard-choice').forEach(b => b.classList.toggle('active', b === btn));
+  syncWizardChoicesUI();
 });
 
 els.wizardSkipBtn.addEventListener('click', async () => {
-  els.wizardOverlay.classList.add('hidden');
+  closeModal(els.wizardOverlay);
   if (appConfig && !appConfig.setup_completed) {
-    appConfig.setup_completed = true;
-    await saveConfig();
+    await commitConfig((cfg) => { cfg.setup_completed = true; });
   }
 });
 
 els.wizardFinishBtn.addEventListener('click', async () => {
   els.wizardFinishBtn.disabled = true;
+  els.wizardSkipBtn.disabled = true;
   els.wizardFinishBtn.textContent = 'Kuruluyor ve Bağlanılıyor...';
+  showInlineError(els.wizardError, null, '');
   try {
     const res = await api('/api/install/setup', {
       method: 'POST',
@@ -334,55 +605,82 @@ els.wizardFinishBtn.addEventListener('click', async () => {
         engine_profile: 'hybrid_eu',
         connect_now: true,
       }),
-    });
+    }, 45000);
     appConfig = res.config;
     installStatus = res.install;
     renderConfig();
     renderInstall();
     (res.logs || []).forEach(addLog);
-    els.wizardOverlay.classList.add('hidden');
+    closeModal(els.wizardOverlay);
     await refreshStatus();
   } catch (err) {
+    showInlineError(els.wizardError, null, 'Kurulum hatası: ' + err.message);
     addLog('Kurulum hatası: ' + err.message);
   } finally {
     els.wizardFinishBtn.disabled = false;
+    els.wizardSkipBtn.disabled = false;
     els.wizardFinishBtn.textContent = 'Kurulumu Tamamla ve Başlat';
   }
 });
 
-els.openWizardBtn.addEventListener('click', () => {
-  els.wizardOverlay.classList.remove('hidden');
-});
+els.openWizardBtn.addEventListener('click', () => openWizard(els.openWizardBtn));
+
+if (els.retryConnBtn) {
+  els.retryConnBtn.addEventListener('click', async () => {
+    els.retryConnBtn.disabled = true;
+    els.retryConnBtn.textContent = 'Deneniyor...';
+    try {
+      await initApp();
+    } finally {
+      els.retryConnBtn.disabled = false;
+      els.retryConnBtn.textContent = 'Yeniden Dene';
+    }
+  });
+}
 
 if (els.quitAppBtn) {
   els.quitAppBtn.addEventListener('click', async () => {
+    const running = !!(engineStatus && engineStatus.running);
+    const desc = running
+      ? 'Aktif OzeVPN tüneli kesilecek, Windows proxy normale döndürülecek ve arka plan uygulaması tamamen kapanacak.'
+      : 'OzeVPN arka plan uygulaması kapatılacak. Tekrar açmak için masaüstü kısayolunu kullanabilirsin.';
+    const ok = await askConfirm('OzeVPN Kapatılsın mı?', desc, 'Evet, Kapat', els.quitAppBtn);
+    if (!ok) return;
+    els.quitAppBtn.disabled = true;
     try {
       addLog('OzeVPN kapatılıyor...');
-      await api('/api/shutdown', { method: 'POST' });
+      await api('/api/shutdown', { method: 'POST' }, 8000);
       window.close();
     } catch (err) {
       addLog('Kapatma hatası: ' + err.message);
+      els.quitAppBtn.disabled = false;
     }
   });
 }
 
 els.toggleResidentBtn.addEventListener('click', async () => {
   const targetStyle = (installStatus && installStatus.resident_enabled) ? 'on_demand' : 'resident';
+  els.toggleResidentBtn.disabled = true;
+  const prevTxt = els.toggleResidentBtn.textContent;
+  els.toggleResidentBtn.textContent = 'Kaydediliyor...';
   try {
     const res = await api('/api/install/setup', {
       method: 'POST',
       body: JSON.stringify({
         install_style: targetStyle,
-        mode: appConfig ? appConfig.mode : 'smart',
+        mode: appConfig ? appConfig.mode : 'full',
         connect_now: false,
       }),
-    });
+    }, 20000);
     appConfig = res.config;
     installStatus = res.install;
     renderInstall();
     addLog(targetStyle === 'resident' ? 'Yerleşik Mod etkinleştirildi.' : 'Aç/Kapa Moduna geçildi.');
   } catch (err) {
+    els.toggleResidentBtn.textContent = prevTxt;
     addLog('Kurulum değişikliği hatası: ' + err.message);
+  } finally {
+    els.toggleResidentBtn.disabled = false;
   }
 });
 
@@ -392,50 +690,76 @@ els.probeBtn.addEventListener('click', runProbe);
 els.modeGrid.addEventListener('click', async (e) => {
   const card = e.target.closest('.mode-card');
   if (!card || !appConfig) return;
-  appConfig.mode = card.dataset.mode;
-  renderConfig();
-  await saveConfig();
-  addLog(`Mod seçildi: ${appConfig.mode}`);
+  const nextMode = card.dataset.mode;
+  await commitConfig((cfg) => { cfg.mode = nextMode; }, `Mod seçildi: ${nextMode}`);
 });
 
 els.engineProfileSelect.addEventListener('change', async () => {
-  appConfig.engine_profile = els.engineProfileSelect.value;
-  els.customServerBox.classList.toggle('hidden', appConfig.engine_profile !== 'custom');
-  await saveConfig();
-  addLog(`Motor profili seçildi: ${appConfig.engine_profile}`);
+  const nextProfile = els.engineProfileSelect.value;
+  await commitConfig((cfg) => { cfg.engine_profile = nextProfile; }, `Motor profili seçildi: ${nextProfile}`);
 });
 
 els.protocolSelect.addEventListener('change', async () => {
-  appConfig.protocol = els.protocolSelect.value;
-  await saveConfig();
-  addLog(`WARP protokolü seçildi: ${appConfig.protocol}`);
+  const nextProto = els.protocolSelect.value;
+  await commitConfig((cfg) => { cfg.protocol = nextProto; }, `WARP protokolü seçildi: ${nextProto}`);
 });
 
-els.saveServerBtn.addEventListener('click', async () => {
-  appConfig.custom_server = els.customServerInput.value.trim();
-  await saveConfig();
-  addLog('Özel sunucu linki kaydedildi.');
+async function saveCustomServer() {
+  const val = els.customServerInput.value.trim();
+  if (!val) {
+    showInlineError(els.customServerErr, els.customServerInput, 'Kaydetmek için geçerli bir sunucu bağlantısı veya WireGuard yapılandırması yapıştırın.');
+    return;
+  }
+  showInlineError(els.customServerErr, els.customServerInput, '');
+  els.saveServerBtn.disabled = true;
+  els.saveServerBtn.textContent = 'Kaydediliyor...';
+  try {
+    const ok = await commitConfig((cfg) => { cfg.custom_server = val; }, 'Özel sunucu linki kaydedildi.');
+    if (ok) {
+      els.customServerInput.value = '';
+    } else {
+      showInlineError(els.customServerErr, els.customServerInput, 'Özel sunucu kaydedilemedi; bağlantıyı kontrol edin.');
+    }
+  } finally {
+    els.saveServerBtn.disabled = false;
+    els.saveServerBtn.textContent = 'Kaydet';
+  }
+}
+
+els.saveServerBtn.addEventListener('click', saveCustomServer);
+els.customServerInput.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') saveCustomServer();
 });
 
 if (els.adBlockToggle) {
   els.adBlockToggle.addEventListener('change', async () => {
-    appConfig.ad_block_speed = els.adBlockToggle.checked;
-    await saveConfig();
-    addLog(`Reklam & Takipçi Hız Kalkanı: ${appConfig.ad_block_speed ? 'Açık' : 'Kapalı'}`);
-    if (engineStatus && engineStatus.running) {
+    const nextVal = els.adBlockToggle.checked;
+    els.adBlockToggle.disabled = true;
+    const ok = await commitConfig(
+      (cfg) => { cfg.ad_block_speed = nextVal; },
+      `Reklam & Takipçi Hız Kalkanı: ${nextVal ? 'Açık' : 'Kapalı'}`
+    );
+    els.adBlockToggle.disabled = false;
+    if (ok && engineStatus && engineStatus.running) {
       try {
-        const r = await api('/api/reload', { method: 'POST' });
+        const r = await api('/api/reload', { method: 'POST' }, 15000);
         addLog(r.message || 'Kurallar anında yenilendi.');
-      } catch {}
+      } catch (err) {
+        addLog('Canlı kural yenileme uyarısı: ' + err.message);
+      }
     }
   });
 }
 
 if (els.torBridgeToggle) {
   els.torBridgeToggle.addEventListener('change', async () => {
-    appConfig.tor_bridge = els.torBridgeToggle.checked;
-    await saveConfig();
-    addLog(`Tor Snowflake Köprü Modu: ${appConfig.tor_bridge ? 'Açık (Yeniden bağlanınca aktif olur)' : 'Kapalı'}`);
+    const nextVal = els.torBridgeToggle.checked;
+    els.torBridgeToggle.disabled = true;
+    await commitConfig(
+      (cfg) => { cfg.tor_bridge = nextVal; },
+      `Tor Snowflake Köprü Modu: ${nextVal ? 'Açık (Yeniden bağlanınca aktif olur)' : 'Kapalı'}`
+    );
+    els.torBridgeToggle.disabled = false;
   });
 }
 
@@ -444,7 +768,7 @@ if (els.newIpBtn) {
     els.newIpBtn.disabled = true;
     els.newIpBtn.textContent = '🔄 Yenileniyor...';
     try {
-      const r = await api('/api/new-identity', { method: 'POST' });
+      const r = await api('/api/new-identity', { method: 'POST' }, 15000);
       addLog(r.message || 'Yeni Avrupa IP alındı.');
     } catch (err) {
       addLog('IP yenileme hatası: ' + err.message);
@@ -460,7 +784,7 @@ if (els.speedBtn) {
     els.speedBtn.disabled = true;
     els.speedBtn.textContent = '⚡ Ölçülüyor...';
     try {
-      const s = await api('/api/speedtest');
+      const s = await api('/api/speedtest', {}, 30000);
       if (s.error) {
         els.traceSummary.textContent = 'Hız testi hatası: ' + s.error;
       } else {
@@ -469,6 +793,7 @@ if (els.speedBtn) {
         addLog(`Hız testi (${mode}): ${s.download_mbps} Mbps | Ping ${s.ping_ms} ms | Jitter ${s.jitter_ms} ms`);
       }
     } catch (err) {
+      els.traceSummary.textContent = 'Hız testi hatası: ' + err.message;
       addLog('Hız testi hatası: ' + err.message);
     } finally {
       els.speedBtn.disabled = false;
@@ -477,83 +802,169 @@ if (els.speedBtn) {
   });
 }
 
-if (els.rescueTestBtn) {
-  els.rescueTestBtn.addEventListener('click', async () => {
-    const dom = els.rescueInput.value.trim();
-    if (!dom) return;
-    els.rescueResult.textContent = 'Direkt, Tünel ve Avrupa Tor yolları test ediliyor...';
-    try {
-      const r = await api('/api/rescue', { method: 'POST', body: JSON.stringify({ domain: dom, add_to_eu: false }) });
-      const parts = (r.paths || []).map(p => `${p.path}: ${p.reachable ? '✅ ' + p.latency_ms + 'ms' : '❌ ' + (p.error || 'Engelli')}`);
-      els.rescueResult.textContent = `${r.domain} → ${parts.join(' | ')} (Öneri: ${r.recommended})`;
-    } catch (err) {
-      els.rescueResult.textContent = 'Test hatası: ' + err.message;
-    }
-  });
+async function runRescueTest() {
+  const dom = els.rescueInput.value.trim();
+  if (!dom) {
+    els.rescueInput.setAttribute('aria-invalid', 'true');
+    els.rescueResult.textContent = 'Lütfen kontrol etmek istediğin bir alan adı yaz (örn: wattpad.com).';
+    els.rescueInput.focus();
+    return;
+  }
+  els.rescueInput.removeAttribute('aria-invalid');
+  els.rescueTestBtn.disabled = true;
+  els.rescueAddBtn.disabled = true;
+  els.rescueTestBtn.textContent = 'Test ediliyor...';
+  els.rescueResult.textContent = 'Direkt, Tünel ve Avrupa Tor yolları test ediliyor...';
+  try {
+    const r = await api('/api/rescue', { method: 'POST', body: JSON.stringify({ domain: dom, add_to_eu: false }) }, 25000);
+    const parts = (r.paths || []).map(p => `${p.path}: ${p.reachable ? '✅ ' + p.latency_ms + 'ms' : '❌ ' + (p.error || 'Engelli')}`);
+    els.rescueResult.textContent = `${r.domain} → ${parts.join(' | ')} (Öneri: ${r.recommended})`;
+  } catch (err) {
+    els.rescueResult.textContent = 'Test hatası: ' + err.message;
+  } finally {
+    els.rescueTestBtn.disabled = false;
+    els.rescueAddBtn.disabled = false;
+    els.rescueTestBtn.textContent = 'Kontrol Et';
+  }
 }
 
-if (els.rescueAddBtn) {
-  els.rescueAddBtn.addEventListener('click', async () => {
-    const dom = els.rescueInput.value.trim();
-    if (!dom) return;
-    try {
-      const r = await api('/api/rescue', { method: 'POST', body: JSON.stringify({ domain: dom, add_to_eu: true }) });
-      appConfig = r.config;
-      renderConfig();
-      els.rescueInput.value = '';
-      els.rescueResult.textContent = `✅ ${r.domain} Avrupa çıkışına eklendi — ${r.message}`;
-      addLog(`${r.domain} Avrupa çıkışına alındı (${r.message})`);
-    } catch (err) {
-      els.rescueResult.textContent = 'Hata: ' + err.message;
-    }
+async function runRescueAdd() {
+  const dom = els.rescueInput.value.trim();
+  if (!dom) {
+    els.rescueInput.setAttribute('aria-invalid', 'true');
+    els.rescueResult.textContent = 'Lütfen Avrupa çıkışına almak istediğin alan adını yaz (örn: wattpad.com).';
+    els.rescueInput.focus();
+    return;
+  }
+  els.rescueInput.removeAttribute('aria-invalid');
+  els.rescueTestBtn.disabled = true;
+  els.rescueAddBtn.disabled = true;
+  els.rescueAddBtn.textContent = 'Ekleniyor...';
+  try {
+    const r = await api('/api/rescue', { method: 'POST', body: JSON.stringify({ domain: dom, add_to_eu: true }) }, 25000);
+    appConfig = r.config;
+    renderConfig();
+    els.rescueInput.value = '';
+    els.rescueResult.textContent = `✅ ${r.domain} Avrupa çıkışına eklendi — ${r.message}`;
+    addLog(`${r.domain} Avrupa çıkışına alındı (${r.message})`);
+  } catch (err) {
+    els.rescueResult.textContent = 'Hata: ' + err.message;
+  } finally {
+    els.rescueTestBtn.disabled = false;
+    els.rescueAddBtn.disabled = false;
+    els.rescueAddBtn.textContent = "Avrupa'ya Al";
+  }
+}
+
+if (els.rescueTestBtn) els.rescueTestBtn.addEventListener('click', runRescueTest);
+if (els.rescueAddBtn) els.rescueAddBtn.addEventListener('click', runRescueAdd);
+if (els.rescueInput) {
+  els.rescueInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') runRescueTest();
   });
 }
 
 if (els.emergencyResetBtn) {
   els.emergencyResetBtn.addEventListener('click', async () => {
+    const ok = await askConfirm(
+      'Windows Proxy Sıfırlansın mı?',
+      'Aktif OzeVPN tünelleri durdurulacak ve Windows sistem proxy ayarları tamamen temizlenerek normal internete dönülecek.',
+      'Evet, Sıfırla',
+      els.emergencyResetBtn
+    );
+    if (!ok) return;
+    els.emergencyResetBtn.disabled = true;
     try {
-      const r = await api('/api/emergency-reset', { method: 'POST' });
+      const r = await api('/api/emergency-reset', { method: 'POST' }, 15000);
       addLog(r.message || 'Proxy sıfırlandı.');
       await refreshStatus();
     } catch (err) {
       addLog('Sıfırlama hatası: ' + err.message);
+    } finally {
+      els.emergencyResetBtn.disabled = false;
     }
   });
 }
 
 if (els.relaunchAdminBtn) {
   els.relaunchAdminBtn.addEventListener('click', async () => {
+    els.relaunchAdminBtn.disabled = true;
     try {
       addLog('Yönetici (Oyun TUN) izni isteniyor...');
-      await api('/api/relaunch-admin', { method: 'POST' });
+      await api('/api/relaunch-admin', { method: 'POST' }, 15000);
     } catch (err) {
       addLog('Yönetici başlatma iptal edildi: ' + err.message);
+      els.relaunchAdminBtn.disabled = false;
     }
   });
 }
 
-document.querySelectorAll('.tab').forEach(btn => {
-  btn.addEventListener('click', () => {
-    document.querySelectorAll('.tab').forEach(b => b.classList.remove('active'));
-    document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
-    btn.classList.add('active');
-    document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
+/* ---------- WAI-ARIA Tabs (Click + ArrowLeft/ArrowRight/Home/End) ---------- */
+const tabButtons = Array.from(document.querySelectorAll('.tab[role="tab"]'));
+
+function activateTab(btn, moveFocus) {
+  tabButtons.forEach(b => {
+    const isSel = b === btn;
+    b.classList.toggle('active', isSel);
+    b.setAttribute('aria-selected', String(isSel));
+    b.setAttribute('tabindex', isSel ? '0' : '-1');
+    const panel = document.getElementById('tab-' + b.dataset.tab);
+    if (panel) {
+      panel.classList.toggle('active', isSel);
+      panel.hidden = !isSel;
+    }
+  });
+  if (moveFocus) btn.focus();
+}
+
+tabButtons.forEach((btn, idx) => {
+  btn.addEventListener('click', () => activateTab(btn, false));
+  btn.addEventListener('keydown', (e) => {
+    let nextIdx = null;
+    if (e.key === 'ArrowRight') nextIdx = (idx + 1) % tabButtons.length;
+    else if (e.key === 'ArrowLeft') nextIdx = (idx - 1 + tabButtons.length) % tabButtons.length;
+    else if (e.key === 'Home') nextIdx = 0;
+    else if (e.key === 'End') nextIdx = tabButtons.length - 1;
+    if (nextIdx !== null) {
+      e.preventDefault();
+      activateTab(tabButtons[nextIdx], true);
+    }
   });
 });
 
+/* ---------- Custom Domains (Safe Input Preservation + Inline Validation) ---------- */
 async function addCustomDomain(kind) {
-  const input = kind === 'bypass' ? els.customBypassInput : els.customTunnelInput;
+  const isBypass = kind === 'bypass';
+  const input = isBypass ? els.customBypassInput : els.customTunnelInput;
+  const errEl = isBypass ? els.bypassErr : els.tunnelErr;
+  const btn = isBypass ? els.addBypassBtn : els.addTunnelBtn;
   const val = input.value.trim();
-  if (!val) return;
-  if (kind === 'bypass') {
-    appConfig.custom_bypass = [...(appConfig.custom_bypass || []), val];
-  } else {
-    appConfig.custom_tunnel = [...(appConfig.custom_tunnel || []), val];
+
+  if (!val) {
+    showInlineError(errEl, input, 'Eklemek için bir alan adı girin (örn: ornek.com).');
+    input.focus();
+    return;
   }
-  input.value = '';
-  await saveConfig();
-  renderConfig();
-  addLog(`Domain eklendi (${kind}): ${val}`);
+  showInlineError(errEl, input, '');
+  btn.disabled = true;
+  btn.textContent = 'Ekleniyor...';
+  try {
+    const ok = await commitConfig((cfg) => {
+      if (isBypass) {
+        cfg.custom_bypass = [...(cfg.custom_bypass || []), val];
+      } else {
+        cfg.custom_tunnel = [...(cfg.custom_tunnel || []), val];
+      }
+    }, `Domain eklendi (${kind}): ${val}`);
+    if (ok) {
+      input.value = '';
+    } else {
+      showInlineError(errEl, input, 'Alan adı kaydedilemedi; geçerli bir domain girdiğinizden emin olun.');
+    }
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Ekle';
+  }
 }
 
 els.addBypassBtn.addEventListener('click', () => addCustomDomain('bypass'));
@@ -561,21 +972,27 @@ els.addTunnelBtn.addEventListener('click', () => addCustomDomain('tunnel'));
 els.customBypassInput.addEventListener('keydown', e => { if (e.key === 'Enter') addCustomDomain('bypass'); });
 els.customTunnelInput.addEventListener('keydown', e => { if (e.key === 'Enter') addCustomDomain('tunnel'); });
 
-(async function init() {
+/* ---------- App Init ---------- */
+async function initApp() {
   try {
     [appConfig, installStatus] = await Promise.all([
-      api('/api/config'),
-      api('/api/install/status'),
+      api('/api/config', {}, 10000),
+      api('/api/install/status', {}, 10000),
     ]);
+    setOfflineState(false);
+    consecutiveStatusFails = 0;
     renderConfig();
     renderInstall();
-    if (!appConfig.setup_completed) {
-      els.wizardOverlay.classList.remove('hidden');
+    if (!appConfig.setup_completed && !activeModal) {
+      openWizard(null);
     }
     refreshNetInfo();
     await refreshStatus();
-    setInterval(refreshStatus, 5000);
   } catch (err) {
+    setOfflineState(true);
     addLog('Başlatma hatası: ' + err.message);
   }
-})();
+}
+
+initApp();
+setInterval(refreshStatus, 5000);

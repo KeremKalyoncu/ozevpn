@@ -209,7 +209,7 @@ func TestConcurrencyLimitReturns429AndStaticCacheHeaders(t *testing.T) {
 		t.Fatalf("expected first request 200, got %d", code1)
 	}
 
-	// Verify static CSS receives Cache-Control header
+	// Verify static CSS & theme.js receive Cache-Control header
 	tmp := t.TempDir()
 	store, _ := config.NewStore(filepath.Join(tmp, "ozevpn.json"))
 	eng := engine.NewManager(tmp, warp.NewClient())
@@ -218,5 +218,35 @@ func TestConcurrencyLimitReturns429AndStaticCacheHeaders(t *testing.T) {
 	h.ServeHTTP(recCSS, localReq(http.MethodGet, "/style.css", ""))
 	if recCSS.Code != http.StatusOK || !strings.Contains(recCSS.Header().Get("Cache-Control"), "max-age=3600") {
 		t.Fatalf("expected 200 with Cache-Control max-age=3600 for /style.css, got %d %q", recCSS.Code, recCSS.Header().Get("Cache-Control"))
+	}
+	recTheme := httptest.NewRecorder()
+	h.ServeHTTP(recTheme, localReq(http.MethodGet, "/theme.js", ""))
+	if recTheme.Code != http.StatusOK || !strings.Contains(recTheme.Header().Get("Cache-Control"), "max-age=3600") {
+		t.Fatalf("expected 200 with Cache-Control max-age=3600 for /theme.js, got %d %q", recTheme.Code, recTheme.Header().Get("Cache-Control"))
+	}
+}
+
+func TestBrandedHTML404AndAPIJSON404AndDefaultFullMode(t *testing.T) {
+	if def := config.DefaultConfig(); def.Mode != config.ModeGlobalUnrestricted {
+		t.Fatalf("expected default mode to be full, got %q", def.Mode)
+	}
+	tmp := t.TempDir()
+	store, _ := config.NewStore(filepath.Join(tmp, "ozevpn.json"))
+	eng := engine.NewManager(tmp, warp.NewClient())
+	h := buildHandler(store, eng)
+
+	recHTML := httptest.NewRecorder()
+	h.ServeHTTP(recHTML, localReq(http.MethodGet, "/nonexistent-ui-route", ""))
+	if recHTML.Code != http.StatusNotFound {
+		t.Fatalf("expected 404 for unknown UI route, got %d", recHTML.Code)
+	}
+	if !strings.Contains(recHTML.Header().Get("Content-Type"), "text/html") || !strings.Contains(recHTML.Body.String(), `href="/"`) {
+		t.Fatalf("expected branded HTML 404 with recovery link, got ct=%q body=%q", recHTML.Header().Get("Content-Type"), recHTML.Body.String())
+	}
+
+	recAPI := httptest.NewRecorder()
+	h.ServeHTTP(recAPI, localReq(http.MethodGet, "/api/does-not-exist", ""))
+	if recAPI.Code != http.StatusNotFound || !strings.Contains(recAPI.Header().Get("Content-Type"), "application/json") {
+		t.Fatalf("expected JSON 404 for unknown /api route, got %d %q", recAPI.Code, recAPI.Header().Get("Content-Type"))
 	}
 }

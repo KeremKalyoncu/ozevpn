@@ -66,7 +66,7 @@ func DefaultConfig() Config {
 		SetupCompleted: false,
 		InstallStyle:   InstallOnDemand,
 		EngineProfile:  "hybrid_eu",
-		Mode:           ModeSmartSplit,
+		Mode:           ModeGlobalUnrestricted,
 		Protocol:       "Auto",
 		DNSFamilies:    "off",
 		AdBlockSpeed:   true,

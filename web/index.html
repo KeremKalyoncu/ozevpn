@@ -3,67 +3,19 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="OzeVPN v6 — sing-box hibrit motor, şifreli DoH DNS, reklam kalkanı ve tek tık engelsiz internet kontrol paneli." />
   <title>OzeVPN v6 — Engelsiz &amp; Hızlı İnternet</title>
   <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  <script src="/theme.js"></script>
   <link rel="stylesheet" href="/style.css" />
 </head>
 <body>
-  <!-- First-Run Setup Wizard Modal -->
-  <div id="wizardOverlay" class="wizard-overlay hidden">
-    <div class="wizard-card">
-      <div class="wizard-badge">OzeVPN Kurulum Sihirbazı</div>
-      <h2>Bilgisayarına Nasıl Kurulsun?</h2>
-      <p class="wizard-desc">Tek seferlik tercihini seç — sonra ister hiç uğraşmadan arka planda engelsiz internet kullan, ister sadece aç/kapa yap.</p>
+  <a href="#mainContent" class="skip-link">Ana içeriğe geç</a>
 
-      <div class="wizard-section-title">1. Çalışma Şekli</div>
-      <div class="wizard-choice-grid" id="wizardInstallChoices">
-        <button class="wizard-choice active" data-install="resident">
-          <div class="choice-head">
-            <span>⚡ Yerleşik Mod (Bilgisayara Yerleşsin)</span>
-            <span class="tag">Önerilen</span>
-          </div>
-          <p>Çok hafif (~12 MB RAM) olarak kendini kurar, Windows her açıldığında sessizce başlar ve internetin her zaman engelsiz olur.</p>
-        </button>
-
-        <button class="wizard-choice" data-install="on_demand">
-          <div class="choice-head">
-            <span>🔘 Aç / Kapa Modu</span>
-            <span class="tag muted">Manuel</span>
-          </div>
-          <p>Windows başlangıcına eklenmez. Sadece sen uygulamayı açıp güç düğmesine bastığında devreye girer.</p>
-        </button>
-      </div>
-
-      <div class="wizard-section-title">2. Engelsiz İnternet Kapsamı</div>
-      <div class="wizard-choice-grid" id="wizardModeChoices">
-        <button class="wizard-choice active" data-mode="full">
-          <div class="choice-head">
-            <span>🌍 Tüm Dünya Engelsiz</span>
-            <span class="tag">Trilyonlarca Site</span>
-          </div>
-          <p>Tek tek site eklemezsin — dünyadaki tüm engelli siteler ve servisler otomatik olarak açılır. En hızlı bağlantı (~2 sn).</p>
-        </button>
-
-        <button class="wizard-choice" data-mode="smart">
-          <div class="choice-head">
-            <span>🚀 Tüm Dünya + TR Hız Koruması</span>
-            <span class="tag muted">Hibrit</span>
-          </div>
-          <p>Tüm dünya engelsiz açılır; e-Devlet, TR bankalar ve Steam/Epic indirmeleri direkt hattından çıkar.</p>
-        </button>
-      </div>
-
-      <div class="wizard-footer">
-        <button id="wizardSkipBtn" class="btn secondary">Şimdilik Geç</button>
-        <button id="wizardFinishBtn" class="btn primary big">Kurulumu Tamamla ve Başlat</button>
-      </div>
-    </div>
-  </div>
-
-  <div class="app">
+  <div class="app" id="appShell">
     <header class="topbar">
       <div class="brand">
-        <div class="logo-dot" id="brandDot"></div>
+        <div class="logo-dot" id="brandDot" aria-hidden="true"></div>
         <div>
           <h1>OzeVPN <span class="ver">v6</span></h1>
           <span class="subtitle">Hafif, Engelsiz, DoH, Hot-Reload &amp; Reklam Kalkanlı Motor</span>
@@ -73,33 +25,40 @@
         <span class="pill" id="installBadge">Kurulum: —</span>
         <span class="pill" id="protoBadge">Protokol: —</span>
         <span class="pill" id="coloBadge">Çıkış: —</span>
-        <button id="newIpBtn" class="btn secondary sm" title="Avrupa Tor çıkışından 3 saniyede yeni IP al">🔄 Yeni Avrupa IP</button>
-        <button id="relaunchAdminBtn" class="btn secondary sm hidden" title="Roblox masaüstü ve tüm oyun UDP trafiği için TUN modunda aç">🎮 Oyun TUN</button>
-        <button id="emergencyResetBtn" class="btn secondary sm" title="Proxy takılı kalırsa interneti anında normale döndür">🧯 Proxy Sıfırla</button>
-        <button id="openWizardBtn" class="btn secondary sm">Sihirbaz</button>
-        <button id="quitAppBtn" class="btn secondary sm" title="OzeVPN arka plan uygulamasını tamamen kapat">⏻ Çıkış</button>
+        <button id="themeToggleBtn" type="button" class="btn secondary sm" title="Açık / Koyu tema değiştir">☀️ Açık Tema</button>
+        <button id="newIpBtn" type="button" class="btn secondary sm" title="Avrupa Tor çıkışından 3 saniyede yeni IP al">🔄 Yeni Avrupa IP</button>
+        <button id="relaunchAdminBtn" type="button" class="btn secondary sm hidden" title="Roblox masaüstü ve tüm oyun UDP trafiği için TUN modunda aç">🎮 Oyun TUN</button>
+        <button id="emergencyResetBtn" type="button" class="btn secondary sm" title="Proxy takılı kalırsa interneti anında normale döndür">🧯 Proxy Sıfırla</button>
+        <button id="openWizardBtn" type="button" class="btn secondary sm">Sihirbaz</button>
+        <button id="quitAppBtn" type="button" class="btn secondary sm" title="OzeVPN arka plan uygulamasını tamamen kapat">⏻ Çıkış</button>
       </div>
     </header>
 
-    <main class="grid">
+    <div id="offlineBanner" class="offline-banner hidden" role="alert">
+      <span id="offlineBannerText">⚠️ OzeVPN arka plan servisine ulaşılamıyor. Uygulama kapatılmış olabilir.</span>
+      <button id="retryConnBtn" type="button" class="btn secondary sm">Yeniden Dene</button>
+    </div>
+
+    <main id="mainContent" class="grid" tabindex="-1">
       <!-- Left: Power & Mode Controls -->
-      <section class="card hero-card">
+      <section class="card hero-card" aria-labelledby="controlHeading">
+        <h2 id="controlHeading" class="sr-only">Bağlantı ve Mod Kontrolleri</h2>
         <div class="power-area">
-          <button id="powerBtn" class="power-btn disconnected" aria-label="Bağlan / Kes">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round">
+          <button id="powerBtn" type="button" class="power-btn disconnected" aria-label="Bağlan" aria-pressed="false">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true" focusable="false">
               <path d="M12 3v9"></path>
               <path d="M18.36 6.64a9 9 0 1 1-12.73 0"></path>
             </svg>
           </button>
-          <div class="power-meta">
+          <div class="power-meta" role="status" aria-live="polite" aria-atomic="true">
             <div id="statusText" class="status-title">Bağlı Değil</div>
             <div id="statusSub" class="status-sub">Hazır — Tek tıkla engelsiz internete geç</div>
           </div>
         </div>
 
-        <div class="section-label">Engelsiz İnternet Modu</div>
-        <div class="mode-grid" id="modeGrid">
-          <button class="mode-card" data-mode="full">
+        <div class="section-label" id="modeGroupLabel">Engelsiz İnternet Modu</div>
+        <div class="mode-grid" id="modeGrid" role="group" aria-labelledby="modeGroupLabel">
+          <button type="button" class="mode-card active" data-mode="full" aria-pressed="true">
             <div class="mode-head">
               <span class="mode-title">🌍 Tüm Dünya Engelsiz</span>
               <span class="tag">Önerilen</span>
@@ -107,7 +66,7 @@
             <p>Tek tek site eklemeden dünyadaki tüm siteler şifreli tünelden açılır. En hızlı el sıkışma ve sıfır zahmet.</p>
           </button>
 
-          <button class="mode-card" data-mode="smart">
+          <button type="button" class="mode-card" data-mode="smart" aria-pressed="false">
             <div class="mode-head">
               <span class="mode-title">🚀 Tüm Dünya + TR Hız Koruması</span>
               <span class="tag muted">Hibrit</span>
@@ -115,7 +74,7 @@
             <p>Tüm dünya engelsiz açılır; e-Devlet, TR bankalar ve Steam/Epic indirmeleri direkt normal hızından çıkar.</p>
           </button>
 
-          <button class="mode-card" data-mode="pac">
+          <button type="button" class="mode-card" data-mode="pac" aria-pressed="false">
             <div class="mode-head">
               <span class="mode-title">🎯 Sadece Seçili Siteler (PAC)</span>
               <span class="tag muted">Tarayıcı</span>
@@ -144,9 +103,13 @@
           </div>
         </div>
 
-        <div id="customServerBox" class="add-row hidden mb-14">
-          <input id="customServerInput" type="text" placeholder="vless://, socks5:// veya WireGuard .conf yapıştır" />
-          <button id="saveServerBtn" class="btn primary">Kaydet</button>
+        <div id="customServerBox" class="field-group hidden mb-14">
+          <label class="field-label" for="customServerInput">Özel Sunucu Bağlantısı (VLESS, SOCKS5 veya WireGuard .conf)</label>
+          <div class="add-row">
+            <input id="customServerInput" type="text" spellcheck="false" autocomplete="off" aria-describedby="customServerErr" placeholder="vless://, socks5:// veya WireGuard .conf yapıştır" />
+            <button id="saveServerBtn" type="button" class="btn primary">Kaydet</button>
+          </div>
+          <div id="customServerErr" class="inline-error hidden" role="alert"></div>
         </div>
 
         <label class="resident-bar clickable">
@@ -170,16 +133,16 @@
             <strong id="residentTitle">Yerleşik Başlangıç: Kapalı</strong>
             <div class="muted-small" id="residentSub">Aç/Kapa modunda — sadece sen açınca çalışır.</div>
           </div>
-          <button id="toggleResidentBtn" class="btn secondary sm">Yerleşik Yap</button>
+          <button id="toggleResidentBtn" type="button" class="btn secondary sm">Yerleşik Yap</button>
         </div>
 
-        <div class="log-box" id="logBox">
+        <div class="log-box" id="logBox" role="log" aria-live="polite" aria-relevant="additions" aria-label="Bağlantı ve sistem günlüğü">
           <div class="log-line">OzeVPN v6 hazır.</div>
         </div>
       </section>
 
       <!-- Right: Network/Modem Info + Live Probe + Rules + Router -->
-      <section class="right-col">
+      <section class="right-col" aria-label="Ağ Durumu, Erişim Testi ve Kural Yönetimi">
         <!-- Modem / Network Banner -->
         <div class="card net-card">
           <div class="net-row">
@@ -203,59 +166,70 @@
           <div class="card-header">
             <div>
               <h2>Canlı Erişim, Hız &amp; Site Kurtarıcı</h2>
-              <p class="muted-text" id="traceSummary">Çıkış IP, indirme hızı (Mbps) ve erişim durumunu tek tıkla ölç.</p>
+              <p class="muted-text" id="traceSummary" role="status" aria-live="polite">Çıkış IP, indirme hızı (Mbps) ve erişim durumunu tek tıkla ölç.</p>
             </div>
             <div class="btn-group">
-              <button id="speedBtn" class="btn secondary">⚡ Hız Ölç</button>
-              <button id="probeBtn" class="btn primary">Test Et</button>
+              <button id="speedBtn" type="button" class="btn secondary">⚡ Hız Ölç</button>
+              <button id="probeBtn" type="button" class="btn primary">Test Et</button>
             </div>
           </div>
           <div class="probe-grid" id="probeGrid">
             <div class="probe-empty">Henüz test yapılmadı. "Test Et" veya "⚡ Hız Ölç" butonuna tıkla.</div>
           </div>
-          <div class="add-row rescue-row">
-            <input id="rescueInput" type="text" placeholder="Açılmayan bir site yaz (örn: wattpad.com) → Test et veya tek tıkla Avrupa'ya al" />
-            <button id="rescueTestBtn" class="btn secondary">Kontrol Et</button>
-            <button id="rescueAddBtn" class="btn primary">Avrupa'ya Al</button>
+          <div class="field-group rescue-row">
+            <label class="field-label" for="rescueInput">Site Kurtarıcı (Açılmayan alan adını test et veya Avrupa çıkışına al)</label>
+            <div class="add-row">
+              <input id="rescueInput" type="text" spellcheck="false" autocomplete="off" aria-describedby="rescueResult" placeholder="Örn: wattpad.com veya roblox.com" />
+              <button id="rescueTestBtn" type="button" class="btn secondary">Kontrol Et</button>
+              <button id="rescueAddBtn" type="button" class="btn primary">Avrupa'ya Al</button>
+            </div>
           </div>
-          <div id="rescueResult" class="muted-small mt-8"></div>
+          <div id="rescueResult" class="muted-small mt-8" role="status" aria-live="polite"></div>
         </div>
 
         <!-- Tabs -->
         <div class="card">
-          <div class="tabs">
-            <button class="tab active" data-tab="bypass">⚡ Direkt Geç (TR &amp; İndirme)</button>
-            <button class="tab" data-tab="tunnel">🌐 PAC &amp; Router Listesi</button>
-            <button class="tab" data-tab="router">📡 Modem / Router &amp; Ortak VPS</button>
+          <div class="tabs" role="tablist" aria-label="Kural ve Router Ayarları">
+            <button type="button" class="tab active" id="tabBtn-bypass" role="tab" aria-selected="true" aria-controls="tab-bypass" tabindex="0" data-tab="bypass">⚡ Direkt Geç (TR &amp; İndirme)</button>
+            <button type="button" class="tab" id="tabBtn-tunnel" role="tab" aria-selected="false" aria-controls="tab-tunnel" tabindex="-1" data-tab="tunnel">🌐 PAC &amp; Router Listesi</button>
+            <button type="button" class="tab" id="tabBtn-router" role="tab" aria-selected="false" aria-controls="tab-router" tabindex="-1" data-tab="router">📡 Modem / Router &amp; Ortak VPS</button>
           </div>
 
-          <div class="tab-panel active" id="tab-bypass">
+          <div class="tab-panel active" id="tab-bypass" role="tabpanel" aria-labelledby="tabBtn-bypass" tabindex="0">
             <p class="muted-text">Hibrit modda bu siteler tünele <strong>girmez</strong>, doğrudan normal internet hızında açılır.</p>
             <div id="bypassPresets" class="preset-list"></div>
-            <div class="add-row">
-              <input id="customBypassInput" type="text" placeholder="Örn: yemeksepeti.com veya bankam.com.tr" />
-              <button id="addBypassBtn" class="btn primary">Ekle</button>
+            <div class="field-group">
+              <label class="field-label" for="customBypassInput">Direkt geçecek özel site ekle</label>
+              <div class="add-row">
+                <input id="customBypassInput" type="text" spellcheck="false" autocomplete="off" aria-describedby="bypassErr" placeholder="Örn: yemeksepeti.com veya bankam.com.tr" />
+                <button id="addBypassBtn" type="button" class="btn primary">Ekle</button>
+              </div>
+              <div id="bypassErr" class="inline-error hidden" role="alert"></div>
             </div>
             <div id="customBypassChips" class="chip-list"></div>
           </div>
 
-          <div class="tab-panel" id="tab-tunnel">
+          <div class="tab-panel" id="tab-tunnel" role="tabpanel" aria-labelledby="tabBtn-tunnel" tabindex="0" hidden>
             <p class="muted-text">PAC modunda veya OpenWrt router'da özel olarak tünele alınacak siteler.</p>
             <div id="tunnelPresets" class="preset-list"></div>
-            <div class="add-row">
-              <input id="customTunnelInput" type="text" placeholder="Örn: reddit.com veya engellisite.com" />
-              <button id="addTunnelBtn" class="btn primary">Ekle</button>
+            <div class="field-group">
+              <label class="field-label" for="customTunnelInput">Özel olarak tünele alınacak site ekle</label>
+              <div class="add-row">
+                <input id="customTunnelInput" type="text" spellcheck="false" autocomplete="off" aria-describedby="tunnelErr" placeholder="Örn: reddit.com veya engellisite.com" />
+                <button id="addTunnelBtn" type="button" class="btn primary">Ekle</button>
+              </div>
+              <div id="tunnelErr" class="inline-error hidden" role="alert"></div>
             </div>
             <div id="customTunnelChips" class="chip-list"></div>
           </div>
 
-          <div class="tab-panel" id="tab-router">
+          <div class="tab-panel" id="tab-router" role="tabpanel" aria-labelledby="tabBtn-router" tabindex="0" hidden>
             <div class="router-box">
               <h3>Tüm Ev İçin Modem Arkası Router (OpenWrt) &amp; Yurt Dışı Çıkış</h3>
               <p>Evdeki tüm cihazların (PC, telefon, TV, konsol) engelsiz ve ping sıçramasız (SQM/CAKE) çalışması için <code>sing-box</code> ayarını indirip OpenWrt router'a yükleyebilirsin. Ayrıca Roblox gibi Türkiye çıkışında engelli servisler için ileride aylık ~3€'luk ortak bir Avrupa VPS'ini tek betikle bağlayabilirsin.</p>
               <div class="router-actions">
                 <a href="/api/export/openwrt" download="sing-box-openwrt.json" class="btn primary">sing-box-openwrt.json İndir</a>
-                <a href="/proxy.pac" target="_blank" class="btn secondary">Aktif PAC Dosyasını Gör</a>
+                <a href="/proxy.pac" target="_blank" rel="noopener noreferrer" class="btn secondary">Aktif PAC Dosyasını Gör ↗<span class="sr-only"> (yeni sekmede açılır)</span></a>
               </div>
               <div class="hint-box">
                 <strong>Hazır kurulum dosyaları:</strong><br/>
@@ -268,6 +242,73 @@
         </div>
       </section>
     </main>
+  </div>
+
+  <!-- First-Run Setup Wizard Modal (placed after main for semantic h1 -> h2 order) -->
+  <div id="wizardOverlay" class="wizard-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="wizardTitle" aria-describedby="wizardDesc">
+    <div class="wizard-card" tabindex="-1">
+      <div class="wizard-badge">OzeVPN Kurulum Sihirbazı</div>
+      <h2 id="wizardTitle">Bilgisayarına Nasıl Kurulsun?</h2>
+      <p id="wizardDesc" class="wizard-desc">Tek seferlik tercihini seç — sonra ister hiç uğraşmadan arka planda engelsiz internet kullan, ister sadece aç/kapa yap.</p>
+
+      <div class="wizard-section-title" id="wizInstallLabel">1. Çalışma Şekli</div>
+      <div class="wizard-choice-grid" id="wizardInstallChoices" role="group" aria-labelledby="wizInstallLabel">
+        <button type="button" class="wizard-choice active" data-install="resident" aria-pressed="true">
+          <div class="choice-head">
+            <span>⚡ Yerleşik Mod (Bilgisayara Yerleşsin)</span>
+            <span class="tag">Önerilen</span>
+          </div>
+          <p>Çok hafif (~12 MB RAM) olarak kendini kurar, Windows her açıldığında sessizce başlar ve internetin her zaman engelsiz olur.</p>
+        </button>
+
+        <button type="button" class="wizard-choice" data-install="on_demand" aria-pressed="false">
+          <div class="choice-head">
+            <span>🔘 Aç / Kapa Modu</span>
+            <span class="tag muted">Manuel</span>
+          </div>
+          <p>Windows başlangıcına eklenmez. Sadece sen uygulamayı açıp güç düğmesine bastığında devreye girer.</p>
+        </button>
+      </div>
+
+      <div class="wizard-section-title" id="wizModeLabel">2. Engelsiz İnternet Kapsamı</div>
+      <div class="wizard-choice-grid" id="wizardModeChoices" role="group" aria-labelledby="wizModeLabel">
+        <button type="button" class="wizard-choice active" data-mode="full" aria-pressed="true">
+          <div class="choice-head">
+            <span>🌍 Tüm Dünya Engelsiz</span>
+            <span class="tag">Trilyonlarca Site</span>
+          </div>
+          <p>Tek tek site eklemeden dünyadaki tüm engelli siteler ve servisler otomatik olarak açılır. En hızlı bağlantı (~2 sn).</p>
+        </button>
+
+        <button type="button" class="wizard-choice" data-mode="smart" aria-pressed="false">
+          <div class="choice-head">
+            <span>🚀 Tüm Dünya + TR Hız Koruması</span>
+            <span class="tag muted">Hibrit</span>
+          </div>
+          <p>Tüm dünya engelsiz açılır; e-Devlet, TR bankalar ve Steam/Epic indirmeleri direkt hattından çıkar.</p>
+        </button>
+      </div>
+
+      <div id="wizardError" class="inline-error hidden mt-8" role="alert"></div>
+
+      <div class="wizard-footer">
+        <button id="wizardSkipBtn" type="button" class="btn secondary">Şimdilik Geç</button>
+        <button id="wizardFinishBtn" type="button" class="btn primary big">Kurulumu Tamamla ve Başlat</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Accessible Confirmation Modal for Destructive Actions -->
+  <div id="confirmOverlay" class="wizard-overlay hidden" role="alertdialog" aria-modal="true" aria-labelledby="confirmTitle" aria-describedby="confirmDesc">
+    <div class="wizard-card confirm-card" tabindex="-1">
+      <div class="wizard-badge">Onay Gerekli</div>
+      <h2 id="confirmTitle">İşlemi Onayla</h2>
+      <p id="confirmDesc" class="wizard-desc"></p>
+      <div class="wizard-footer">
+        <button id="confirmCancelBtn" type="button" class="btn secondary">Vazgeç</button>
+        <button id="confirmOkBtn" type="button" class="btn danger">Onayla</button>
+      </div>
+    </div>
   </div>
 
   <script src="/app.js"></script>

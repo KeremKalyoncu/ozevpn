@@ -1,6 +1,6 @@
-# OzeVPN v4 — Hızlı, Güvenli & Sansürsüz İnternet Motoru
+# OzeVPN v6 — Hızlı, Güvenli & Sansürsüz İnternet Motoru
 
-**OzeVPN v4**, `sing-box` çekirdeği üzerine kurulu; **paralel hibrit motor (WARP + Avrupa Tor)**, **şifreli DoH DNS**, **Reklam & Takipçi Hız Kalkanı**, **Akıllı TUN / Sistem Proxy** ve **CSRF korumalı** yerel kontrol panelidir.
+**OzeVPN v6**, `sing-box` çekirdeği üzerine kurulu; **paralel hibrit motor (WARP + Avrupa Tor)**, **şifreli DoH DNS**, **Reklam & Takipçi Hız Kalkanı**, **Akıllı TUN / Sistem Proxy**, **Açık/Koyu Tema** ve **CSRF korumalı** yerel kontrol panelidir.
 
 ## Hemen Çalıştır
 - **[ozevpn.exe](ozevpn.exe)** dosyasına çift tıkla (tarayıcıda `http://127.0.0.1:7777` otomatik açılır).

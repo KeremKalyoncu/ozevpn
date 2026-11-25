@@ -123,6 +123,24 @@ func buildHandler(store *config.Store, eng *engine.Manager) http.Handler {
 	}
 	fileSrv := http.FileServer(http.FS(subWeb))
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		cleanPath := strings.TrimPrefix(r.URL.Path, "/")
+		if cleanPath != "" {
+			if _, err := fs.Stat(subWeb, cleanPath); err != nil {
+				if strings.HasPrefix(r.URL.Path, "/api/") {
+					writeJSON(w, http.StatusNotFound, map[string]string{"error": "İstenen API uç noktası bulunamadı."})
+					return
+				}
+				w.Header().Set("Content-Type", "text/html; charset=utf-8")
+				w.Header().Set("Cache-Control", "no-store")
+				w.WriteHeader(http.StatusNotFound)
+				if data, readErr := webFS.ReadFile("web/404.html"); readErr == nil {
+					_, _ = w.Write(data)
+					return
+				}
+				_, _ = w.Write([]byte("<!DOCTYPE html><html lang=\"tr\"><body><h1>404</h1><a href=\"/\">Ana Panele Dön</a></body></html>"))
+				return
+			}
+		}
 		if strings.HasSuffix(r.URL.Path, ".css") || strings.HasSuffix(r.URL.Path, ".js") || strings.HasSuffix(r.URL.Path, ".svg") {
 			w.Header().Set("Cache-Control", "public, max-age=3600")
 		}
@@ -526,7 +544,7 @@ func main() {
 	}
 
 	if !*silent {
-		fmt.Printf("\n  OzeVPN v5 (sing-box + DoH + Hot-Reload + Hız Kalkanı) çalışıyor -> %s\n", u)
+		fmt.Printf("\n  OzeVPN v6 (sing-box + DoH + Hot-Reload + Hız Kalkanı) çalışıyor -> %s\n", u)
 		fmt.Println("  Kapatmak için CTRL+C tuşlarına bas.")
 		fmt.Println()
 	}
