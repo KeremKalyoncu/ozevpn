@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"ozevpn/internal/config"
+	"ozevpn/internal/procutil"
 )
 
 type StatusInfo struct {
@@ -70,6 +71,7 @@ func (c *Client) run(timeout time.Duration, args ...string) (string, error) {
 
 	fullArgs := append([]string{"--no-ansi", "--no-paginate"}, args...)
 	cmd := exec.CommandContext(ctx, c.binPath, fullArgs...)
+	procutil.HideWindow(cmd)
 	var out, stderr bytes.Buffer
 	cmd.Stdout = &out
 	cmd.Stderr = &stderr

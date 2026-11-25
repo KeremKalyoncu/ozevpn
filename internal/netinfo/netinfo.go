@@ -9,6 +9,8 @@ import (
 	"runtime"
 	"strings"
 	"time"
+
+	"ozevpn/internal/procutil"
 )
 
 type Info struct {
@@ -46,6 +48,7 @@ if ($cfg) {
 }
 `
 	cmd := exec.Command("powershell", "-NoProfile", "-NonInteractive", "-Command", ps)
+	procutil.HideWindow(cmd)
 	var out bytes.Buffer
 	cmd.Stdout = &out
 	if err := cmd.Run(); err != nil {

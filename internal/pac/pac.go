@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"ozevpn/internal/config"
+	"ozevpn/internal/procutil"
 )
 
 // GeneratePAC creates a Proxy Auto-Config script that routes ONLY selected
@@ -74,6 +75,7 @@ Remove-ItemProperty -Path $path -Name AutoConfigURL -ErrorAction SilentlyContinu
 
 func runPS(script string) error {
 	cmd := exec.Command("powershell", "-NoProfile", "-NonInteractive", "-Command", script)
+	procutil.HideWindow(cmd)
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
 	if err := cmd.Run(); err != nil {

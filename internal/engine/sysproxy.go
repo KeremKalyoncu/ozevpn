@@ -10,6 +10,8 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+
+	"ozevpn/internal/procutil"
 )
 
 // IsAdmin checks whether the current process has Administrator privileges on Windows.
@@ -18,7 +20,14 @@ func IsAdmin() bool {
 		return false
 	}
 	cmd := exec.Command("net", "session")
+	procutil.HideWindow(cmd)
 	return cmd.Run() == nil
+}
+
+func runHidden(name string, args ...string) *exec.Cmd {
+	cmd := exec.Command(name, args...)
+	procutil.HideWindow(cmd)
+	return cmd
 }
 
 // EnableSystemProxy configures Windows WinINET HTTP/HTTPS proxy to 127.0.0.1:<port>
@@ -34,14 +43,14 @@ func EnableSystemProxy(port int) error {
 		{"reg", "add", regKey, "/v", "ProxyOverride", "/t", "REG_SZ", "/d", "localhost;127.*;10.*;172.16.*;192.168.*;<local>", "/f"},
 	}
 	for _, args := range cmds {
-		cmd := exec.Command(args[0], args[1:]...)
+		cmd := runHidden(args[0], args[1:]...)
 		var stderr bytes.Buffer
 		cmd.Stderr = &stderr
 		if err := cmd.Run(); err != nil {
 			return fmt.Errorf("%w: %s", err, strings.TrimSpace(stderr.String()))
 		}
 	}
-	_ = exec.Command("reg", "delete", regKey, "/v", "AutoConfigURL", "/f").Run()
+	_ = runHidden("reg", "delete", regKey, "/v", "AutoConfigURL", "/f").Run()
 	return nil
 }
 
@@ -51,8 +60,8 @@ func DisableSystemProxy() error {
 		return nil
 	}
 	regKey := `HKCU\Software\Microsoft\Windows\CurrentVersion\Internet Settings`
-	_ = exec.Command("reg", "add", regKey, "/v", "ProxyEnable", "/t", "REG_DWORD", "/d", "0", "/f").Run()
-	_ = exec.Command("reg", "delete", regKey, "/v", "AutoConfigURL", "/f").Run()
+	_ = runHidden("reg", "add", regKey, "/v", "ProxyEnable", "/t", "REG_DWORD", "/d", "0", "/f").Run()
+	_ = runHidden("reg", "delete", regKey, "/v", "AutoConfigURL", "/f").Run()
 	return nil
 }
 
@@ -62,11 +71,11 @@ func IsSystemProxyPointingTo(port int) bool {
 		return false
 	}
 	regKey := `HKCU\Software\Microsoft\Windows\CurrentVersion\Internet Settings`
-	outEnable, err := exec.Command("reg", "query", regKey, "/v", "ProxyEnable").Output()
+	outEnable, err := runHidden("reg", "query", regKey, "/v", "ProxyEnable").Output()
 	if err != nil || !strings.Contains(strings.ToLower(string(outEnable)), "0x1") {
 		return false
 	}
-	outSrv, err := exec.Command("reg", "query", regKey, "/v", "ProxyServer").Output()
+	outSrv, err := runHidden("reg", "query", regKey, "/v", "ProxyServer").Output()
 	if err != nil {
 		return false
 	}
@@ -99,6 +108,7 @@ func KillProcessByExactPath(exactExePath string) {
 
 func runPS(script string) error {
 	cmd := exec.Command("powershell", "-NoProfile", "-NonInteractive", "-Command", script)
+	procutil.HideWindow(cmd)
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
 	if err := cmd.Run(); err != nil {

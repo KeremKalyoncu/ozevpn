@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"ozevpn/internal/config"
+	"ozevpn/internal/procutil"
 	"ozevpn/internal/warp"
 )
 
@@ -75,6 +76,7 @@ type Manager struct {
 	sbCmd         *exec.Cmd
 	sbLogFile     *cappedFileWriter
 	running       bool
+	isAdmin       bool
 	state         string
 	activeProf    string
 	captureLayer  string
@@ -92,6 +94,7 @@ func NewManager(baseDir string, wc *warp.Client) *Manager {
 	m := &Manager{
 		baseDir:    baseDir,
 		warpClient: wc,
+		isAdmin:    IsAdmin(),
 		state:      "Disconnected",
 		mixedPort:  10808,
 		torPort:    9055,
@@ -141,7 +144,6 @@ func (m *Manager) Status() EngineState {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	ws := m.warpClient.Status()
 	var up int64
 	if m.running && !m.startedAt.IsZero() {
 		up = int64(time.Since(m.startedAt).Seconds())
@@ -151,13 +153,13 @@ func (m *Manager) Status() EngineState {
 		State:          m.state,
 		ActiveProfile:  m.activeProf,
 		CaptureLayer:   m.captureLayer,
-		IsAdmin:        IsAdmin(),
+		IsAdmin:        m.isAdmin,
 		SingBoxReady:   m.findBin("sing-box.exe") != "",
 		SingBoxAlive:   procAlive(m.sbCmd),
 		TorReady:       m.findBin(filepath.Join("tor", "tor", "tor.exe")) != "",
 		TorAlive:       procAlive(m.torCmd),
 		TorBridgeReady: m.findBin(filepath.Join("tor", "tor", "pluggable_transports", "lyrebird.exe")) != "",
-		WarpInstalled:  ws.Installed,
+		WarpInstalled:  m.warpClient.BinaryDir() != "",
 		AdBlockActive:  m.running && m.adBlockActive,
 		DNSProtected:   m.running,
 		ProxyPort:      m.mixedPort,
@@ -308,6 +310,7 @@ func (m *Manager) Start(cfg config.Config) ([]string, error) {
 		return logs, errors.New(m.lastErr)
 	}
 	cmd := exec.Command(sbBin, "run", "-c", sbCfgPath)
+	procutil.HideWindow(cmd)
 	cmd.Stdout = sbLogFile
 	cmd.Stderr = sbLogFile
 	if err := cmd.Start(); err != nil {
@@ -445,6 +448,7 @@ func (m *Manager) startTorLocked(torBin string, useBridge bool) error {
 		return err
 	}
 	cmd := exec.Command(torBin, "-f", torrcPath)
+	procutil.HideWindow(cmd)
 	cmd.Stdout = logFile
 	cmd.Stderr = logFile
 	if err := cmd.Start(); err != nil {
@@ -539,6 +543,7 @@ func (m *Manager) ReloadRouting(cfg config.Config) (string, error) {
 		return "", err
 	}
 	cmd := exec.Command(sbBin, "run", "-c", sbCfgPath)
+	procutil.HideWindow(cmd)
 	cmd.Stdout = sbLogFile
 	cmd.Stderr = sbLogFile
 	if err := cmd.Start(); err != nil {

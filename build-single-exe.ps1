@@ -1,4 +1,4 @@
-﻿# OzeVPN Tek Dosya (Standalone) Masaüstü Uygulaması Derleyicisi
+# OzeVPN Tek Dosya (Standalone) Masaüstü Uygulaması Derleyicisi
 # - sing-box.exe ve Tor/Snowflake ikililerini SHA256 doğrulayarak tek .exe içine gömer
 # - -H=windowsgui ile siyah konsol penceresi olmadan doğrudan masaüstü uygulaması olarak açılır
 $ErrorActionPreference = 'Stop'
