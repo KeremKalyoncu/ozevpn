@@ -126,7 +126,10 @@ function renderConfig() {
   });
   els.engineProfileSelect.value = appConfig.engine_profile || 'hybrid_eu';
   els.protocolSelect.value = appConfig.protocol || 'Auto';
-  els.customServerInput.value = appConfig.custom_server || '';
+  els.customServerInput.value = '';
+  els.customServerInput.placeholder = appConfig.custom_server_set
+    ? '🔒 Kayıtlı özel sunucu aktif (değiştirmek için yenisini yapıştır)'
+    : 'vless://, socks5:// veya WireGuard .conf yapıştır';
   els.customServerBox.classList.toggle('hidden', els.engineProfileSelect.value !== 'custom');
   if (els.adBlockToggle) {
     els.adBlockToggle.checked = !!appConfig.ad_block_speed;

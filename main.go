@@ -196,7 +196,7 @@ func buildHandler(store *config.Store, eng *engine.Manager) http.Handler {
 
 		writeJSON(w, http.StatusOK, map[string]any{
 			"ok":      true,
-			"config":  store.Get(),
+			"config":  store.Get().Redacted(),
 			"install": inst,
 			"logs":    logs,
 		})
@@ -205,7 +205,7 @@ func buildHandler(store *config.Store, eng *engine.Manager) http.Handler {
 	mux.HandleFunc("/api/config", func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
 		case http.MethodGet:
-			writeJSON(w, http.StatusOK, store.Get())
+			writeJSON(w, http.StatusOK, store.Get().Redacted())
 		case http.MethodPost:
 			var incoming config.Config
 			dec := json.NewDecoder(r.Body)
@@ -242,7 +242,10 @@ func buildHandler(store *config.Store, eng *engine.Manager) http.Handler {
 				if incoming.ProxyPort >= 1024 && incoming.ProxyPort <= 65535 {
 					c.ProxyPort = incoming.ProxyPort
 				}
-				c.CustomServer = incoming.CustomServer
+				// Only overwrite secret CustomServer when a new non-empty value is explicitly submitted
+				if strings.TrimSpace(incoming.CustomServer) != "" {
+					c.CustomServer = incoming.CustomServer
+				}
 				if len(incoming.BypassPresets) > 0 {
 					c.BypassPresets = incoming.BypassPresets
 				}
@@ -255,7 +258,7 @@ func buildHandler(store *config.Store, eng *engine.Manager) http.Handler {
 				writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 				return
 			}
-			writeJSON(w, http.StatusOK, store.Get())
+			writeJSON(w, http.StatusOK, store.Get().Redacted())
 		default:
 			w.WriteHeader(http.StatusMethodNotAllowed)
 		}
@@ -370,7 +373,7 @@ func buildHandler(store *config.Store, eng *engine.Manager) http.Handler {
 				writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 				return
 			}
-			writeJSON(w, http.StatusOK, map[string]any{"ok": true, "domain": dom, "message": msg, "config": store.Get()})
+			writeJSON(w, http.StatusOK, map[string]any{"ok": true, "domain": dom, "message": msg, "config": store.Get().Redacted()})
 			return
 		}
 		ctx, cancel := context.WithTimeout(r.Context(), 18*time.Second)

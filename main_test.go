@@ -148,3 +148,36 @@ func TestStrictSchemaValidationAndSSRFGuard(t *testing.T) {
 		}
 	}
 }
+
+func TestConfigMasksCustomServerSecrets(t *testing.T) {
+	tmp := t.TempDir()
+	store, _ := config.NewStore(filepath.Join(tmp, "ozevpn.json"))
+	eng := engine.NewManager(tmp, warp.NewClient())
+	h := buildHandler(store, eng)
+
+	secret := "vless://SUPER-SECRET-UUID@eu.example.com:443?security=tls"
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, localReq(http.MethodPost, "/api/config", `{"custom_server":"`+secret+`"}`))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 saving custom_server, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if strings.Contains(rec.Body.String(), "SUPER-SECRET-UUID") {
+		t.Fatal("POST /api/config leaked custom_server secret in response body")
+	}
+
+	recGet := httptest.NewRecorder()
+	h.ServeHTTP(recGet, localReq(http.MethodGet, "/api/config", ""))
+	if strings.Contains(recGet.Body.String(), "SUPER-SECRET-UUID") {
+		t.Fatal("GET /api/config leaked custom_server secret in response body")
+	}
+	if !strings.Contains(recGet.Body.String(), `"custom_server_set":true`) {
+		t.Fatalf("expected custom_server_set:true, got %s", recGet.Body.String())
+	}
+
+	// Updating another setting must preserve the stored secret
+	recUpd := httptest.NewRecorder()
+	h.ServeHTTP(recUpd, localReq(http.MethodPost, "/api/config", `{"ad_block_speed":false}`))
+	if recUpd.Code != http.StatusOK || store.Get().CustomServer != secret {
+		t.Fatal("updating unrelated config field wiped stored custom_server")
+	}
+}

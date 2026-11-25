@@ -46,9 +46,10 @@ type Config struct {
 	AdBlockSpeed   bool          `json:"ad_block_speed"` // DNS-level ad & tracker blocker for faster page loads
 	TorBridge      bool          `json:"tor_bridge"`     // Use Snowflake pluggable transport if direct Tor is blocked
 	ProxyPort      int           `json:"proxy_port"`
-	ListenAddr     string        `json:"listen_addr"`
-	CustomServer   string        `json:"custom_server"` // vless://, socks5://, WireGuard .conf veya sing-box JSON
-	BypassPresets  []PresetGroup `json:"bypass_presets"`
+	ListenAddr      string        `json:"listen_addr"`
+	CustomServer    string        `json:"custom_server"`               // vless://, socks5://, WireGuard .conf veya sing-box JSON
+	CustomServerSet bool          `json:"custom_server_set,omitempty"` // API yanıtında anahtarı sızdırmadan kayıtlı olduğunu bildirir
+	BypassPresets   []PresetGroup `json:"bypass_presets"`
 	CustomBypass   []string      `json:"custom_bypass"`
 	TunnelPresets  []PresetGroup `json:"tunnel_presets"`
 	CustomTunnel   []string      `json:"custom_tunnel"`
@@ -226,6 +227,19 @@ func (s *Store) Update(fn func(*Config)) error {
 	return s.Save()
 }
 
+// Redacted returns a copy of Config safe to expose over GET /api/config
+// without leaking private keys, UUIDs, or SOCKS5 passwords to the browser DOM.
+func (c Config) Redacted() Config {
+	out := c
+	if strings.TrimSpace(out.CustomServer) != "" {
+		out.CustomServerSet = true
+		out.CustomServer = ""
+	} else {
+		out.CustomServerSet = false
+	}
+	return out
+}
+
 func (s *Store) Save() error {
 	s.mu.RLock()
 	data, err := json.MarshalIndent(s.cfg, "", "  ")
@@ -234,9 +248,9 @@ func (s *Store) Save() error {
 		return err
 	}
 	if dir := filepath.Dir(s.path); dir != "" && dir != "." {
-		_ = os.MkdirAll(dir, 0755)
+		_ = os.MkdirAll(dir, 0700)
 	}
-	return os.WriteFile(s.path, data, 0644)
+	return os.WriteFile(s.path, data, 0600)
 }
 
 func CleanDomain(raw string) string {
