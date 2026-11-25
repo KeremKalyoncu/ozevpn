@@ -359,13 +359,15 @@ func (m *Manager) Start(cfg config.Config) ([]string, error) {
 }
 
 func (m *Manager) watchdogLoop(stopCh chan struct{}, sbBin, sbCfgPath string) {
-	ticker := time.NewTicker(10 * time.Second)
-	defer ticker.Stop()
+	backoff := 5 * time.Second
+	const maxBackoff = 60 * time.Second
+	timer := time.NewTimer(backoff)
+	defer timer.Stop()
 	for {
 		select {
 		case <-stopCh:
 			return
-		case <-ticker.C:
+		case <-timer.C:
 			m.mu.Lock()
 			if !m.running {
 				m.mu.Unlock()
@@ -392,8 +394,16 @@ func (m *Manager) watchdogLoop(stopCh chan struct{}, sbBin, sbCfgPath string) {
 						_ = sbLogFile.Close()
 					}
 				}
+				// Exponential backoff on repeated crashes
+				backoff *= 2
+				if backoff > maxBackoff {
+					backoff = maxBackoff
+				}
+			} else {
+				backoff = 5 * time.Second
 			}
 			m.mu.Unlock()
+			timer.Reset(backoff)
 		}
 	}
 }

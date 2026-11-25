@@ -181,3 +181,42 @@ func TestConfigMasksCustomServerSecrets(t *testing.T) {
 		t.Fatal("updating unrelated config field wiped stored custom_server")
 	}
 }
+
+func TestConcurrencyLimitReturns429AndStaticCacheHeaders(t *testing.T) {
+	block := make(chan struct{})
+	started := make(chan struct{})
+	limited := withConcurrencyLimit(1, func(w http.ResponseWriter, r *http.Request) {
+		close(started)
+		<-block
+		w.WriteHeader(http.StatusOK)
+	})
+
+	done1 := make(chan int, 1)
+	go func() {
+		rec1 := httptest.NewRecorder()
+		limited(rec1, localReq(http.MethodGet, "/api/speedtest", ""))
+		done1 <- rec1.Code
+	}()
+	<-started
+
+	rec2 := httptest.NewRecorder()
+	limited(rec2, localReq(http.MethodGet, "/api/speedtest", ""))
+	if rec2.Code != http.StatusTooManyRequests {
+		t.Fatalf("expected 429 when concurrency limit exceeded, got %d", rec2.Code)
+	}
+	close(block)
+	if code1 := <-done1; code1 != http.StatusOK {
+		t.Fatalf("expected first request 200, got %d", code1)
+	}
+
+	// Verify static CSS receives Cache-Control header
+	tmp := t.TempDir()
+	store, _ := config.NewStore(filepath.Join(tmp, "ozevpn.json"))
+	eng := engine.NewManager(tmp, warp.NewClient())
+	h := buildHandler(store, eng)
+	recCSS := httptest.NewRecorder()
+	h.ServeHTTP(recCSS, localReq(http.MethodGet, "/style.css", ""))
+	if recCSS.Code != http.StatusOK || !strings.Contains(recCSS.Header().Get("Cache-Control"), "max-age=3600") {
+		t.Fatalf("expected 200 with Cache-Control max-age=3600 for /style.css, got %d %q", recCSS.Code, recCSS.Header().Get("Cache-Control"))
+	}
+}

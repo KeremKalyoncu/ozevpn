@@ -94,6 +94,21 @@ func securityMiddleware(next http.Handler) http.Handler {
 	})
 }
 
+// withConcurrencyLimit caps concurrent calls to heavy endpoints (/api/probe, /api/speedtest, /api/rescue)
+// returning 429 Too Many Requests when saturated.
+func withConcurrencyLimit(maxConcurrent int, next http.HandlerFunc) http.HandlerFunc {
+	sem := make(chan struct{}, maxConcurrent)
+	return func(w http.ResponseWriter, r *http.Request) {
+		select {
+		case sem <- struct{}{}:
+			defer func() { <-sem }()
+			next(w, r)
+		default:
+			writeJSON(w, http.StatusTooManyRequests, map[string]string{"error": "Çok fazla eşzamanlı test isteği; mevcut testin bitmesini bekleyin."})
+		}
+	}
+}
+
 func buildHandler(store *config.Store, eng *engine.Manager) http.Handler {
 	mux := http.NewServeMux()
 
@@ -101,7 +116,13 @@ func buildHandler(store *config.Store, eng *engine.Manager) http.Handler {
 	if err != nil {
 		log.Fatalf("Web dosyaları okunamadı: %v", err)
 	}
-	mux.Handle("/", http.FileServer(http.FS(subWeb)))
+	fileSrv := http.FileServer(http.FS(subWeb))
+	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasSuffix(r.URL.Path, ".css") || strings.HasSuffix(r.URL.Path, ".js") || strings.HasSuffix(r.URL.Path, ".svg") {
+			w.Header().Set("Cache-Control", "public, max-age=3600")
+		}
+		fileSrv.ServeHTTP(w, r)
+	})
 
 	// Serve SVG favicon cleanly for /favicon.ico too (zero 404s in Chrome DevTools)
 	mux.HandleFunc("/favicon.ico", func(w http.ResponseWriter, r *http.Request) {
@@ -319,7 +340,7 @@ func buildHandler(store *config.Store, eng *engine.Manager) http.Handler {
 		}()
 	})
 
-	mux.HandleFunc("/api/probe", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/api/probe", withConcurrencyLimit(2, func(w http.ResponseWriter, r *http.Request) {
 		ctx, cancel := context.WithTimeout(r.Context(), 16*time.Second)
 		defer cancel()
 		st := eng.Status()
@@ -328,9 +349,9 @@ func buildHandler(store *config.Store, eng *engine.Manager) http.Handler {
 			proxyPort = st.ProxyPort
 		}
 		writeJSON(w, http.StatusOK, probe.Run(ctx, proxyPort))
-	})
+	}))
 
-	mux.HandleFunc("/api/speedtest", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/api/speedtest", withConcurrencyLimit(1, func(w http.ResponseWriter, r *http.Request) {
 		ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
 		defer cancel()
 		st := eng.Status()
@@ -339,9 +360,9 @@ func buildHandler(store *config.Store, eng *engine.Manager) http.Handler {
 			proxyPort = st.ProxyPort
 		}
 		writeJSON(w, http.StatusOK, probe.RunSpeedTest(ctx, proxyPort))
-	})
+	}))
 
-	mux.HandleFunc("/api/rescue", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/api/rescue", withConcurrencyLimit(2, func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			w.WriteHeader(http.StatusMethodNotAllowed)
 			return
@@ -385,7 +406,7 @@ func buildHandler(store *config.Store, eng *engine.Manager) http.Handler {
 		}
 		rep := probe.TestDomainPaths(ctx, dom, mixedPort, eng.TorPort())
 		writeJSON(w, http.StatusOK, rep)
-	})
+	}))
 
 	mux.HandleFunc("/api/new-identity", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
@@ -475,6 +496,8 @@ func main() {
 		Addr:              listenAddr,
 		Handler:           buildHandler(store, eng),
 		ReadHeaderTimeout: 10 * time.Second,
+		ReadTimeout:       15 * time.Second,
+		IdleTimeout:       60 * time.Second,
 	}
 
 	if !*silent {
