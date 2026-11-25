@@ -598,6 +598,7 @@ func openBrowser(targetURL string) {
 					"--app="+targetURL,
 					"--window-size=1180,820",
 					"--user-data-dir="+profileDir,
+					"--disable-extensions",
 					"--no-first-run",
 					"--no-default-browser-check",
 				)
