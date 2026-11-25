@@ -40,3 +40,24 @@ func TestDefaultConfigBypassIncludesTRAndCDN(t *testing.T) {
 		}
 	}
 }
+
+func TestValidateConfigRejectsExcessiveListSize(t *testing.T) {
+	cfg := DefaultConfig()
+	cfg.CustomTunnel = make([]string, 201)
+	if err := ValidateConfig(cfg); err == nil {
+		t.Fatal("expected error for >200 custom tunnel domains")
+	}
+}
+
+func FuzzCleanDomain(f *testing.F) {
+	f.Add("https://www.discord.com/app")
+	f.Add("-flag")
+	f.Add("127.0.0.1")
+	f.Add("example.com;calc")
+	f.Fuzz(func(t *testing.T, input string) {
+		out := CleanDomain(input)
+		if out != "" && (out[0] == '-' || len(out) > 253) {
+			t.Fatalf("invalid cleaned domain %q from %q", out, input)
+		}
+	})
+}

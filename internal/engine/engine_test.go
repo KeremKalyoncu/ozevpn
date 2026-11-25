@@ -97,3 +97,13 @@ func TestParseCustomOutboundSOCKS5AndInvalid(t *testing.T) {
 		t.Fatal("expected error for out-of-range port")
 	}
 }
+
+func FuzzParseCustomOutbound(f *testing.F) {
+	f.Add("vless://11111111-2222-3333-4444-555555555555@eu.example.com:443?security=tls")
+	f.Add("socks5://user:pass@1.2.3.4:1080")
+	f.Add("[Interface]\nPrivateKey=abc\nAddress=10.0.0.2/32\n[Peer]\nPublicKey=def\nEndpoint=1.1.1.1:51820")
+	f.Add(`{"type":"socks","server":"1.2.3.4","server_port":1080}`)
+	f.Fuzz(func(t *testing.T, raw string) {
+		_, _ = ParseCustomOutbound(raw) // Must never panic on arbitrary input
+	})
+}
