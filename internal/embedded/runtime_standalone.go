@@ -57,6 +57,7 @@ func extractZipSafe(data []byte, destDir string) error {
 	}
 	for _, f := range zr.File {
 		// Normalize Windows/Unix separators and block Zip Slip path traversal
+		isDir := f.FileInfo().IsDir() || strings.HasSuffix(f.Name, "/") || strings.HasSuffix(f.Name, "\\")
 		rel := filepath.Clean(strings.ReplaceAll(f.Name, "\\", "/"))
 		if strings.HasPrefix(rel, "..") || filepath.IsAbs(rel) {
 			return fmt.Errorf("geçersiz arşiv yolu engellendi: %s", f.Name)
@@ -65,7 +66,7 @@ func extractZipSafe(data []byte, destDir string) error {
 		if !strings.HasPrefix(outPath, cleanDest+string(os.PathSeparator)) && outPath != cleanDest {
 			return fmt.Errorf("arşiv yol kaçışı engellendi: %s", f.Name)
 		}
-		if f.FileInfo().IsDir() {
+		if isDir {
 			if err := os.MkdirAll(outPath, 0700); err != nil {
 				return err
 			}
