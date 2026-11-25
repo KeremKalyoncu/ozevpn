@@ -82,11 +82,10 @@ func BuildSingBoxConfig(cfg config.Config, opts BuildOptions) ([]byte, error) {
 
 	inbounds := []map[string]any{
 		{
-			"type":          "mixed",
-			"tag":           "mixed-in",
-			"listen":        "127.0.0.1",
-			"listen_port":   opts.MixedPort,
-			"tcp_fast_open": true,
+			"type":        "mixed",
+			"tag":         "mixed-in",
+			"listen":      "127.0.0.1",
+			"listen_port": opts.MixedPort,
 		},
 	}
 	if opts.IsAdmin {
@@ -174,7 +173,6 @@ func BuildSingBoxConfig(cfg config.Config, opts BuildOptions) ([]byte, error) {
 					"tag":    "dns-doh",
 					"type":   "https",
 					"server": "1.1.1.1",
-					"detour": defaultOut,
 				},
 				{
 					"tag":    "dns-direct",
