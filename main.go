@@ -1,0 +1,512 @@
+package main
+
+import (
+	"context"
+	"embed"
+	"encoding/json"
+	"flag"
+	"fmt"
+	"io/fs"
+	"log"
+	"net"
+	"net/http"
+	"net/url"
+	"os"
+	"os/exec"
+	"os/signal"
+	"path/filepath"
+	"runtime"
+	"strings"
+	"syscall"
+	"time"
+
+	"ozevpn/internal/config"
+	"ozevpn/internal/engine"
+	"ozevpn/internal/installer"
+	"ozevpn/internal/netinfo"
+	"ozevpn/internal/pac"
+	"ozevpn/internal/probe"
+	"ozevpn/internal/routerexport"
+	"ozevpn/internal/warp"
+)
+
+//go:embed web/*
+var webFS embed.FS
+
+// securityMiddleware adds panic recovery, blocks cross-origin CSRF attempts from external
+// websites targeting the local 127.0.0.1 control API, caps POST payloads, and sets hardened headers.
+func securityMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		defer func() {
+			if rec := recover(); rec != nil {
+				log.Printf("[PANIC RECOVERED] %s %s: %v", r.Method, r.URL.Path, rec)
+				writeJSON(w, http.StatusInternalServerError, map[string]string{
+					"error": fmt.Sprintf("Beklenmedik sunucu hatası yakalandı: %v", rec),
+				})
+			}
+		}()
+
+		w.Header().Set("X-Content-Type-Options", "nosniff")
+		w.Header().Set("X-Frame-Options", "DENY")
+		w.Header().Set("Referrer-Policy", "no-referrer")
+
+		// Enforce strict local Origin check & 1 MB payload cap on all state-changing requests
+		if r.Method != http.MethodGet && r.Method != http.MethodHead && r.Method != http.MethodOptions {
+			r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
+			if origin := strings.TrimSpace(r.Header.Get("Origin")); origin != "" {
+				u, err := url.Parse(origin)
+				host := ""
+				if err == nil {
+					host = strings.ToLower(u.Hostname())
+				}
+				if host != "127.0.0.1" && host != "localhost" && host != "::1" {
+					writeJSON(w, http.StatusForbidden, map[string]string{"error": "Cross-origin istek reddedildi (CSRF koruması)"})
+					return
+				}
+			}
+			if sfs := strings.ToLower(strings.TrimSpace(r.Header.Get("Sec-Fetch-Site"))); sfs != "" && sfs != "same-origin" && sfs != "none" {
+				writeJSON(w, http.StatusForbidden, map[string]string{"error": "Harici site isteği engellendi (CSRF koruması)"})
+				return
+			}
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
+func buildHandler(store *config.Store, eng *engine.Manager) http.Handler {
+	mux := http.NewServeMux()
+
+	subWeb, err := fs.Sub(webFS, "web")
+	if err != nil {
+		log.Fatalf("Web dosyaları okunamadı: %v", err)
+	}
+	mux.Handle("/", http.FileServer(http.FS(subWeb)))
+
+	// Serve SVG favicon cleanly for /favicon.ico too (zero 404s in Chrome DevTools)
+	mux.HandleFunc("/favicon.ico", func(w http.ResponseWriter, r *http.Request) {
+		data, err := webFS.ReadFile("web/favicon.svg")
+		if err != nil {
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+		w.Header().Set("Content-Type", "image/svg+xml")
+		w.Header().Set("Cache-Control", "public, max-age=86400")
+		_, _ = w.Write(data)
+	})
+
+	mux.HandleFunc("/proxy.pac", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/x-ns-proxy-autoconfig; charset=utf-8")
+		w.Header().Set("Cache-Control", "no-store")
+		_, _ = w.Write([]byte(pac.GeneratePAC(store.Get())))
+	})
+
+	mux.HandleFunc("/api/status", func(w http.ResponseWriter, r *http.Request) {
+		writeJSON(w, http.StatusOK, eng.Status())
+	})
+
+	mux.HandleFunc("/api/netinfo", func(w http.ResponseWriter, r *http.Request) {
+		writeJSON(w, http.StatusOK, netinfo.Detect())
+	})
+
+	mux.HandleFunc("/api/install/status", func(w http.ResponseWriter, r *http.Request) {
+		writeJSON(w, http.StatusOK, installer.GetStatus())
+	})
+
+	mux.HandleFunc("/api/install/setup", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			w.WriteHeader(http.StatusMethodNotAllowed)
+			return
+		}
+		var req struct {
+			InstallStyle  config.InstallStyle `json:"install_style"`
+			Mode          config.Mode         `json:"mode"`
+			EngineProfile string              `json:"engine_profile"`
+			ConnectNow    bool                `json:"connect_now"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+			return
+		}
+
+		var logs []string
+		var inst installer.Status
+		var err error
+		if req.InstallStyle == config.InstallResident {
+			inst, err = installer.EnableResident()
+			if err != nil {
+				writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+				return
+			}
+			logs = append(logs, "Yerleşik Mod kuruldu: Windows her açıldığında otomatik ve sessiz başlayacak.")
+		} else {
+			inst, err = installer.DisableResident()
+			if err != nil {
+				writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+				return
+			}
+			logs = append(logs, "Aç/Kapa Modu seçildi.")
+		}
+
+		if err := store.Update(func(c *config.Config) {
+			c.SetupCompleted = true
+			if req.InstallStyle != "" {
+				c.InstallStyle = req.InstallStyle
+			}
+			if req.Mode != "" {
+				c.Mode = req.Mode
+			}
+			if req.EngineProfile != "" {
+				c.EngineProfile = req.EngineProfile
+			}
+		}); err != nil {
+			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "Ayarlar kaydedilemedi: " + err.Error()})
+			return
+		}
+
+		if req.ConnectNow {
+			cLogs, cErr := eng.Start(store.Get())
+			logs = append(logs, cLogs...)
+			if cErr != nil {
+				logs = append(logs, "Bağlantı uyarısı: "+cErr.Error())
+			}
+		}
+
+		writeJSON(w, http.StatusOK, map[string]any{
+			"ok":      true,
+			"config":  store.Get(),
+			"install": inst,
+			"logs":    logs,
+		})
+	})
+
+	mux.HandleFunc("/api/config", func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodGet:
+			writeJSON(w, http.StatusOK, store.Get())
+		case http.MethodPost:
+			var incoming config.Config
+			if err := json.NewDecoder(r.Body).Decode(&incoming); err != nil {
+				writeJSON(w, http.StatusBadRequest, map[string]string{"error": "Geçersiz JSON: " + err.Error()})
+				return
+			}
+			incoming.CustomBypass = cleanSlice(incoming.CustomBypass)
+			incoming.CustomTunnel = cleanSlice(incoming.CustomTunnel)
+			if err := store.Update(func(c *config.Config) {
+				c.SetupCompleted = incoming.SetupCompleted
+				c.AdBlockSpeed = incoming.AdBlockSpeed
+				c.TorBridge = incoming.TorBridge
+				if incoming.InstallStyle != "" {
+					c.InstallStyle = incoming.InstallStyle
+				}
+				if incoming.EngineProfile != "" {
+					c.EngineProfile = incoming.EngineProfile
+				}
+				if incoming.Mode != "" {
+					c.Mode = incoming.Mode
+				}
+				if incoming.Protocol != "" {
+					c.Protocol = incoming.Protocol
+				}
+				if incoming.DNSFamilies != "" {
+					c.DNSFamilies = incoming.DNSFamilies
+				}
+				if incoming.ProxyPort >= 1024 && incoming.ProxyPort <= 65535 {
+					c.ProxyPort = incoming.ProxyPort
+				}
+				c.CustomServer = incoming.CustomServer
+				if len(incoming.BypassPresets) > 0 {
+					c.BypassPresets = incoming.BypassPresets
+				}
+				if len(incoming.TunnelPresets) > 0 {
+					c.TunnelPresets = incoming.TunnelPresets
+				}
+				c.CustomBypass = incoming.CustomBypass
+				c.CustomTunnel = incoming.CustomTunnel
+			}); err != nil {
+				writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+				return
+			}
+			writeJSON(w, http.StatusOK, store.Get())
+		default:
+			w.WriteHeader(http.StatusMethodNotAllowed)
+		}
+	})
+
+	mux.HandleFunc("/api/connect", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			w.WriteHeader(http.StatusMethodNotAllowed)
+			return
+		}
+		logs, err := eng.Start(store.Get())
+		if err != nil {
+			writeJSON(w, http.StatusInternalServerError, map[string]any{
+				"error": err.Error(),
+				"logs":  logs,
+			})
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{
+			"ok":     true,
+			"logs":   logs,
+			"status": eng.Status(),
+		})
+	})
+
+	mux.HandleFunc("/api/disconnect", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			w.WriteHeader(http.StatusMethodNotAllowed)
+			return
+		}
+		eng.Stop()
+		writeJSON(w, http.StatusOK, map[string]any{"ok": true, "status": eng.Status()})
+	})
+
+	mux.HandleFunc("/api/emergency-reset", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			w.WriteHeader(http.StatusMethodNotAllowed)
+			return
+		}
+		eng.EmergencyReset()
+		writeJSON(w, http.StatusOK, map[string]any{"ok": true, "message": "Windows proxy sıfırlandı ve tüm tüneller kapatıldı."})
+	})
+
+	mux.HandleFunc("/api/relaunch-admin", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			w.WriteHeader(http.StatusMethodNotAllowed)
+			return
+		}
+		if err := engine.RelaunchAsAdmin(); err != nil {
+			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"ok": true})
+		go func() {
+			time.Sleep(500 * time.Millisecond)
+			eng.Stop()
+			os.Exit(0)
+		}()
+	})
+
+	mux.HandleFunc("/api/probe", func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(r.Context(), 16*time.Second)
+		defer cancel()
+		st := eng.Status()
+		proxyPort := 0
+		if st.Running && st.ProxyPort > 0 {
+			proxyPort = st.ProxyPort
+		}
+		writeJSON(w, http.StatusOK, probe.Run(ctx, proxyPort))
+	})
+
+	mux.HandleFunc("/api/speedtest", func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
+		defer cancel()
+		st := eng.Status()
+		proxyPort := 0
+		if st.Running && st.ProxyPort > 0 {
+			proxyPort = st.ProxyPort
+		}
+		writeJSON(w, http.StatusOK, probe.RunSpeedTest(ctx, proxyPort))
+	})
+
+	mux.HandleFunc("/api/rescue", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			w.WriteHeader(http.StatusMethodNotAllowed)
+			return
+		}
+		var req struct {
+			Domain  string `json:"domain"`
+			AddToEU bool   `json:"add_to_eu"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+			return
+		}
+		dom := config.CleanDomain(req.Domain)
+		if dom == "" {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "Geçerli bir alan adı girin (örn: orneksite.com)"})
+			return
+		}
+		if req.AddToEU {
+			if err := store.Update(func(c *config.Config) {
+				c.CustomTunnel = cleanSlice(append(c.CustomTunnel, dom))
+			}); err != nil {
+				writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "Domain kaydedilemedi: " + err.Error()})
+				return
+			}
+			msg, err := eng.ReloadRouting(store.Get())
+			if err != nil {
+				writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+				return
+			}
+			writeJSON(w, http.StatusOK, map[string]any{"ok": true, "domain": dom, "message": msg, "config": store.Get()})
+			return
+		}
+		ctx, cancel := context.WithTimeout(r.Context(), 18*time.Second)
+		defer cancel()
+		st := eng.Status()
+		mixedPort := 0
+		if st.Running {
+			mixedPort = st.ProxyPort
+		}
+		rep := probe.TestDomainPaths(ctx, dom, mixedPort, eng.TorPort())
+		writeJSON(w, http.StatusOK, rep)
+	})
+
+	mux.HandleFunc("/api/new-identity", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			w.WriteHeader(http.StatusMethodNotAllowed)
+			return
+		}
+		msg, err := eng.RotateTorIdentity()
+		if err != nil {
+			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"ok": true, "message": msg})
+	})
+
+	mux.HandleFunc("/api/reload", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			w.WriteHeader(http.StatusMethodNotAllowed)
+			return
+		}
+		msg, err := eng.ReloadRouting(store.Get())
+		if err != nil {
+			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"ok": true, "message": msg})
+	})
+
+	mux.HandleFunc("/api/export/openwrt", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+		w.Header().Set("Content-Disposition", `attachment; filename="sing-box-openwrt.json"`)
+		_, _ = w.Write([]byte(routerexport.GenerateOpenWrtSingBox(store.Get())))
+	})
+
+	return securityMiddleware(mux)
+}
+
+func main() {
+	noBrowser := flag.Bool("no-browser", false, "Tarayıcıyı otomatik açma")
+	silent := flag.Bool("silent", false, "Sessiz arka plan modu (tarayıcı açmaz)")
+	autoConnect := flag.Bool("autoconnect", false, "Başlangıçta otomatik bağlan")
+	addrFlag := flag.String("addr", "", "Dinleme adresi (varsayılan: 127.0.0.1:7777)")
+	flag.Parse()
+
+	exeDir, err := os.Executable()
+	if err != nil {
+		exeDir = "."
+	} else {
+		exeDir = filepath.Dir(exeDir)
+	}
+	baseDir := exeDir
+	cfgPath := filepath.Join(exeDir, "ozevpn.json")
+	if _, err := os.Stat("go.mod"); err == nil {
+		baseDir, _ = os.Getwd()
+		cfgPath = "ozevpn.json"
+	} else if f, err := os.OpenFile(filepath.Join(exeDir, ".ozevpn_write_test"), os.O_CREATE|os.O_WRONLY, 0644); err != nil {
+		// Read-only install folder (e.g. C:\Program Files) -> safely fall back to %LOCALAPPDATA%\OzeVPN
+		cfgPath = filepath.Join(filepath.Dir(installer.DefaultInstallPath()), "ozevpn.json")
+	} else {
+		_ = f.Close()
+		_ = os.Remove(filepath.Join(exeDir, ".ozevpn_write_test"))
+	}
+
+	store, err := config.NewStore(cfgPath)
+	if err != nil {
+		log.Fatalf("Config yüklenemedi: %v", err)
+	}
+	cfg := store.Get()
+	listenAddr := cfg.ListenAddr
+	if *addrFlag != "" {
+		listenAddr = *addrFlag
+	}
+
+	u := "http://" + listenAddr
+	// Single-Instance Guard: if OzeVPN is already running (e.g. Yerleşik Mod), just open the panel and exit cleanly!
+	if conn, err := net.DialTimeout("tcp", listenAddr, 350*time.Millisecond); err == nil {
+		_ = conn.Close()
+		if !*noBrowser && !*silent {
+			openBrowser(u)
+		}
+		return
+	}
+
+	warpClient := warp.NewClient()
+	eng := engine.NewManager(baseDir, warpClient)
+
+	srv := &http.Server{
+		Addr:              listenAddr,
+		Handler:           buildHandler(store, eng),
+		ReadHeaderTimeout: 10 * time.Second,
+	}
+
+	if !*silent {
+		fmt.Printf("\n  OzeVPN v5 (sing-box + DoH + Hot-Reload + Hız Kalkanı) çalışıyor -> %s\n", u)
+		fmt.Println("  Kapatmak için CTRL+C tuşlarına bas.")
+		fmt.Println()
+	}
+
+	if *autoConnect {
+		go func() {
+			time.Sleep(800 * time.Millisecond)
+			_, _ = eng.Start(store.Get())
+		}()
+	}
+
+	if !*noBrowser && !*silent {
+		go func() {
+			time.Sleep(400 * time.Millisecond)
+			openBrowser(u)
+		}()
+	}
+
+	stop := make(chan os.Signal, 1)
+	signal.Notify(stop, os.Interrupt, syscall.SIGTERM)
+	go func() {
+		<-stop
+		eng.Stop()
+		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+		defer cancel()
+		_ = srv.Shutdown(ctx)
+	}()
+
+	if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+		log.Fatalf("Sunucu hatası: %v", err)
+	}
+}
+
+func writeJSON(w http.ResponseWriter, status int, v any) {
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	w.Header().Set("Cache-Control", "no-store")
+	w.WriteHeader(status)
+	_ = json.NewEncoder(w).Encode(v)
+}
+
+func cleanSlice(in []string) []string {
+	seen := map[string]bool{}
+	var out []string
+	for _, s := range in {
+		c := config.CleanDomain(s)
+		if c != "" && !seen[c] {
+			seen[c] = true
+			out = append(out, c)
+		}
+	}
+	return out
+}
+
+func openBrowser(url string) {
+	var cmd *exec.Cmd
+	switch runtime.GOOS {
+	case "windows":
+		cmd = exec.Command("rundll32", "url.dll,FileProtocolHandler", url)
+	case "darwin":
+		cmd = exec.Command("open", url)
+	default:
+		cmd = exec.Command("xdg-open", url)
+	}
+	_ = cmd.Start()
+}

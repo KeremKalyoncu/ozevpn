@@ -1,0 +1,14 @@
+# Build outputs & runtime binaries
+ozevpn.exe
+ozevpn.json
+dist/
+bin/sing-box.exe
+bin/sing-box-active.json
+bin/sing-box.log
+bin/tor/
+bin/tor_data/
+bin/tor.log
+bin/torrc.active
+bin/warp-plus.exe
+*.tmp
+*.log
