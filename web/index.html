@@ -143,12 +143,12 @@
           </div>
         </div>
 
-        <div id="customServerBox" class="add-row hidden" style="margin-bottom:14px;">
+        <div id="customServerBox" class="add-row hidden mb-14">
           <input id="customServerInput" type="text" placeholder="vless://, socks5:// veya WireGuard .conf yapıştır" />
           <button id="saveServerBtn" class="btn primary">Kaydet</button>
         </div>
 
-        <label class="resident-bar" style="cursor:pointer;">
+        <label class="resident-bar clickable">
           <div>
             <strong>🛡️ Reklam &amp; Takipçi Hız Kalkanı</strong>
             <div class="muted-small">28 ağır reklam/izleyici ağını keser — sayfalar %20-40 daha hızlı açılır.</div>
@@ -156,7 +156,7 @@
           <input type="checkbox" id="adBlockToggle" checked />
         </label>
 
-        <label class="resident-bar" style="cursor:pointer;">
+        <label class="resident-bar clickable">
           <div>
             <strong>❄️ Katı Duvar Kırıcı (Tor Snowflake Köprü)</strong>
             <div class="muted-small">Okul/işyeri/ülke güvenlik duvarı Tor'u engelliyorsa aç.</div>
@@ -204,7 +204,7 @@
               <h2>Canlı Erişim, Hız &amp; Site Kurtarıcı</h2>
               <p class="muted-text" id="traceSummary">Çıkış IP, indirme hızı (Mbps) ve erişim durumunu tek tıkla ölç.</p>
             </div>
-            <div style="display:flex;gap:8px;flex-wrap:wrap;">
+            <div class="btn-group">
               <button id="speedBtn" class="btn secondary">⚡ Hız Ölç</button>
               <button id="probeBtn" class="btn primary">Test Et</button>
             </div>
@@ -212,12 +212,12 @@
           <div class="probe-grid" id="probeGrid">
             <div class="probe-empty">Henüz test yapılmadı. "Test Et" veya "⚡ Hız Ölç" butonuna tıkla.</div>
           </div>
-          <div class="add-row" style="margin-top:14px;margin-bottom:0;">
+          <div class="add-row rescue-row">
             <input id="rescueInput" type="text" placeholder="Açılmayan bir site yaz (örn: wattpad.com) → Test et veya tek tıkla Avrupa'ya al" />
             <button id="rescueTestBtn" class="btn secondary">Kontrol Et</button>
             <button id="rescueAddBtn" class="btn primary">Avrupa'ya Al</button>
           </div>
-          <div id="rescueResult" class="muted-small" style="margin-top:8px;"></div>
+          <div id="rescueResult" class="muted-small mt-8"></div>
         </div>
 
         <!-- Tabs -->

@@ -142,34 +142,41 @@ function renderConfig() {
 }
 
 function renderPresets(container, list) {
-  container.innerHTML = '';
+  container.replaceChildren();
   (list || []).forEach(p => {
     const row = document.createElement('label');
     row.className = 'preset-item';
-    row.innerHTML = `
-      <div class="preset-info">
-        <strong>${p.name} (${p.domains.length} domain)</strong>
-        <span>${p.description}</span>
-      </div>
-      <input type="checkbox" ${p.enabled ? 'checked' : ''} />
-    `;
-    const cb = row.querySelector('input');
+    const info = document.createElement('div');
+    info.className = 'preset-info';
+    const title = document.createElement('strong');
+    title.textContent = `${p.name} (${(p.domains || []).length} domain)`;
+    const desc = document.createElement('span');
+    desc.textContent = p.description || '';
+    info.append(title, desc);
+
+    const cb = document.createElement('input');
+    cb.type = 'checkbox';
+    cb.checked = !!p.enabled;
     cb.addEventListener('change', async () => {
       p.enabled = cb.checked;
       await saveConfig();
       addLog(`Liste güncellendi: ${p.name}`);
     });
+    row.append(info, cb);
     container.appendChild(row);
   });
 }
 
 function renderChips(container, domains, kind) {
-  container.innerHTML = '';
+  container.replaceChildren();
   domains.forEach(d => {
     const chip = document.createElement('span');
     chip.className = 'chip';
-    chip.innerHTML = `${d} <button title="Sil">&times;</button>`;
-    chip.querySelector('button').addEventListener('click', async () => {
+    const label = document.createTextNode(d + ' ');
+    const btn = document.createElement('button');
+    btn.title = 'Sil';
+    btn.textContent = '×';
+    btn.addEventListener('click', async () => {
       if (kind === 'bypass') {
         appConfig.custom_bypass = appConfig.custom_bypass.filter(x => x !== d);
       } else {
@@ -178,6 +185,7 @@ function renderChips(container, domains, kind) {
       await saveConfig();
       renderConfig();
     });
+    chip.append(label, btn);
     container.appendChild(chip);
   });
 }
@@ -240,7 +248,11 @@ async function togglePower() {
 async function runProbe() {
   els.probeBtn.disabled = true;
   els.probeBtn.textContent = 'Ölçülüyor...';
-  els.probeGrid.innerHTML = '<div class="probe-empty">Discord, Roblox, Pastebin, Google ve e-Devlet ölçülüyor...</div>';
+  els.probeGrid.replaceChildren();
+  const loading = document.createElement('div');
+  loading.className = 'probe-empty';
+  loading.textContent = 'Discord, Roblox, Pastebin, Google ve e-Devlet ölçülüyor...';
+  els.probeGrid.appendChild(loading);
   try {
     const rep = await api('/api/probe');
     const t = rep.trace || {};
@@ -252,21 +264,31 @@ async function runProbe() {
       els.traceSummary.textContent = 'Trace bilgisi alınamadı.';
     }
 
-    els.probeGrid.innerHTML = '';
+    els.probeGrid.replaceChildren();
     (rep.targets || []).forEach(item => {
       const card = document.createElement('div');
       card.className = 'probe-item ' + (item.reachable ? 'ok' : 'fail');
-      card.innerHTML = `
-        <div class="probe-top">
-          <span>${item.name}</span>
-          <span class="probe-ms">${item.reachable ? item.latency_ms + ' ms' : 'Engelli/Hata'}</span>
-        </div>
-        <div class="probe-err">${item.reachable ? 'Erişilebilir (HTTP ' + item.status_code + ')' : (item.error || 'Ulaşılamadı')}</div>
-      `;
+      const top = document.createElement('div');
+      top.className = 'probe-top';
+      const nameSpan = document.createElement('span');
+      nameSpan.textContent = item.name || '';
+      const msSpan = document.createElement('span');
+      msSpan.className = 'probe-ms';
+      msSpan.textContent = item.reachable ? `${item.latency_ms} ms` : 'Engelli/Hata';
+      top.append(nameSpan, msSpan);
+
+      const errDiv = document.createElement('div');
+      errDiv.className = 'probe-err';
+      errDiv.textContent = item.reachable ? `Erişilebilir (HTTP ${item.status_code})` : (item.error || 'Ulaşılamadı');
+      card.append(top, errDiv);
       els.probeGrid.appendChild(card);
     });
   } catch (err) {
-    els.probeGrid.innerHTML = `<div class="probe-empty">Test hatası: ${err.message}</div>`;
+    els.probeGrid.replaceChildren();
+    const errBox = document.createElement('div');
+    errBox.className = 'probe-empty';
+    errBox.textContent = 'Test hatası: ' + err.message;
+    els.probeGrid.appendChild(errBox);
   } finally {
     els.probeBtn.disabled = false;
     els.probeBtn.textContent = 'Test Et';

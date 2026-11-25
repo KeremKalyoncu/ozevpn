@@ -24,6 +24,11 @@ body {
 }
 
 .hidden { display: none !important; }
+.mb-14 { margin-bottom: 14px; }
+.mt-8 { margin-top: 8px; }
+.clickable { cursor: pointer; }
+.btn-group { display: flex; gap: 8px; flex-wrap: wrap; }
+.rescue-row { margin-top: 14px; margin-bottom: 0; }
 
 /* Setup Wizard Modal */
 .wizard-overlay {

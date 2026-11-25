@@ -13,7 +13,17 @@ import (
 	"ozevpn/internal/warp"
 )
 
-func TestSecurityMiddlewareBlocksCrossOriginCSRF(t *testing.T) {
+func localReq(method, path string, body string) *http.Request {
+	var r *http.Request
+	if body != "" {
+		r = httptest.NewRequest(method, "http://127.0.0.1:7777"+path, strings.NewReader(body))
+	} else {
+		r = httptest.NewRequest(method, "http://127.0.0.1:7777"+path, nil)
+	}
+	return r
+}
+
+func TestSecurityMiddlewareBlocksCrossOriginCSRFAndDNSRebinding(t *testing.T) {
 	tmp := t.TempDir()
 	store, err := config.NewStore(filepath.Join(tmp, "ozevpn.json"))
 	if err != nil {
@@ -23,7 +33,7 @@ func TestSecurityMiddlewareBlocksCrossOriginCSRF(t *testing.T) {
 	h := buildHandler(store, eng)
 
 	// 1. Malicious external Origin must be rejected with 403
-	req := httptest.NewRequest(http.MethodPost, "/api/disconnect", nil)
+	req := localReq(http.MethodPost, "/api/disconnect", "")
 	req.Header.Set("Origin", "https://evil-site.example")
 	rec := httptest.NewRecorder()
 	h.ServeHTTP(rec, req)
@@ -32,7 +42,7 @@ func TestSecurityMiddlewareBlocksCrossOriginCSRF(t *testing.T) {
 	}
 
 	// 2. Cross-site Sec-Fetch-Site must be rejected with 403
-	req2 := httptest.NewRequest(http.MethodPost, "/api/config", strings.NewReader(`{}`))
+	req2 := localReq(http.MethodPost, "/api/config", `{}`)
 	req2.Header.Set("Sec-Fetch-Site", "cross-site")
 	rec2 := httptest.NewRecorder()
 	h.ServeHTTP(rec2, req2)
@@ -40,8 +50,16 @@ func TestSecurityMiddlewareBlocksCrossOriginCSRF(t *testing.T) {
 		t.Fatalf("expected 403 for cross-site Sec-Fetch-Site, got %d", rec2.Code)
 	}
 
-	// 3. Same-origin 127.0.0.1 POST is allowed
-	req3 := httptest.NewRequest(http.MethodPost, "/api/config", strings.NewReader(`{"ad_block_speed":true}`))
+	// 3. DNS Rebinding via non-loopback Host header must be rejected with 403
+	reqRebind := httptest.NewRequest(http.MethodGet, "http://rebind.evil.com:7777/api/config", nil)
+	recRebind := httptest.NewRecorder()
+	h.ServeHTTP(recRebind, reqRebind)
+	if recRebind.Code != http.StatusForbidden {
+		t.Fatalf("expected 403 for DNS rebinding Host header, got %d", recRebind.Code)
+	}
+
+	// 4. Same-origin 127.0.0.1 POST is allowed
+	req3 := localReq(http.MethodPost, "/api/config", `{"ad_block_speed":true}`)
 	req3.Header.Set("Origin", "http://127.0.0.1:7777")
 	req3.Header.Set("Sec-Fetch-Site", "same-origin")
 	rec3 := httptest.NewRecorder()
@@ -51,25 +69,32 @@ func TestSecurityMiddlewareBlocksCrossOriginCSRF(t *testing.T) {
 	}
 }
 
-func TestFaviconAndOpenWrtExport(t *testing.T) {
+func TestSecurityHeadersCSPAndOpenWrtExport(t *testing.T) {
 	tmp := t.TempDir()
 	store, _ := config.NewStore(filepath.Join(tmp, "ozevpn.json"))
 	eng := engine.NewManager(tmp, warp.NewClient())
 	h := buildHandler(store, eng)
 
-	// Zero-404 favicon check
 	rec := httptest.NewRecorder()
-	h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/favicon.ico", nil))
+	h.ServeHTTP(rec, localReq(http.MethodGet, "/favicon.ico", ""))
 	if rec.Code != http.StatusOK {
 		t.Fatalf("expected 200 for /favicon.ico, got %d", rec.Code)
 	}
 	if rec.Header().Get("X-Frame-Options") != "DENY" {
 		t.Fatal("missing X-Frame-Options: DENY header")
 	}
+	if !strings.Contains(rec.Header().Get("Content-Security-Policy"), "default-src 'self'") {
+		t.Fatalf("missing strict CSP header: %q", rec.Header().Get("Content-Security-Policy"))
+	}
+	if !strings.Contains(rec.Header().Get("Permissions-Policy"), "camera=()") {
+		t.Fatalf("missing Permissions-Policy header: %q", rec.Header().Get("Permissions-Policy"))
+	}
+	if rec.Header().Get("Cross-Origin-Resource-Policy") != "same-origin" {
+		t.Fatal("missing CORP: same-origin header")
+	}
 
-	// Valid JSON check for OpenWrt export
 	rec2 := httptest.NewRecorder()
-	h.ServeHTTP(rec2, httptest.NewRequest(http.MethodGet, "/api/export/openwrt", nil))
+	h.ServeHTTP(rec2, localReq(http.MethodGet, "/api/export/openwrt", ""))
 	if rec2.Code != http.StatusOK {
 		t.Fatalf("expected 200 for /api/export/openwrt, got %d", rec2.Code)
 	}
@@ -84,7 +109,7 @@ func TestPanicRecoveryReturnsJSON500(t *testing.T) {
 		panic("simulated unexpected panic")
 	}))
 	rec := httptest.NewRecorder()
-	panicker.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/boom", nil))
+	panicker.ServeHTTP(rec, localReq(http.MethodGet, "/boom", ""))
 	if rec.Code != http.StatusInternalServerError {
 		t.Fatalf("expected 500 on panic recovery, got %d", rec.Code)
 	}

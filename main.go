@@ -33,8 +33,20 @@ import (
 //go:embed web/*
 var webFS embed.FS
 
-// securityMiddleware adds panic recovery, blocks cross-origin CSRF attempts from external
-// websites targeting the local 127.0.0.1 control API, caps POST payloads, and sets hardened headers.
+func isLoopbackHost(rawHost string) bool {
+	if rawHost == "" {
+		return true
+	}
+	h := rawHost
+	if host, _, err := net.SplitHostPort(rawHost); err == nil {
+		h = host
+	}
+	h = strings.ToLower(strings.Trim(h, "[]"))
+	return h == "127.0.0.1" || h == "localhost" || h == "::1"
+}
+
+// securityMiddleware adds panic recovery, Host header DNS-rebinding defense, strict CSP/Permissions-Policy,
+// cross-origin CSRF defense, and a 1 MB POST payload cap.
 func securityMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		defer func() {
@@ -49,6 +61,15 @@ func securityMiddleware(next http.Handler) http.Handler {
 		w.Header().Set("X-Content-Type-Options", "nosniff")
 		w.Header().Set("X-Frame-Options", "DENY")
 		w.Header().Set("Referrer-Policy", "no-referrer")
+		w.Header().Set("Content-Security-Policy", "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; frame-ancestors 'none'; base-uri 'self'")
+		w.Header().Set("Permissions-Policy", "camera=(), microphone=(), geolocation=(), payment=(), usb=()")
+		w.Header().Set("Cross-Origin-Resource-Policy", "same-origin")
+
+		// Block DNS Rebinding attacks via non-loopback Host headers
+		if !isLoopbackHost(r.Host) {
+			writeJSON(w, http.StatusForbidden, map[string]string{"error": "Geçersiz Host başlığı reddedildi (DNS Rebinding koruması)"})
+			return
+		}
 
 		// Enforce strict local Origin check & 1 MB payload cap on all state-changing requests
 		if r.Method != http.MethodGet && r.Method != http.MethodHead && r.Method != http.MethodOptions {
