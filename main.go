@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io/fs"
 	"log"
+	"log/slog"
 	"net"
 	"net/http"
 	"net/url"
@@ -51,7 +52,7 @@ func securityMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		defer func() {
 			if rec := recover(); rec != nil {
-				log.Printf("[PANIC RECOVERED] %s %s: %v", r.Method, r.URL.Path, rec)
+				slog.Error("panic_recovered", "method", r.Method, "path", r.URL.Path, "panic", fmt.Sprint(rec))
 				writeJSON(w, http.StatusInternalServerError, map[string]string{
 					"error": fmt.Sprintf("Beklenmedik sunucu hatası yakalandı: %v", rec),
 				})
@@ -67,6 +68,7 @@ func securityMiddleware(next http.Handler) http.Handler {
 
 		// Block DNS Rebinding attacks via non-loopback Host headers
 		if !isLoopbackHost(r.Host) {
+			slog.Warn("security_blocked_host", "host", r.Host, "path", r.URL.Path)
 			writeJSON(w, http.StatusForbidden, map[string]string{"error": "Geçersiz Host başlığı reddedildi (DNS Rebinding koruması)"})
 			return
 		}
@@ -81,11 +83,13 @@ func securityMiddleware(next http.Handler) http.Handler {
 					host = strings.ToLower(u.Hostname())
 				}
 				if host != "127.0.0.1" && host != "localhost" && host != "::1" {
+					slog.Warn("security_blocked_origin", "origin", origin, "path", r.URL.Path)
 					writeJSON(w, http.StatusForbidden, map[string]string{"error": "Cross-origin istek reddedildi (CSRF koruması)"})
 					return
 				}
 			}
 			if sfs := strings.ToLower(strings.TrimSpace(r.Header.Get("Sec-Fetch-Site"))); sfs != "" && sfs != "same-origin" && sfs != "none" {
+				slog.Warn("security_blocked_fetch_site", "sec_fetch_site", sfs, "path", r.URL.Path)
 				writeJSON(w, http.StatusForbidden, map[string]string{"error": "Harici site isteği engellendi (CSRF koruması)"})
 				return
 			}

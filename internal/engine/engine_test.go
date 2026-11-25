@@ -107,3 +107,25 @@ func FuzzParseCustomOutbound(f *testing.F) {
 		_, _ = ParseCustomOutbound(raw) // Must never panic on arbitrary input
 	})
 }
+
+func TestCappedFileWriterEnforcesMaxBytes(t *testing.T) {
+	p := filepath.Join(t.TempDir(), "capped.log")
+	w, err := newCappedFileWriter(p, 1024)
+	if err != nil {
+		t.Fatal(err)
+	}
+	chunk := make([]byte, 400)
+	for i := 0; i < 10; i++ {
+		if _, err := w.Write(chunk); err != nil {
+			t.Fatal(err)
+		}
+	}
+	_ = w.Close()
+	fi, err := os.Stat(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if fi.Size() > 1024 {
+		t.Fatalf("expected capped log file <= 1024 bytes, got %d", fi.Size())
+	}
+}

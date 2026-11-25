@@ -71,9 +71,9 @@ type Manager struct {
 	baseDir       string
 	warpClient    *warp.Client
 	torCmd        *exec.Cmd
-	torLogFile    *os.File
+	torLogFile    *cappedFileWriter
 	sbCmd         *exec.Cmd
-	sbLogFile     *os.File
+	sbLogFile     *cappedFileWriter
 	running       bool
 	state         string
 	activeProf    string
@@ -300,7 +300,7 @@ func (m *Manager) Start(cfg config.Config) ([]string, error) {
 	}
 
 	sbLogPath := filepath.Join(m.baseDir, "bin", "sing-box.log")
-	sbLogFile, err := os.Create(sbLogPath)
+	sbLogFile, err := newCappedFileWriter(sbLogPath, defaultMaxLogBytes)
 	if err != nil {
 		m.stopLocked()
 		m.state = "Disconnected"
@@ -321,7 +321,7 @@ func (m *Manager) Start(cfg config.Config) ([]string, error) {
 	m.sbLogFile = sbLogFile
 
 	doneCh := make(chan error, 1)
-	go func(c *exec.Cmd, f *os.File) {
+	go func(c *exec.Cmd, f *cappedFileWriter) {
 		err := c.Wait()
 		_ = f.Close()
 		doneCh <- err
@@ -378,7 +378,7 @@ func (m *Manager) watchdogLoop(stopCh chan struct{}, sbBin, sbCfgPath string) {
 					_ = m.sbLogFile.Close()
 					m.sbLogFile = nil
 				}
-				sbLogFile, err := os.Create(filepath.Join(m.baseDir, "bin", "sing-box.log"))
+				sbLogFile, err := newCappedFileWriter(filepath.Join(m.baseDir, "bin", "sing-box.log"), defaultMaxLogBytes)
 				if err == nil {
 					cmd := exec.Command(sbBin, "run", "-c", sbCfgPath)
 					cmd.Stdout = sbLogFile
@@ -386,7 +386,7 @@ func (m *Manager) watchdogLoop(stopCh chan struct{}, sbBin, sbCfgPath string) {
 					if err := cmd.Start(); err == nil {
 						m.sbCmd = cmd
 						m.sbLogFile = sbLogFile
-						go func(c *exec.Cmd, f *os.File) {
+						go func(c *exec.Cmd, f *cappedFileWriter) {
 							_ = c.Wait()
 							_ = f.Close()
 						}(cmd, sbLogFile)
@@ -440,7 +440,7 @@ func (m *Manager) startTorLocked(torBin string, useBridge bool) error {
 		return err
 	}
 
-	logFile, err := os.Create(logPath)
+	logFile, err := newCappedFileWriter(logPath, defaultMaxLogBytes)
 	if err != nil {
 		return err
 	}
@@ -453,7 +453,7 @@ func (m *Manager) startTorLocked(torBin string, useBridge bool) error {
 	}
 	m.torCmd = cmd
 	m.torLogFile = logFile
-	go func(c *exec.Cmd, f *os.File) {
+	go func(c *exec.Cmd, f *cappedFileWriter) {
 		_ = c.Wait()
 		_ = f.Close()
 	}(cmd, logFile)
@@ -534,7 +534,7 @@ func (m *Manager) ReloadRouting(cfg config.Config) (string, error) {
 		}
 		time.Sleep(250 * time.Millisecond)
 	}
-	sbLogFile, err := os.Create(filepath.Join(m.baseDir, "bin", "sing-box.log"))
+	sbLogFile, err := newCappedFileWriter(filepath.Join(m.baseDir, "bin", "sing-box.log"), defaultMaxLogBytes)
 	if err != nil {
 		return "", err
 	}
@@ -548,7 +548,7 @@ func (m *Manager) ReloadRouting(cfg config.Config) (string, error) {
 	m.sbCmd = cmd
 	m.sbLogFile = sbLogFile
 	m.adBlockActive = cfg.AdBlockSpeed
-	go func(c *exec.Cmd, f *os.File) {
+	go func(c *exec.Cmd, f *cappedFileWriter) {
 		_ = c.Wait()
 		_ = f.Close()
 	}(cmd, sbLogFile)
