@@ -1,4 +1,4 @@
-﻿# OzeVPN v6 Taşınabilir (Arkadaşlara Gönderilebilir) ZIP Paketleyici
+# OzeVPN v6 Taşınabilir (Arkadaşlara Gönderilebilir) ZIP Paketleyici
 # - Paketlemeden önce BINARY_CHECKSUMS.txt ile SHA256 bütünlüğünü doğrular
 # - -trimpath -ldflags="-s -w" ile temiz/tekrarlanabilir derleme yapar
 # - Çıktı ZIP için .sha256 doğrulama dosyası üretir

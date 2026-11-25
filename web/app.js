@@ -13,6 +13,7 @@ const els = {
   wizardSkipBtn: document.getElementById('wizardSkipBtn'),
   wizardFinishBtn: document.getElementById('wizardFinishBtn'),
   openWizardBtn: document.getElementById('openWizardBtn'),
+  quitAppBtn: document.getElementById('quitAppBtn'),
   newIpBtn: document.getElementById('newIpBtn'),
   relaunchAdminBtn: document.getElementById('relaunchAdminBtn'),
   emergencyResetBtn: document.getElementById('emergencyResetBtn'),
@@ -352,6 +353,18 @@ els.wizardFinishBtn.addEventListener('click', async () => {
 els.openWizardBtn.addEventListener('click', () => {
   els.wizardOverlay.classList.remove('hidden');
 });
+
+if (els.quitAppBtn) {
+  els.quitAppBtn.addEventListener('click', async () => {
+    try {
+      addLog('OzeVPN kapatılıyor...');
+      await api('/api/shutdown', { method: 'POST' });
+      window.close();
+    } catch (err) {
+      addLog('Kapatma hatası: ' + err.message);
+    }
+  });
+}
 
 els.toggleResidentBtn.addEventListener('click', async () => {
   const targetStyle = (installStatus && installStatus.resident_enabled) ? 'on_demand' : 'resident';

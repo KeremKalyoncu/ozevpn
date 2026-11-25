@@ -10,5 +10,6 @@ bin/tor_data/
 bin/tor.log
 bin/torrc.active
 bin/warp-plus.exe
+internal/embedded/runtime.zip
 *.tmp
 *.log

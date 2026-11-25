@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"ozevpn/internal/config"
+	"ozevpn/internal/embedded"
 	"ozevpn/internal/engine"
 	"ozevpn/internal/installer"
 	"ozevpn/internal/netinfo"
@@ -438,6 +439,19 @@ func buildHandler(store *config.Store, eng *engine.Manager) http.Handler {
 		writeJSON(w, http.StatusOK, map[string]any{"ok": true, "message": msg})
 	})
 
+	mux.HandleFunc("/api/shutdown", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			w.WriteHeader(http.StatusMethodNotAllowed)
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"ok": true, "message": "OzeVPN güvenli şekilde kapatılıyor..."})
+		go func() {
+			time.Sleep(300 * time.Millisecond)
+			eng.Stop()
+			os.Exit(0)
+		}()
+	})
+
 	mux.HandleFunc("/api/export/openwrt", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json; charset=utf-8")
 		w.Header().Set("Content-Disposition", `attachment; filename="sing-box-openwrt.json"`)
@@ -491,6 +505,13 @@ func main() {
 			openBrowser(u)
 		}
 		return
+	}
+
+	// In standalone single-EXE builds, extract embedded sing-box + Tor runtime once into %LOCALAPPDATA%\OzeVPN\runtime
+	if runtimeDir, err := embedded.EnsureRuntime(baseDir); err == nil && runtimeDir != "" {
+		baseDir = runtimeDir
+	} else if err != nil {
+		log.Printf("Gömülü çalışma zamanı uyarısı: %v", err)
 	}
 
 	warpClient := warp.NewClient()
@@ -559,15 +580,38 @@ func cleanSlice(in []string) []string {
 	return out
 }
 
-func openBrowser(url string) {
-	var cmd *exec.Cmd
-	switch runtime.GOOS {
-	case "windows":
-		cmd = exec.Command("rundll32", "url.dll,FileProtocolHandler", url)
-	case "darwin":
-		cmd = exec.Command("open", url)
-	default:
-		cmd = exec.Command("xdg-open", url)
+// openBrowser launches OzeVPN as a dedicated native-feeling desktop app window
+// (no address bar, no tabs) via Edge or Chrome --app mode, falling back to default browser.
+func openBrowser(targetURL string) {
+	if runtime.GOOS == "windows" {
+		localApp := os.Getenv("LOCALAPPDATA")
+		profileDir := filepath.Join(localApp, "OzeVPN", "ui-profile")
+		candidates := []string{
+			`C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe`,
+			`C:\Program Files\Microsoft\Edge\Application\msedge.exe`,
+			`C:\Program Files\Google\Chrome\Application\chrome.exe`,
+			`C:\Program Files (x86)\Google\Chrome\Application\chrome.exe`,
+		}
+		for _, bin := range candidates {
+			if _, err := os.Stat(bin); err == nil {
+				cmd := exec.Command(bin,
+					"--app="+targetURL,
+					"--window-size=1180,820",
+					"--user-data-dir="+profileDir,
+					"--no-first-run",
+					"--no-default-browser-check",
+				)
+				if err := cmd.Start(); err == nil {
+					return
+				}
+			}
+		}
+		_ = exec.Command("rundll32", "url.dll,FileProtocolHandler", targetURL).Start()
+		return
 	}
-	_ = cmd.Start()
+	if runtime.GOOS == "darwin" {
+		_ = exec.Command("open", targetURL).Start()
+		return
+	}
+	_ = exec.Command("xdg-open", targetURL).Start()
 }
