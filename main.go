@@ -170,7 +170,7 @@ func buildHandler(store *config.Store, eng *engine.Manager) http.Handler {
 	})
 
 	mux.HandleFunc("/api/netinfo", func(w http.ResponseWriter, r *http.Request) {
-		writeJSON(w, http.StatusOK, netinfo.Detect())
+		writeJSON(w, http.StatusOK, netinfo.DetectCached())
 	})
 
 	mux.HandleFunc("/api/install/status", func(w http.ResponseWriter, r *http.Request) {
@@ -534,6 +534,7 @@ func main() {
 
 	warpClient := warp.NewClient()
 	eng := engine.NewManager(baseDir, warpClient)
+	netinfo.Warmup()
 
 	srv := &http.Server{
 		Addr:              listenAddr,

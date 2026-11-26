@@ -8,10 +8,58 @@ import (
 	"os/exec"
 	"runtime"
 	"strings"
+	"sync"
 	"time"
 
 	"ozevpn/internal/procutil"
 )
+
+var (
+	cacheMu      sync.RWMutex
+	cachedInfo   Info
+	cachedAt     time.Time
+	cacheTTL     = 60 * time.Second
+	refreshingMu sync.Mutex
+)
+
+// Warmup populates the network info cache asynchronously at startup so the first
+// GET /api/netinfo request returns immediately without causing a 3-second UI delay.
+func Warmup() {
+	go func() {
+		_ = DetectCached()
+	}()
+}
+
+// DetectCached returns a cached Info snapshot when fresh (<60s), avoiding repeated
+// 2.5–3s PowerShell + network calls on every browser reload.
+func DetectCached() Info {
+	cacheMu.RLock()
+	if !cachedAt.IsZero() && time.Since(cachedAt) < cacheTTL {
+		info := cachedInfo
+		cacheMu.RUnlock()
+		return info
+	}
+	cacheMu.RUnlock()
+
+	refreshingMu.Lock()
+	defer refreshingMu.Unlock()
+
+	// Re-check after acquiring lock in case another goroutine already refreshed it.
+	cacheMu.RLock()
+	if !cachedAt.IsZero() && time.Since(cachedAt) < cacheTTL {
+		info := cachedInfo
+		cacheMu.RUnlock()
+		return info
+	}
+	cacheMu.RUnlock()
+
+	fresh := Detect()
+	cacheMu.Lock()
+	cachedInfo = fresh
+	cachedAt = time.Now()
+	cacheMu.Unlock()
+	return fresh
+}
 
 type Info struct {
 	Interface  string   `json:"interface"`

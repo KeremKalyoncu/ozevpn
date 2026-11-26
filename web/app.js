@@ -1,8 +1,14 @@
 let appConfig = null;
 let engineStatus = null;
 let installStatus = null;
+let lastNetInfo = null;
+let lastProbeReport = null;
 let busy = false;
 let consecutiveStatusFails = 0;
+let statusSeq = 0;
+let statusInFlight = false;
+let pollTimer = null;
+let maskSensitiveIP = false;
 
 let wizardInstallChoice = 'resident';
 let wizardModeChoice = 'full';
@@ -11,12 +17,18 @@ let activeModal = null;
 let lastFocusedBeforeModal = null;
 let confirmResolve = null;
 
+try {
+  maskSensitiveIP = localStorage.getItem('ozevpn_mask_ip') === '1';
+} catch {}
+
 const els = {
   appShell: document.getElementById('appShell'),
   offlineBanner: document.getElementById('offlineBanner'),
   offlineBannerText: document.getElementById('offlineBannerText'),
   retryConnBtn: document.getElementById('retryConnBtn'),
   themeToggleBtn: document.getElementById('themeToggleBtn'),
+  maskIpBtn: document.getElementById('maskIpBtn'),
+  advancedSettings: document.getElementById('advancedSettings'),
 
   wizardOverlay: document.getElementById('wizardOverlay'),
   wizardInstallChoices: document.getElementById('wizardInstallChoices'),
@@ -82,16 +94,35 @@ const els = {
   customTunnelChips: document.getElementById('customTunnelChips'),
 };
 
+function nowStamp() {
+  try {
+    return new Date().toLocaleTimeString('tr-TR', { hour12: false });
+  } catch {
+    return '';
+  }
+}
+
 function addLog(msg) {
+  if (!els.logBox) return;
   const div = document.createElement('div');
   div.className = 'log-line';
-  div.textContent = msg;
+  const text = String(msg || '');
+  div.textContent = /^\[\d{2}:\d{2}:\d{2}\]/.test(text) ? text : `[${nowStamp()}] ${text}`;
   els.logBox.appendChild(div);
   while (els.logBox.children.length > 200) {
     els.logBox.removeChild(els.logBox.firstChild);
   }
   els.logBox.scrollTop = els.logBox.scrollHeight;
 }
+
+/* Global Error Boundary */
+window.addEventListener('error', (e) => {
+  if (e && e.message) addLog('Beklenmeyen arayüz hatası: ' + e.message);
+});
+window.addEventListener('unhandledrejection', (e) => {
+  const reason = e && e.reason ? (e.reason.message || String(e.reason)) : 'Bilinmeyen hata';
+  addLog('Beklenmeyen işlem hatası: ' + reason);
+});
 
 function showInlineError(el, inputEl, msg) {
   if (el) {
@@ -140,7 +171,62 @@ if (window.matchMedia) {
   });
 }
 
-/* ---------- Accessible Modal Manager (Focus Trap, Inert, Escape, Focus Restore) ---------- */
+/* ---------- Privacy IP / MAC Masking Toggle ---------- */
+function updateMaskButtonUI() {
+  if (!els.maskIpBtn) return;
+  els.maskIpBtn.textContent = maskSensitiveIP ? '🙈 IP Gizli' : '👁️ IP Gizle';
+  els.maskIpBtn.setAttribute('aria-pressed', String(maskSensitiveIP));
+}
+
+function renderNetInfo() {
+  if (!lastNetInfo) return;
+  const ni = lastNetInfo;
+  const ctry = ni.country && ni.country !== 'AUTO' ? ` • Ülke: ${ni.country}` : '';
+  const hint = maskSensitiveIP
+    ? `Yerel Ağ Gizli${ctry}`
+    : ((ni.modem_hint || 'Tespit edilemedi') + ctry);
+  const dns = maskSensitiveIP
+    ? 'Gizli (Maskeli)'
+    : ((ni.dns_servers && ni.dns_servers.length) ? ni.dns_servers.slice(0, 2).join(', ') : 'Otomatik');
+  els.modemHint.textContent = hint;
+  els.modemHint.title = hint;
+  els.dnsInfo.textContent = dns;
+  els.dnsInfo.title = dns;
+  els.ipv6Info.textContent = ni.ipv6_active ? 'Aktif' : 'Kapalı';
+}
+
+function renderProbeSummary() {
+  if (!lastProbeReport) return;
+  const rep = lastProbeReport;
+  const t = rep.trace || {};
+  if (t.ip) {
+    const viaTxt = rep.via_proxy ? 'OzeVPN Tüneli Aktif' : 'Direkt Hat';
+    const shownIP = maskSensitiveIP ? '•••.•••.•••.•••' : t.ip;
+    els.coloBadge.textContent = `Çıkış: ${t.colo || '—'} (${t.loc || '—'})`;
+    els.traceSummary.textContent = `IP: ${shownIP} • Bölge: ${t.loc || '?'} • Sunucu: ${t.colo || '?'} • ${viaTxt} (${rep.timestamp})`;
+  } else {
+    els.traceSummary.textContent = 'Trace bilgisi alınamadı.';
+  }
+}
+
+updateMaskButtonUI();
+if (els.maskIpBtn) {
+  els.maskIpBtn.addEventListener('click', () => {
+    maskSensitiveIP = !maskSensitiveIP;
+    try { localStorage.setItem('ozevpn_mask_ip', maskSensitiveIP ? '1' : '0'); } catch {}
+    updateMaskButtonUI();
+    renderNetInfo();
+    renderProbeSummary();
+  });
+}
+
+/* ---------- Accessible Modal Manager (Focus Trap, Inert Feature Check, Escape, Focus Restore) ---------- */
+function setAppInert(isInert) {
+  if (els.appShell && 'inert' in els.appShell) {
+    els.appShell.inert = isInert;
+  }
+}
+
 function getFocusableElements(container) {
   return Array.from(container.querySelectorAll(
     'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
@@ -151,7 +237,7 @@ function openModal(overlayEl, triggerEl) {
   lastFocusedBeforeModal = triggerEl || document.activeElement;
   activeModal = overlayEl;
   overlayEl.classList.remove('hidden');
-  if (els.appShell) els.appShell.inert = true;
+  setAppInert(true);
   const focusables = getFocusableElements(overlayEl);
   if (focusables.length > 0) {
     focusables[0].focus();
@@ -165,8 +251,8 @@ function closeModal(overlayEl) {
   overlayEl.classList.add('hidden');
   if (activeModal === overlayEl) activeModal = null;
   const anyOpen = !els.wizardOverlay.classList.contains('hidden') || !els.confirmOverlay.classList.contains('hidden');
-  if (!anyOpen && els.appShell) {
-    els.appShell.inert = false;
+  if (!anyOpen) {
+    setAppInert(false);
   }
   if (lastFocusedBeforeModal && typeof lastFocusedBeforeModal.focus === 'function') {
     lastFocusedBeforeModal.focus();
@@ -254,14 +340,14 @@ async function api(path, opts = {}, timeoutMs = 15000) {
     }
     if (!res.ok) {
       if (res.status === 429) {
-        throw new Error(data.error || 'Çok fazla eşzamanlı istek; lütfen birkaç saniye bekleyip tekrar dene.');
+        throw new Error(data.error || 'Çok fazla eşzamanlı istek; birkaç saniye bekleyip tekrar dene.');
       }
       throw new Error(data.error || `İstek başarısız (HTTP ${res.status})`);
     }
     return data;
   } catch (err) {
     if (err && err.name === 'AbortError') {
-      throw new Error('İstek zaman aşımına uğradı; lütfen tekrar dene.');
+      throw new Error('İstek zaman aşımına uğradı; tekrar dene.');
     }
     throw err;
   } finally {
@@ -308,12 +394,12 @@ async function commitConfig(mutator, logMsg) {
 function renderInstall() {
   if (!installStatus) return;
   if (installStatus.resident_enabled) {
-    els.installBadge.textContent = 'Mod: ⚡ Yerleşik';
+    els.installBadge.textContent = 'Çalışma: ⚡ Yerleşik';
     els.residentTitle.textContent = 'Yerleşik Mod: Aktif';
     els.residentSub.textContent = 'Windows her açıldığında sessizce başlar ve bağlanır.';
     els.toggleResidentBtn.textContent = 'Aç/Kapa Yap';
   } else {
-    els.installBadge.textContent = 'Mod: 🔘 Aç/Kapa';
+    els.installBadge.textContent = 'Çalışma: 🔘 Aç/Kapa';
     els.residentTitle.textContent = 'Yerleşik Mod: Kapalı';
     els.residentSub.textContent = 'Sadece sen açıp güç düğmesine bastığında çalışır.';
     els.toggleResidentBtn.textContent = 'Yerleşik Yap';
@@ -344,10 +430,18 @@ function renderStatus() {
   }
 
   const layer = engineStatus.is_admin ? 'TUN (Yönetici)' : 'Proxy (Standart)';
-  const up = engineStatus.running && engineStatus.uptime_sec > 0 ? ` • ${engineStatus.uptime_sec}sn` : '';
+  const up = engineStatus.running && engineStatus.uptime_sec > 0 ? ` • ${engineStatus.uptime_sec} sn` : '';
   els.protoBadge.textContent = `Katman: ${engineStatus.running ? engineStatus.capture_layer : layer}${up}`;
   if (els.relaunchAdminBtn) {
-    els.relaunchAdminBtn.classList.toggle('hidden', !!engineStatus.is_admin);
+    if (engineStatus.is_admin) {
+      els.relaunchAdminBtn.textContent = '🛡️ TUN Aktif';
+      els.relaunchAdminBtn.disabled = true;
+      els.relaunchAdminBtn.title = 'Yönetici (Oyun TUN) modu zaten aktif';
+    } else {
+      els.relaunchAdminBtn.textContent = '🎮 Oyun TUN';
+      els.relaunchAdminBtn.disabled = false;
+      els.relaunchAdminBtn.title = 'Roblox masaüstü ve oyun UDP trafiği için Yönetici (TUN) modunda aç';
+    }
   }
 }
 
@@ -370,6 +464,9 @@ function renderConfig() {
   if (els.torBridgeToggle) {
     els.torBridgeToggle.checked = !!appConfig.tor_bridge;
   }
+  if (els.advancedSettings && (appConfig.engine_profile === 'custom' || appConfig.tor_bridge)) {
+    els.advancedSettings.open = true;
+  }
 
   renderPresets(els.bypassPresets, appConfig.bypass_presets);
   renderPresets(els.tunnelPresets, appConfig.tunnel_presets);
@@ -385,7 +482,7 @@ function renderPresets(container, list) {
     const info = document.createElement('div');
     info.className = 'preset-info';
     const title = document.createElement('strong');
-    title.textContent = `${p.name} (${(p.domains || []).length} domain)`;
+    title.textContent = `${p.name} (${(p.domains || []).length} site)`;
     const desc = document.createElement('span');
     desc.textContent = p.description || '';
     info.append(title, desc);
@@ -426,7 +523,7 @@ function renderChips(container, domains, kind) {
         } else {
           cfg.custom_tunnel = (cfg.custom_tunnel || []).filter(x => x !== d);
         }
-      }, `Domain silindi (${kind}): ${d}`);
+      }, `Site silindi (${kind}): ${d}`);
     });
     chip.append(label, btn);
     container.appendChild(chip);
@@ -448,7 +545,9 @@ function syncWizardChoicesUI() {
 }
 
 function openWizard(triggerEl) {
-  wizardInstallChoice = (installStatus && installStatus.resident_enabled) ? 'resident' : (appConfig && appConfig.setup_completed ? (appConfig.install_style || 'on_demand') : 'resident');
+  wizardInstallChoice = (installStatus && installStatus.resident_enabled)
+    ? 'resident'
+    : (appConfig && appConfig.setup_completed ? (appConfig.install_style || 'on_demand') : 'resident');
   if (appConfig && appConfig.setup_completed && (appConfig.mode === 'full' || appConfig.mode === 'smart')) {
     wizardModeChoice = appConfig.mode;
   } else {
@@ -459,10 +558,15 @@ function openWizard(triggerEl) {
   openModal(els.wizardOverlay, triggerEl);
 }
 
-/* ---------- Status & Network Polling ---------- */
-async function refreshStatus() {
+/* ---------- Status & Network Polling (Race-Safe + Visibility-Aware) ---------- */
+async function refreshStatus(force) {
+  if (statusInFlight && !force) return;
+  statusInFlight = true;
+  const seq = ++statusSeq;
   try {
-    engineStatus = await api('/api/status', {}, 6000);
+    const fresh = await api('/api/status', {}, 6000);
+    if (seq !== statusSeq) return; // Drop stale out-of-order response
+    engineStatus = fresh;
     if (consecutiveStatusFails > 0) {
       consecutiveStatusFails = 0;
       setOfflineState(false);
@@ -470,6 +574,7 @@ async function refreshStatus() {
     }
     renderStatus();
   } catch (err) {
+    if (seq !== statusSeq) return;
     consecutiveStatusFails++;
     if (consecutiveStatusFails === 1) {
       addLog('Durum alınamadı: ' + err.message);
@@ -477,18 +582,31 @@ async function refreshStatus() {
     if (consecutiveStatusFails >= 2) {
       setOfflineState(true);
     }
+  } finally {
+    statusInFlight = false;
   }
 }
 
+function startPolling() {
+  if (pollTimer) clearInterval(pollTimer);
+  pollTimer = setInterval(() => {
+    if (!document.hidden) refreshStatus(false);
+  }, 5000);
+}
+
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden) {
+    refreshStatus(true);
+  }
+});
+
 async function refreshNetInfo() {
   try {
-    const ni = await api('/api/netinfo', {}, 10000);
-    const ctry = ni.country && ni.country !== 'AUTO' ? ` • Ülke: ${ni.country}` : '';
-    els.modemHint.textContent = (ni.modem_hint || 'Tespit edilemedi') + ctry;
-    els.dnsInfo.textContent = (ni.dns_servers && ni.dns_servers.length) ? ni.dns_servers.slice(0, 2).join(', ') : 'Otomatik';
-    els.ipv6Info.textContent = ni.ipv6_active ? 'Aktif' : 'Kapalı';
+    lastNetInfo = await api('/api/netinfo', {}, 10000);
+    renderNetInfo();
   } catch {
     els.modemHint.textContent = 'Alınamadı';
+    els.modemHint.title = 'Ağ bilgisi alınamadı';
   }
 }
 
@@ -515,7 +633,7 @@ async function togglePower() {
   } finally {
     busy = false;
     els.powerBtn.disabled = false;
-    await refreshStatus();
+    await refreshStatus(true);
   }
 }
 
@@ -529,14 +647,8 @@ async function runProbe() {
   els.probeGrid.appendChild(loading);
   try {
     const rep = await api('/api/probe', {}, 25000);
-    const t = rep.trace || {};
-    if (t.ip) {
-      const viaTxt = rep.via_proxy ? 'OzeVPN Tüneli Aktif' : 'Direkt Hat';
-      els.coloBadge.textContent = `Çıkış: ${t.colo || '—'} (${t.loc || '—'})`;
-      els.traceSummary.textContent = `IP: ${t.ip} • Bölge: ${t.loc || '?'} • Sunucu: ${t.colo || '?'} • ${viaTxt} (${rep.timestamp})`;
-    } else {
-      els.traceSummary.textContent = 'Trace bilgisi alınamadı.';
-    }
+    lastProbeReport = rep;
+    renderProbeSummary();
 
     els.probeGrid.replaceChildren();
     (rep.targets || []).forEach(item => {
@@ -612,7 +724,7 @@ els.wizardFinishBtn.addEventListener('click', async () => {
     renderInstall();
     (res.logs || []).forEach(addLog);
     closeModal(els.wizardOverlay);
-    await refreshStatus();
+    await refreshStatus(true);
   } catch (err) {
     showInlineError(els.wizardError, null, 'Kurulum hatası: ' + err.message);
     addLog('Kurulum hatası: ' + err.message);
@@ -707,18 +819,18 @@ els.protocolSelect.addEventListener('change', async () => {
 async function saveCustomServer() {
   const val = els.customServerInput.value.trim();
   if (!val) {
-    showInlineError(els.customServerErr, els.customServerInput, 'Kaydetmek için geçerli bir sunucu bağlantısı veya WireGuard yapılandırması yapıştırın.');
+    showInlineError(els.customServerErr, els.customServerInput, 'Kaydetmek için geçerli bir sunucu bağlantısı veya WireGuard yapılandırması yapıştır.');
     return;
   }
   showInlineError(els.customServerErr, els.customServerInput, '');
   els.saveServerBtn.disabled = true;
   els.saveServerBtn.textContent = 'Kaydediliyor...';
   try {
-    const ok = await commitConfig((cfg) => { cfg.custom_server = val; }, 'Özel sunucu linki kaydedildi.');
+    const ok = await commitConfig((cfg) => { cfg.custom_server = val; }, 'Özel sunucu bağlantısı kaydedildi.');
     if (ok) {
       els.customServerInput.value = '';
     } else {
-      showInlineError(els.customServerErr, els.customServerInput, 'Özel sunucu kaydedilemedi; bağlantıyı kontrol edin.');
+      showInlineError(els.customServerErr, els.customServerInput, 'Özel sunucu kaydedilemedi; bağlantıyı kontrol et.');
     }
   } finally {
     els.saveServerBtn.disabled = false;
@@ -789,7 +901,8 @@ if (els.speedBtn) {
         els.traceSummary.textContent = 'Hız testi hatası: ' + s.error;
       } else {
         const mode = s.via_proxy ? 'OzeVPN Tüneli' : 'Direkt Hat';
-        els.traceSummary.textContent = `⚡ Hız (${mode}): ${s.download_mbps} Mbps • Ping: ${s.ping_ms} ms • Jitter: ${s.jitter_ms} ms`;
+        const ts = nowStamp();
+        els.traceSummary.textContent = `⚡ Hız (${mode}): ${s.download_mbps} Mbps • Ping: ${s.ping_ms} ms • Jitter: ${s.jitter_ms} ms (${ts})`;
         addLog(`Hız testi (${mode}): ${s.download_mbps} Mbps | Ping ${s.ping_ms} ms | Jitter ${s.jitter_ms} ms`);
       }
     } catch (err) {
@@ -806,7 +919,7 @@ async function runRescueTest() {
   const dom = els.rescueInput.value.trim();
   if (!dom) {
     els.rescueInput.setAttribute('aria-invalid', 'true');
-    els.rescueResult.textContent = 'Lütfen kontrol etmek istediğin bir alan adı yaz (örn: wattpad.com).';
+    els.rescueResult.textContent = 'Kontrol etmek istediğin bir site adresi yaz (örn: wattpad.com).';
     els.rescueInput.focus();
     return;
   }
@@ -817,7 +930,7 @@ async function runRescueTest() {
   els.rescueResult.textContent = 'Direkt, Tünel ve Avrupa Tor yolları test ediliyor...';
   try {
     const r = await api('/api/rescue', { method: 'POST', body: JSON.stringify({ domain: dom, add_to_eu: false }) }, 25000);
-    const parts = (r.paths || []).map(p => `${p.path}: ${p.reachable ? '✅ ' + p.latency_ms + 'ms' : '❌ ' + (p.error || 'Engelli')}`);
+    const parts = (r.paths || []).map(p => `${p.path}: ${p.reachable ? '✅ ' + p.latency_ms + ' ms' : '❌ ' + (p.error || 'Engelli')}`);
     els.rescueResult.textContent = `${r.domain} → ${parts.join(' | ')} (Öneri: ${r.recommended})`;
   } catch (err) {
     els.rescueResult.textContent = 'Test hatası: ' + err.message;
@@ -832,7 +945,7 @@ async function runRescueAdd() {
   const dom = els.rescueInput.value.trim();
   if (!dom) {
     els.rescueInput.setAttribute('aria-invalid', 'true');
-    els.rescueResult.textContent = 'Lütfen Avrupa çıkışına almak istediğin alan adını yaz (örn: wattpad.com).';
+    els.rescueResult.textContent = 'Avrupa çıkışına almak istediğin site adresini yaz (örn: wattpad.com).';
     els.rescueInput.focus();
     return;
   }
@@ -845,7 +958,7 @@ async function runRescueAdd() {
     appConfig = r.config;
     renderConfig();
     els.rescueInput.value = '';
-    els.rescueResult.textContent = `✅ ${r.domain} Avrupa çıkışına eklendi — ${r.message}`;
+    els.rescueResult.textContent = `✅ ${r.domain} Avrupa çıkışına eklendi ("PAC & Router Listesi" sekmesinde yönetebilirsin) — ${r.message}`;
     addLog(`${r.domain} Avrupa çıkışına alındı (${r.message})`);
   } catch (err) {
     els.rescueResult.textContent = 'Hata: ' + err.message;
@@ -877,7 +990,7 @@ if (els.emergencyResetBtn) {
     try {
       const r = await api('/api/emergency-reset', { method: 'POST' }, 15000);
       addLog(r.message || 'Proxy sıfırlandı.');
-      await refreshStatus();
+      await refreshStatus(true);
     } catch (err) {
       addLog('Sıfırlama hatası: ' + err.message);
     } finally {
@@ -888,6 +1001,7 @@ if (els.emergencyResetBtn) {
 
 if (els.relaunchAdminBtn) {
   els.relaunchAdminBtn.addEventListener('click', async () => {
+    if (els.relaunchAdminBtn.disabled) return;
     els.relaunchAdminBtn.disabled = true;
     try {
       addLog('Yönetici (Oyun TUN) izni isteniyor...');
@@ -941,7 +1055,7 @@ async function addCustomDomain(kind) {
   const val = input.value.trim();
 
   if (!val) {
-    showInlineError(errEl, input, 'Eklemek için bir alan adı girin (örn: ornek.com).');
+    showInlineError(errEl, input, 'Eklemek için bir site adresi gir (örn: ornek.com).');
     input.focus();
     return;
   }
@@ -955,11 +1069,11 @@ async function addCustomDomain(kind) {
       } else {
         cfg.custom_tunnel = [...(cfg.custom_tunnel || []), val];
       }
-    }, `Domain eklendi (${kind}): ${val}`);
+    }, `Site eklendi (${kind}): ${val}`);
     if (ok) {
       input.value = '';
     } else {
-      showInlineError(errEl, input, 'Alan adı kaydedilemedi; geçerli bir domain girdiğinizden emin olun.');
+      showInlineError(errEl, input, 'Site kaydedilemedi; geçerli bir alan adı girdiğinden emin ol.');
     }
   } finally {
     btn.disabled = false;
@@ -987,7 +1101,7 @@ async function initApp() {
       openWizard(null);
     }
     refreshNetInfo();
-    await refreshStatus();
+    await refreshStatus(true);
   } catch (err) {
     setOfflineState(true);
     addLog('Başlatma hatası: ' + err.message);
@@ -995,4 +1109,4 @@ async function initApp() {
 }
 
 initApp();
-setInterval(refreshStatus, 5000);
+startPolling();

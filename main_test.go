@@ -250,3 +250,59 @@ func TestBrandedHTML404AndAPIJSON404AndDefaultFullMode(t *testing.T) {
 		t.Fatalf("expected JSON 404 for unknown /api route, got %d %q", recAPI.Code, recAPI.Header().Get("Content-Type"))
 	}
 }
+
+func TestWebUIBudgetAndAccessibilityContract(t *testing.T) {
+	// 1. Performance budget: total embedded static assets must stay <= 120 KB
+	var totalBytes int
+	for _, name := range []string{"web/index.html", "web/style.css", "web/app.js", "web/theme.js", "web/favicon.svg", "web/404.html"} {
+		b, err := webFS.ReadFile(name)
+		if err != nil {
+			t.Fatalf("missing embedded web asset %s: %v", name, err)
+		}
+		totalBytes += len(b)
+	}
+	if totalBytes > 120*1024 {
+		t.Fatalf("web asset performance budget exceeded: %d bytes > 120 KB", totalBytes)
+	}
+
+	// 2. HTML accessibility & UX contract checks
+	htmlBytes, _ := webFS.ReadFile("web/index.html")
+	html := string(htmlBytes)
+	for _, req := range []string{
+		`class="skip-link"`,
+		`<meta name="description"`,
+		`<noscript>`,
+		`role="dialog"`,
+		`role="alertdialog"`,
+		`aria-modal="true"`,
+		`role="tablist"`,
+		`role="tab"`,
+		`role="tabpanel"`,
+		`aria-live="polite"`,
+		`rel="noopener noreferrer"`,
+		`for="customServerInput"`,
+		`for="rescueInput"`,
+		`for="customBypassInput"`,
+		`for="customTunnelInput"`,
+	} {
+		if !strings.Contains(html, req) {
+			t.Fatalf("web/index.html missing required a11y/UX contract marker: %s", req)
+		}
+	}
+
+	// 3. CSS accessibility, theme, print & reduced-motion contract checks
+	cssBytes, _ := webFS.ReadFile("web/style.css")
+	css := string(cssBytes)
+	for _, req := range []string{
+		`color-scheme: dark`,
+		`color-scheme: light`,
+		`:focus-visible`,
+		`prefers-reduced-motion: reduce`,
+		`@media print`,
+		`tabular-nums`,
+	} {
+		if !strings.Contains(css, req) {
+			t.Fatalf("web/style.css missing required CSS contract marker: %s", req)
+		}
+	}
+}

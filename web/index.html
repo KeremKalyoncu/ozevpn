@@ -18,21 +18,25 @@
         <div class="logo-dot" id="brandDot" aria-hidden="true"></div>
         <div>
           <h1>OzeVPN <span class="ver">v6</span></h1>
-          <span class="subtitle">Hafif, Engelsiz, DoH, Hot-Reload &amp; Reklam Kalkanlı Motor</span>
+          <span class="subtitle">Hafif, Engelsiz, Şifreli DNS &amp; Reklam Kalkanlı Yerel Motor</span>
         </div>
       </div>
       <div class="topbar-right">
-        <span class="pill" id="installBadge">Kurulum: —</span>
-        <span class="pill" id="protoBadge">Protokol: —</span>
+        <span class="pill" id="installBadge">Çalışma: —</span>
+        <span class="pill" id="protoBadge">Katman: —</span>
         <span class="pill" id="coloBadge">Çıkış: —</span>
         <button id="themeToggleBtn" type="button" class="btn secondary sm" title="Açık / Koyu tema değiştir">☀️ Açık Tema</button>
-        <button id="newIpBtn" type="button" class="btn secondary sm" title="Avrupa Tor çıkışından 3 saniyede yeni IP al">🔄 Yeni Avrupa IP</button>
-        <button id="relaunchAdminBtn" type="button" class="btn secondary sm hidden" title="Roblox masaüstü ve tüm oyun UDP trafiği için TUN modunda aç">🎮 Oyun TUN</button>
+        <button id="newIpBtn" type="button" class="btn secondary sm" title="Avrupa Tor çıkışından yeni IP al">🔄 Yeni Avrupa IP</button>
+        <button id="relaunchAdminBtn" type="button" class="btn secondary sm" title="Roblox masaüstü ve oyun UDP trafiği için Yönetici (TUN) modunda aç">🎮 Oyun TUN</button>
         <button id="emergencyResetBtn" type="button" class="btn secondary sm" title="Proxy takılı kalırsa interneti anında normale döndür">🧯 Proxy Sıfırla</button>
         <button id="openWizardBtn" type="button" class="btn secondary sm">Sihirbaz</button>
         <button id="quitAppBtn" type="button" class="btn secondary sm" title="OzeVPN arka plan uygulamasını tamamen kapat">⏻ Çıkış</button>
       </div>
     </header>
+
+    <noscript>
+      <div class="offline-banner">⚠️ OzeVPN kontrol panelinin çalışması için JavaScript gereklidir. Tarayıcı ayarlarından JavaScript'i etkinleştirip sayfayı yenile.</div>
+    </noscript>
 
     <div id="offlineBanner" class="offline-banner hidden" role="alert">
       <span id="offlineBannerText">⚠️ OzeVPN arka plan servisine ulaşılamıyor. Uygulama kapatılmış olabilir.</span>
@@ -63,7 +67,7 @@
               <span class="mode-title">🌍 Tüm Dünya Engelsiz</span>
               <span class="tag">Önerilen</span>
             </div>
-            <p>Tek tek site eklemeden dünyadaki tüm siteler şifreli tünelden açılır. En hızlı el sıkışma ve sıfır zahmet.</p>
+            <p>Tek tek site eklemeden dünyadaki tüm engelli siteler ve servisler şifreli tünelden açılır. Sıfır zahmet.</p>
           </button>
 
           <button type="button" class="mode-card" data-mode="smart" aria-pressed="false">
@@ -71,7 +75,7 @@
               <span class="mode-title">🚀 Tüm Dünya + TR Hız Koruması</span>
               <span class="tag muted">Hibrit</span>
             </div>
-            <p>Tüm dünya engelsiz açılır; e-Devlet, TR bankalar ve Steam/Epic indirmeleri direkt normal hızından çıkar.</p>
+            <p>Tüm dünya engelsiz açılır; e-Devlet, TR bankalar ve Steam/Epic indirmeleri direkt normal hattından çıkar.</p>
           </button>
 
           <button type="button" class="mode-card" data-mode="pac" aria-pressed="false">
@@ -79,53 +83,16 @@
               <span class="mode-title">🎯 Sadece Seçili Siteler (PAC)</span>
               <span class="tag muted">Tarayıcı</span>
             </div>
-            <p>Sadece seçtiğin siteler yerel SOCKS5 tünelinden geçer. Geri kalan tüm internetin hiç dokunulmaz.</p>
+            <p>Yalnızca seçtiğin siteler yerel tünelden geçer. Geri kalan tüm internet trafiğine dokunulmaz.</p>
           </button>
-        </div>
-
-        <div class="controls-row">
-          <div class="control-box">
-            <label for="engineProfileSelect">Çıkış Motoru (sing-box)</label>
-            <select id="engineProfileSelect">
-              <option value="hybrid_eu">⚡ Hibrit: WARP Hız + Avrupa Tor (Roblox + Her Şey)</option>
-              <option value="tor_eu">🌍 Ultra Global: Saf Avrupa Tor (0 Kurulum)</option>
-              <option value="warp_fast">🚀 Sadece Hızlı WARP (En Düşük Ping)</option>
-              <option value="custom">🔑 Özel Sunucu (VLESS / SOCKS5 / VPS)</option>
-            </select>
-          </div>
-          <div class="control-box">
-            <label for="protocolSelect">WARP Protokolü</label>
-            <select id="protocolSelect">
-              <option value="Auto">Otomatik (WireGuard → MASQUE)</option>
-              <option value="WireGuard">WireGuard (En Hızlı)</option>
-              <option value="MASQUE">MASQUE (HTTP/3 Yedek)</option>
-            </select>
-          </div>
-        </div>
-
-        <div id="customServerBox" class="field-group hidden mb-14">
-          <label class="field-label" for="customServerInput">Özel Sunucu Bağlantısı (VLESS, SOCKS5 veya WireGuard .conf)</label>
-          <div class="add-row">
-            <input id="customServerInput" type="text" spellcheck="false" autocomplete="off" aria-describedby="customServerErr" placeholder="vless://, socks5:// veya WireGuard .conf yapıştır" />
-            <button id="saveServerBtn" type="button" class="btn primary">Kaydet</button>
-          </div>
-          <div id="customServerErr" class="inline-error hidden" role="alert"></div>
         </div>
 
         <label class="resident-bar clickable">
           <div>
             <strong>🛡️ Reklam &amp; Takipçi Hız Kalkanı</strong>
-            <div class="muted-small">28 ağır reklam/izleyici ağını keser — sayfalar %20-40 daha hızlı açılır.</div>
+            <div class="muted-small">28 ağır reklam/izleyici ağını keser — sayfaların daha hızlı ve temiz açılmasına yardımcı olur.</div>
           </div>
           <input type="checkbox" id="adBlockToggle" checked />
-        </label>
-
-        <label class="resident-bar clickable">
-          <div>
-            <strong>❄️ Katı Duvar Kırıcı (Tor Snowflake Köprü)</strong>
-            <div class="muted-small">Okul/işyeri/ülke güvenlik duvarı Tor'u engelliyorsa aç.</div>
-          </div>
-          <input type="checkbox" id="torBridgeToggle" />
         </label>
 
         <div class="resident-bar">
@@ -136,6 +103,49 @@
           <button id="toggleResidentBtn" type="button" class="btn secondary sm">Yerleşik Yap</button>
         </div>
 
+        <details id="advancedSettings" class="adv-details">
+          <summary>⚙️ Gelişmiş Ağ Ayarları (Çıkış Motoru, Protokol &amp; Köprü)</summary>
+          <div class="adv-body">
+            <p class="muted-small adv-help">Çoğu kullanıcı için varsayılan <strong>Hibrit</strong> motor ve <strong>Otomatik</strong> protokol en iyi sonucu verir. Özel sunucun varsa veya okul/işyeri duvarı Tor'u engelliyorsa buradan değiştirebilirsin.</p>
+            <div class="controls-row">
+              <div class="control-box">
+                <label for="engineProfileSelect">Çıkış Motoru (sing-box)</label>
+                <select id="engineProfileSelect">
+                  <option value="hybrid_eu">⚡ Hibrit: WARP Hız + Avrupa Tor (Roblox + Her Şey)</option>
+                  <option value="tor_eu">🌍 Ultra Global: Saf Avrupa Tor (0 Kurulum)</option>
+                  <option value="warp_fast">🚀 Sadece Hızlı WARP (En Düşük Ping)</option>
+                  <option value="custom">🔑 Özel Sunucu (VLESS / SOCKS5 / VPS)</option>
+                </select>
+              </div>
+              <div class="control-box">
+                <label for="protocolSelect">WARP Protokolü</label>
+                <select id="protocolSelect">
+                  <option value="Auto">Otomatik (WireGuard → MASQUE)</option>
+                  <option value="WireGuard">WireGuard (En Hızlı)</option>
+                  <option value="MASQUE">MASQUE (HTTP/3 Yedek)</option>
+                </select>
+              </div>
+            </div>
+
+            <div id="customServerBox" class="field-group hidden mb-14">
+              <label class="field-label" for="customServerInput">Özel Sunucu Bağlantısı (VLESS, SOCKS5 veya WireGuard .conf)</label>
+              <div class="add-row">
+                <input id="customServerInput" type="text" spellcheck="false" autocomplete="off" aria-describedby="customServerErr" placeholder="vless://, socks5:// veya WireGuard .conf yapıştır" />
+                <button id="saveServerBtn" type="button" class="btn primary">Kaydet</button>
+              </div>
+              <div id="customServerErr" class="inline-error hidden" role="alert"></div>
+            </div>
+
+            <label class="resident-bar clickable mb-0">
+              <div>
+                <strong>❄️ Katı Duvar Kırıcı (Tor Snowflake Köprü)</strong>
+                <div class="muted-small">Okul/işyeri veya katı güvenlik duvarı Tor çıkışını engelliyorsa aç.</div>
+              </div>
+              <input type="checkbox" id="torBridgeToggle" />
+            </label>
+          </div>
+        </details>
+
         <div class="log-box" id="logBox" role="log" aria-live="polite" aria-relevant="additions" aria-label="Bağlantı ve sistem günlüğü">
           <div class="log-line">OzeVPN v6 hazır.</div>
         </div>
@@ -143,21 +153,24 @@
 
       <!-- Right: Network/Modem Info + Live Probe + Rules + Router -->
       <section class="right-col" aria-label="Ağ Durumu, Erişim Testi ve Kural Yönetimi">
-        <!-- Modem / Network Banner -->
+        <!-- Modem / Network Banner (fixed single-line height prevents CLS) -->
         <div class="card net-card">
-          <div class="net-row">
-            <div>
-              <span class="net-label">Ağ &amp; Modem Tespiti</span>
-              <div class="net-val" id="modemHint">Taranıyor...</div>
+          <div class="net-top">
+            <div class="net-row">
+              <div>
+                <span class="net-label">Ağ &amp; Modem Tespiti</span>
+                <div class="net-val" id="modemHint">Taranıyor...</div>
+              </div>
+              <div>
+                <span class="net-label">Aktif DNS</span>
+                <div class="net-val" id="dnsInfo">—</div>
+              </div>
+              <div>
+                <span class="net-label">IPv6</span>
+                <div class="net-val" id="ipv6Info">—</div>
+              </div>
             </div>
-            <div>
-              <span class="net-label">Aktif DNS</span>
-              <div class="net-val" id="dnsInfo">—</div>
-            </div>
-            <div>
-              <span class="net-label">IPv6</span>
-              <div class="net-val" id="ipv6Info">—</div>
-            </div>
+            <button id="maskIpBtn" type="button" class="btn secondary sm net-mask-btn" aria-pressed="false" title="Ekran paylaşımı için IP ve MAC adreslerini gizle">👁️ IP Gizle</button>
           </div>
         </div>
 
@@ -177,7 +190,7 @@
             <div class="probe-empty">Henüz test yapılmadı. "Test Et" veya "⚡ Hız Ölç" butonuna tıkla.</div>
           </div>
           <div class="field-group rescue-row">
-            <label class="field-label" for="rescueInput">Site Kurtarıcı (Açılmayan alan adını test et veya Avrupa çıkışına al)</label>
+            <label class="field-label" for="rescueInput">Site Kurtarıcı (Açılmayan siteyi test et veya Avrupa çıkışına al)</label>
             <div class="add-row">
               <input id="rescueInput" type="text" spellcheck="false" autocomplete="off" aria-describedby="rescueResult" placeholder="Örn: wattpad.com veya roblox.com" />
               <button id="rescueTestBtn" type="button" class="btn secondary">Kontrol Et</button>
@@ -210,7 +223,7 @@
           </div>
 
           <div class="tab-panel" id="tab-tunnel" role="tabpanel" aria-labelledby="tabBtn-tunnel" tabindex="0" hidden>
-            <p class="muted-text">PAC modunda veya OpenWrt router'da özel olarak tünele alınacak siteler.</p>
+            <p class="muted-text">PAC modunda, Site Kurtarıcı ile eklenenlerde veya OpenWrt router'da özel olarak tünele alınacak siteler.</p>
             <div id="tunnelPresets" class="preset-list"></div>
             <div class="field-group">
               <label class="field-label" for="customTunnelInput">Özel olarak tünele alınacak site ekle</label>
@@ -226,22 +239,27 @@
           <div class="tab-panel" id="tab-router" role="tabpanel" aria-labelledby="tabBtn-router" tabindex="0" hidden>
             <div class="router-box">
               <h3>Tüm Ev İçin Modem Arkası Router (OpenWrt) &amp; Yurt Dışı Çıkış</h3>
-              <p>Evdeki tüm cihazların (PC, telefon, TV, konsol) engelsiz ve ping sıçramasız (SQM/CAKE) çalışması için <code>sing-box</code> ayarını indirip OpenWrt router'a yükleyebilirsin. Ayrıca Roblox gibi Türkiye çıkışında engelli servisler için ileride aylık ~3€'luk ortak bir Avrupa VPS'ini tek betikle bağlayabilirsin.</p>
+              <p>Evdeki tüm cihazların (PC, telefon, TV, konsol) engelsiz ve ping sıçramasız çalışması için <code>sing-box</code> ayarını indirip OpenWrt router'a yükleyebilirsin. İstersen arkadaşlarla ortak bir Avrupa VPS sunucusunu tek betikle bağlayabilirsin.</p>
               <div class="router-actions">
                 <a href="/api/export/openwrt" download="sing-box-openwrt.json" class="btn primary">sing-box-openwrt.json İndir</a>
                 <a href="/proxy.pac" target="_blank" rel="noopener noreferrer" class="btn secondary">Aktif PAC Dosyasını Gör ↗<span class="sr-only"> (yeni sekmede açılır)</span></a>
               </div>
               <div class="hint-box">
                 <strong>Hazır kurulum dosyaları:</strong><br/>
-                <code>router/openwrt-setup.sh</code> — SQM/CAKE + sing-box kurulum betiği<br/>
+                <code>router/openwrt-setup.sh</code> — OpenWrt + sing-box kurulum betiği<br/>
                 <code>router/README.md</code> — Modem → OpenWrt bağlantı rehberi<br/>
-                <code>vps/setup-vps.sh</code> — Arkadaşlarla ortak 3€ Avrupa VPS (WireGuard + BBR) kurulumu
+                <code>vps/setup-vps.sh</code> — Ortak Avrupa VPS (WireGuard + BBR) kurulumu
               </div>
             </div>
           </div>
         </div>
       </section>
     </main>
+
+    <footer class="app-footer">
+      <span>🔒 %100 Yerel Kontrol Paneli (<code>127.0.0.1</code>) • Sıfır Telemetri • Açık Kaynak Bileşenler: <code>sing-box</code> (GPL-3.0) &amp; <code>Tor</code> (BSD-3)</span>
+      <span>Acil kurtarma ve güvenlik belgeleri: <code>SECURITY.md</code> • <code>THIRD_PARTY_LICENSES.md</code></span>
+    </footer>
   </div>
 
   <!-- First-Run Setup Wizard Modal (placed after main for semantic h1 -> h2 order) -->
@@ -258,7 +276,7 @@
             <span>⚡ Yerleşik Mod (Bilgisayara Yerleşsin)</span>
             <span class="tag">Önerilen</span>
           </div>
-          <p>Çok hafif (~12 MB RAM) olarak kendini kurar, Windows her açıldığında sessizce başlar ve internetin her zaman engelsiz olur.</p>
+          <p>Hafif arka plan hizmeti olarak kendini kurar, Windows her açıldığında sessizce başlar ve internetin her zaman engelsiz olur.</p>
         </button>
 
         <button type="button" class="wizard-choice" data-install="on_demand" aria-pressed="false">
@@ -275,9 +293,9 @@
         <button type="button" class="wizard-choice active" data-mode="full" aria-pressed="true">
           <div class="choice-head">
             <span>🌍 Tüm Dünya Engelsiz</span>
-            <span class="tag">Trilyonlarca Site</span>
+            <span class="tag">Tüm Dünya</span>
           </div>
-          <p>Tek tek site eklemeden dünyadaki tüm engelli siteler ve servisler otomatik olarak açılır. En hızlı bağlantı (~2 sn).</p>
+          <p>Tek tek site eklemeden dünyadaki tüm engelli siteler ve servisler otomatik açılır. Otomatik hızlı bağlantı ve sıfır zahmet.</p>
         </button>
 
         <button type="button" class="wizard-choice" data-mode="smart" aria-pressed="false">

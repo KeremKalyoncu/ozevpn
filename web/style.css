@@ -137,11 +137,50 @@ button, input, select {
 }
 
 .hidden { display: none !important; }
+.mb-0 { margin-bottom: 0 !important; }
 .mb-14 { margin-bottom: 14px; }
 .mt-8 { margin-top: 8px; }
 .clickable { cursor: pointer; }
 .btn-group { display: flex; gap: 8px; flex-wrap: wrap; }
 .rescue-row { margin-top: 14px; margin-bottom: 0; }
+
+.adv-details {
+  background: var(--card-2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px 12px;
+  margin-bottom: 14px;
+}
+.adv-details summary {
+  cursor: pointer;
+  font-size: 0.84rem;
+  font-weight: 600;
+  color: var(--text);
+  list-style-position: outside;
+  margin-left: 14px;
+}
+.adv-body {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+}
+.adv-help {
+  margin: 0 0 10px;
+  line-height: 1.45;
+}
+
+.app-footer {
+  margin-top: 20px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  font-size: 0.78rem;
+  color: var(--muted);
+}
 
 .field-group {
   margin-bottom: 12px;
@@ -392,12 +431,28 @@ button, input, select {
 }
 
 .net-card { padding: 14px 18px; }
-.net-row {
-  display: grid;
-  grid-template-columns: 1.3fr 1.3fr 0.6fr;
+.net-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   gap: 12px;
 }
+.net-row {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 1.35fr 1.25fr 0.5fr;
+  gap: 12px;
+}
+.net-row > div {
+  min-width: 0;
+}
+.net-mask-btn {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
 @media (max-width: 700px) {
+  .net-top { flex-direction: column; align-items: stretch; }
   .net-row { grid-template-columns: 1fr; }
 }
 .net-label {
@@ -412,7 +467,11 @@ button, input, select {
   font-size: 0.85rem;
   font-weight: 600;
   color: var(--text);
-  word-break: break-all;
+  min-height: 1.35em;
+  line-height: 1.35;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
   font-variant-numeric: tabular-nums;
 }
 
@@ -652,6 +711,7 @@ button, input, select {
   display: flex;
   flex-direction: column;
   gap: 8px;
+  min-height: 215px;
   margin-bottom: 14px;
 }
 .preset-item {
@@ -801,5 +861,29 @@ code {
   .power-btn:active:not(:disabled),
   .btn:active:not(:disabled) {
     transform: none !important;
+  }
+}
+
+@media print {
+  body {
+    background: #ffffff !important;
+    color: #000000 !important;
+  }
+  .topbar-right,
+  .wizard-overlay,
+  .skip-link,
+  .btn,
+  .add-row,
+  .net-mask-btn {
+    display: none !important;
+  }
+  .card, .log-box, .hint-box {
+    background: #ffffff !important;
+    color: #000000 !important;
+    border: 1px solid #999999 !important;
+    box-shadow: none !important;
+  }
+  .grid {
+    display: block !important;
   }
 }

@@ -22,6 +22,11 @@
    - Çökme durumunda `sing-box`'ı otomatik dirilten **Watchdog** ve başlangıçta takılı kalmış proxy'yi otomatik temizleyen **Auto-Heal** + **🧯 Proxy Sıfırla** acil butonu.
 5. **📡 Faz 2: Modem Arkası OpenWrt Router & VPS:** [router/README.md](router/README.md), [router/openwrt-setup.sh](router/openwrt-setup.sh), [vps/setup-vps.sh](vps/setup-vps.sh).
 
+## Desteklenen Platform & Tarayıcı Matrisi
+- **İşletim Sistemi:** Windows 10 / Windows 11 (64-bit).
+- **Masaüstü Arayüz:** Microsoft Edge veya Google Chrome `--app` modu (birincil, tam doğrulanmış); standart tarayıcı olarak modern Chromium ve Firefox desteklenir.
+- **Tema & Erişilebilirlik:** Açık / Koyu tema (`prefers-color-scheme` + kalıcı tercih), WCAG 2.2 AA kontrast & klavye erişimi, `prefers-reduced-motion` ve `@media print` desteği.
+
 ## Testleri Çalıştır
 ```powershell
 go vet ./...
