@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -200,6 +201,20 @@ func (c *Client) waitConnected(maxWait time.Duration) bool {
 	return false
 }
 
+func waitLocalTCPPort(port int, maxWait time.Duration) bool {
+	addr := fmt.Sprintf("127.0.0.1:%d", port)
+	deadline := time.Now().Add(maxWait)
+	for time.Now().Before(deadline) {
+		conn, err := net.DialTimeout("tcp", addr, 350*time.Millisecond)
+		if err == nil {
+			_ = conn.Close()
+			return true
+		}
+		time.Sleep(250 * time.Millisecond)
+	}
+	return false
+}
+
 func (c *Client) ApplyAndConnect(cfg config.Config) ([]string, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -278,7 +293,18 @@ func (c *Client) ApplyAndConnect(cfg config.Config) ([]string, error) {
 			addLog(fmt.Sprintf("%s başlatma hatası: %v", proto, err))
 			continue
 		}
-		if c.waitConnected(8 * time.Second) {
+		if c.waitConnected(10 * time.Second) {
+			if cfg.Mode == config.ModeProxyPAC {
+				port := cfg.ProxyPort
+				if port < 1024 || port > 65535 {
+					port = 40000
+				}
+				if !waitLocalTCPPort(port, 4*time.Second) {
+					addLog(fmt.Sprintf("Uyarı: %s bağlandı ancak 127.0.0.1:%d SOCKS5 portu açılmadı.", proto, port))
+					_, _ = c.run(5*time.Second, "disconnect")
+					continue
+				}
+			}
 			addLog(fmt.Sprintf("Başarıyla bağlandı! Aktif protokol: %s", proto))
 			return logs, nil
 		}
@@ -289,8 +315,7 @@ func (c *Client) ApplyAndConnect(cfg config.Config) ([]string, error) {
 		}
 	}
 
-	addLog("Bağlantı denemesi başlatıldı, durum kontrol ediliyor...")
-	return logs, nil
+	return logs, errors.New("WARP tüneli kurulamadı veya yerel proxy portu yanıt vermedi")
 }
 
 func (c *Client) Disconnect() error {

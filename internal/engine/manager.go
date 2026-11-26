@@ -296,8 +296,13 @@ func (m *Manager) Start(cfg config.Config) ([]string, error) {
 				logs = append(logs, wLogs...)
 				logMu.Unlock()
 				if wErr == nil {
-					warpAvailable = true
-					addLog(fmt.Sprintf("WARP Proxy hazır (127.0.0.1:%d).", m.warpPort))
+					if conn, dErr := net.DialTimeout("tcp", fmt.Sprintf("127.0.0.1:%d", m.warpPort), 800*time.Millisecond); dErr == nil {
+						_ = conn.Close()
+						warpAvailable = true
+						addLog(fmt.Sprintf("WARP Proxy hazır (127.0.0.1:%d).", m.warpPort))
+					} else {
+						addLog(fmt.Sprintf("WARP portu (127.0.0.1:%d) dinlemiyor, Avrupa Tor katmanına geçiliyor.", m.warpPort))
+					}
 				} else {
 					addLog("WARP başlatılamadı, Avrupa Tor katmanına geçiliyor: " + wErr.Error())
 				}
