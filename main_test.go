@@ -306,3 +306,24 @@ func TestWebUIBudgetAndAccessibilityContract(t *testing.T) {
 		}
 	}
 }
+
+func TestInvalidCustomServerAndNewIdentityGuards(t *testing.T) {
+	tmp := t.TempDir()
+	store, _ := config.NewStore(filepath.Join(tmp, "ozevpn.json"))
+	eng := engine.NewManager(tmp, warp.NewClient())
+	h := buildHandler(store, eng)
+
+	// 1. Invalid custom server must be rejected immediately with 400
+	recBad := httptest.NewRecorder()
+	h.ServeHTTP(recBad, localReq(http.MethodPost, "/api/config", `{"custom_server":"not-a-valid-server"}`))
+	if recBad.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 for invalid custom_server, got %d: %s", recBad.Code, recBad.Body.String())
+	}
+
+	// 2. /api/new-identity while disconnected must return 400 instead of spawning orphan Tor
+	recRot := httptest.NewRecorder()
+	h.ServeHTTP(recRot, localReq(http.MethodPost, "/api/new-identity", ""))
+	if recRot.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 for /api/new-identity when disconnected, got %d: %s", recRot.Code, recRot.Body.String())
+	}
+}

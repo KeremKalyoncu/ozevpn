@@ -9,6 +9,8 @@ let statusSeq = 0;
 let statusInFlight = false;
 let pollTimer = null;
 let maskSensitiveIP = false;
+let relaunchingAdmin = false;
+let appShuttingDown = false;
 
 let wizardInstallChoice = 'resident';
 let wizardModeChoice = 'full';
@@ -372,7 +374,7 @@ async function saveConfig() {
   });
 }
 
-async function commitConfig(mutator, logMsg) {
+async function commitConfig(mutator, logMsg, hotReload = false) {
   if (!appConfig) return false;
   const snapshot = JSON.parse(JSON.stringify(appConfig));
   try {
@@ -381,6 +383,14 @@ async function commitConfig(mutator, logMsg) {
     await saveConfig();
     renderConfig();
     if (logMsg) addLog(logMsg);
+    if (hotReload && engineStatus && engineStatus.running) {
+      try {
+        const r = await api('/api/reload', { method: 'POST' }, 15000);
+        addLog(r.message || 'Kurallar anında yenilendi.');
+      } catch (rErr) {
+        addLog('Canlı kural yenileme uyarısı: ' + rErr.message);
+      }
+    }
     return true;
   } catch (err) {
     appConfig = snapshot;
@@ -496,7 +506,7 @@ function renderPresets(container, list) {
       await commitConfig((cfg) => {
         const target = (cfg.bypass_presets || []).concat(cfg.tunnel_presets || []).find(item => item.id === p.id);
         if (target) target.enabled = nextVal;
-      }, `Liste güncellendi: ${p.name}`);
+      }, `Liste güncellendi: ${p.name}`, true);
       cb.disabled = false;
     });
     row.append(info, cb);
@@ -517,13 +527,14 @@ function renderChips(container, domains, kind) {
     btn.textContent = '×';
     btn.addEventListener('click', async () => {
       btn.disabled = true;
+      showInlineError(kind === 'bypass' ? els.bypassErr : els.tunnelErr, kind === 'bypass' ? els.customBypassInput : els.customTunnelInput, '');
       await commitConfig((cfg) => {
         if (kind === 'bypass') {
           cfg.custom_bypass = (cfg.custom_bypass || []).filter(x => x !== d);
         } else {
           cfg.custom_tunnel = (cfg.custom_tunnel || []).filter(x => x !== d);
         }
-      }, `Site silindi (${kind}): ${d}`);
+      }, `Site silindi (${kind}): ${d}`, true);
     });
     chip.append(label, btn);
     container.appendChild(chip);
@@ -560,12 +571,13 @@ function openWizard(triggerEl) {
 
 /* ---------- Status & Network Polling (Race-Safe + Visibility-Aware) ---------- */
 async function refreshStatus(force) {
+  if (appShuttingDown || relaunchingAdmin || (busy && !force)) return;
   if (statusInFlight && !force) return;
   statusInFlight = true;
   const seq = ++statusSeq;
   try {
     const fresh = await api('/api/status', {}, 6000);
-    if (seq !== statusSeq) return; // Drop stale out-of-order response
+    if (seq !== statusSeq || appShuttingDown || relaunchingAdmin) return;
     engineStatus = fresh;
     if (consecutiveStatusFails > 0) {
       consecutiveStatusFails = 0;
@@ -574,7 +586,7 @@ async function refreshStatus(force) {
     }
     renderStatus();
   } catch (err) {
-    if (seq !== statusSeq) return;
+    if (seq !== statusSeq || appShuttingDown || relaunchingAdmin) return;
     consecutiveStatusFails++;
     if (consecutiveStatusFails === 1) {
       addLog('Durum alınamadı: ' + err.message);
@@ -759,11 +771,18 @@ if (els.quitAppBtn) {
     const ok = await askConfirm('OzeVPN Kapatılsın mı?', desc, 'Evet, Kapat', els.quitAppBtn);
     if (!ok) return;
     els.quitAppBtn.disabled = true;
+    appShuttingDown = true;
+    if (pollTimer) clearInterval(pollTimer);
     try {
       addLog('OzeVPN kapatılıyor...');
       await api('/api/shutdown', { method: 'POST' }, 8000);
+      els.statusText.textContent = 'OzeVPN Kapatıldı';
+      els.statusSub.textContent = 'Arka plan servisi güvenli şekilde durduruldu. Bu pencereyi kapatabilirsin.';
+      els.powerBtn.disabled = true;
       window.close();
     } catch (err) {
+      appShuttingDown = false;
+      startPolling();
       addLog('Kapatma hatası: ' + err.message);
       els.quitAppBtn.disabled = false;
     }
@@ -803,7 +822,7 @@ els.modeGrid.addEventListener('click', async (e) => {
   const card = e.target.closest('.mode-card');
   if (!card || !appConfig) return;
   const nextMode = card.dataset.mode;
-  await commitConfig((cfg) => { cfg.mode = nextMode; }, `Mod seçildi: ${nextMode}`);
+  await commitConfig((cfg) => { cfg.mode = nextMode; }, `Mod seçildi: ${nextMode}`, true);
 });
 
 els.engineProfileSelect.addEventListener('change', async () => {
@@ -847,19 +866,12 @@ if (els.adBlockToggle) {
   els.adBlockToggle.addEventListener('change', async () => {
     const nextVal = els.adBlockToggle.checked;
     els.adBlockToggle.disabled = true;
-    const ok = await commitConfig(
+    await commitConfig(
       (cfg) => { cfg.ad_block_speed = nextVal; },
-      `Reklam & Takipçi Hız Kalkanı: ${nextVal ? 'Açık' : 'Kapalı'}`
+      `Reklam & Takipçi Hız Kalkanı: ${nextVal ? 'Açık' : 'Kapalı'}`,
+      true
     );
     els.adBlockToggle.disabled = false;
-    if (ok && engineStatus && engineStatus.running) {
-      try {
-        const r = await api('/api/reload', { method: 'POST' }, 15000);
-        addLog(r.message || 'Kurallar anında yenilendi.');
-      } catch (err) {
-        addLog('Canlı kural yenileme uyarısı: ' + err.message);
-      }
-    }
   });
 }
 
@@ -877,10 +889,14 @@ if (els.torBridgeToggle) {
 
 if (els.newIpBtn) {
   els.newIpBtn.addEventListener('click', async () => {
+    if (!engineStatus || !engineStatus.running) {
+      addLog('Yeni Avrupa IP almak için önce güç düğmesine basıp bağlan.');
+      return;
+    }
     els.newIpBtn.disabled = true;
     els.newIpBtn.textContent = '🔄 Yenileniyor...';
     try {
-      const r = await api('/api/new-identity', { method: 'POST' }, 15000);
+      const r = await api('/api/new-identity', { method: 'POST' }, 35000);
       addLog(r.message || 'Yeni Avrupa IP alındı.');
     } catch (err) {
       addLog('IP yenileme hatası: ' + err.message);
@@ -1001,14 +1017,46 @@ if (els.emergencyResetBtn) {
 
 if (els.relaunchAdminBtn) {
   els.relaunchAdminBtn.addEventListener('click', async () => {
-    if (els.relaunchAdminBtn.disabled) return;
+    if (els.relaunchAdminBtn.disabled || relaunchingAdmin) return;
+    relaunchingAdmin = true;
     els.relaunchAdminBtn.disabled = true;
+    els.relaunchAdminBtn.textContent = '🛡️ UAC Bekleniyor...';
+    setOfflineState(false);
+    addLog('Yönetici (Oyun TUN) izni isteniyor — Windows UAC penceresinden "Evet" onayla...');
     try {
-      addLog('Yönetici (Oyun TUN) izni isteniyor...');
-      await api('/api/relaunch-admin', { method: 'POST' }, 15000);
+      await api('/api/relaunch-admin', { method: 'POST' }, 60000);
+      els.relaunchAdminBtn.textContent = '🛡️ TUN Geçiliyor...';
+      els.statusSub.textContent = 'Yönetici (Oyun TUN) servisi devralıyor, lütfen bekle...';
+      addLog('Yönetici onayı alındı — yeni TUN servisinin portu devralması bekleniyor...');
+
+      let switched = false;
+      for (let i = 0; i < 30; i++) {
+        await new Promise(r => setTimeout(r, 500));
+        try {
+          const st = await api('/api/status', {}, 2500);
+          if (st && st.is_admin) {
+            engineStatus = st;
+            switched = true;
+            break;
+          }
+        } catch {
+          // Expected briefly (~300ms) while old process releases port and admin process binds it
+        }
+      }
+      relaunchingAdmin = false;
+      consecutiveStatusFails = 0;
+      setOfflineState(false);
+      if (switched) {
+        renderStatus();
+        addLog('✅ Yönetici (Oyun TUN) modu aktif! Artık Bağlan düğmesine basarak gerçek TUN ağ kartını açabilirsin.');
+      } else {
+        await refreshStatus(true);
+        addLog('Yönetici geçişi tamamlandı ancak durum doğrulanamadı — sayfayı yenileyebilirsin.');
+      }
     } catch (err) {
+      relaunchingAdmin = false;
       addLog('Yönetici başlatma iptal edildi: ' + err.message);
-      els.relaunchAdminBtn.disabled = false;
+      renderStatus();
     }
   });
 }
@@ -1046,19 +1094,41 @@ tabButtons.forEach((btn, idx) => {
   });
 });
 
-/* ---------- Custom Domains (Safe Input Preservation + Inline Validation) ---------- */
+/* ---------- Custom Domains (Client Validation + Duplicate Guard + Safe Preservation) ---------- */
+function cleanClientDomain(raw) {
+  let d = String(raw || '').trim().toLowerCase();
+  d = d.replace(/^https?:\/\//, '').split('/')[0].split(':')[0].replace(/^\*\./, '').replace(/^www\./, '').trim();
+  if (!d || d.length > 253) return '';
+  if (!/^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)+$/.test(d)) return '';
+  if (/^\d+\.\d+\.\d+\.\d+$/.test(d)) return '';
+  return d;
+}
+
 async function addCustomDomain(kind) {
   const isBypass = kind === 'bypass';
   const input = isBypass ? els.customBypassInput : els.customTunnelInput;
   const errEl = isBypass ? els.bypassErr : els.tunnelErr;
   const btn = isBypass ? els.addBypassBtn : els.addTunnelBtn;
-  const val = input.value.trim();
+  const rawVal = input.value.trim();
 
-  if (!val) {
+  if (!rawVal) {
     showInlineError(errEl, input, 'Eklemek için bir site adresi gir (örn: ornek.com).');
     input.focus();
     return;
   }
+  const val = cleanClientDomain(rawVal);
+  if (!val) {
+    showInlineError(errEl, input, 'Geçerli bir alan adı gir (örn: ornek.com — boşluk veya IP adresi kabul edilmez).');
+    input.focus();
+    return;
+  }
+  const existing = isBypass ? (appConfig && appConfig.custom_bypass || []) : (appConfig && appConfig.custom_tunnel || []);
+  if (existing.includes(val)) {
+    showInlineError(errEl, input, `${val} zaten bu listede kayıtlı.`);
+    input.focus();
+    return;
+  }
+
   showInlineError(errEl, input, '');
   btn.disabled = true;
   btn.textContent = 'Ekleniyor...';
@@ -1069,7 +1139,7 @@ async function addCustomDomain(kind) {
       } else {
         cfg.custom_tunnel = [...(cfg.custom_tunnel || []), val];
       }
-    }, `Site eklendi (${kind}): ${val}`);
+    }, `Site eklendi (${kind}): ${val}`, true);
     if (ok) {
       input.value = '';
     } else {
@@ -1085,6 +1155,12 @@ els.addBypassBtn.addEventListener('click', () => addCustomDomain('bypass'));
 els.addTunnelBtn.addEventListener('click', () => addCustomDomain('tunnel'));
 els.customBypassInput.addEventListener('keydown', e => { if (e.key === 'Enter') addCustomDomain('bypass'); });
 els.customTunnelInput.addEventListener('keydown', e => { if (e.key === 'Enter') addCustomDomain('tunnel'); });
+els.customBypassInput.addEventListener('input', () => showInlineError(els.bypassErr, els.customBypassInput, ''));
+els.customTunnelInput.addEventListener('input', () => showInlineError(els.tunnelErr, els.customTunnelInput, ''));
+els.customServerInput.addEventListener('input', () => showInlineError(els.customServerErr, els.customServerInput, ''));
+if (els.rescueInput) {
+  els.rescueInput.addEventListener('input', () => els.rescueInput.removeAttribute('aria-invalid'));
+}
 
 /* ---------- App Init ---------- */
 async function initApp() {

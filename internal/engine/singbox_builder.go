@@ -127,7 +127,7 @@ func BuildSingBoxConfig(cfg config.Config, opts BuildOptions) ([]byte, error) {
 		}
 	}
 
-	if euOut != "" && defaultOut != euOut && useHybrid {
+	if euOut != "" && defaultOut != euOut && (useHybrid || cfg.Mode == config.ModeProxyPAC) {
 		euDomains := []string{
 			"roblox.com",
 			"rbxcdn.com",

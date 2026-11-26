@@ -38,10 +38,19 @@ func GetStatus() Status {
 	if runtime.GOOS != "windows" {
 		return st
 	}
-	out, err := runPS(`(Get-ItemProperty -Path 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run' -Name 'OzeVPN' -ErrorAction SilentlyContinue).OzeVPN`)
-	if err == nil && strings.TrimSpace(out) != "" {
-		st.ResidentEnabled = true
-		st.StartupCommand = strings.TrimSpace(out)
+	cmd := exec.Command("reg", "query", `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`, "/v", "OzeVPN")
+	procutil.HideWindow(cmd)
+	out, err := cmd.Output()
+	if err == nil {
+		for _, line := range strings.Split(string(out), "\n") {
+			if strings.Contains(line, "REG_SZ") {
+				parts := strings.SplitN(line, "REG_SZ", 2)
+				if len(parts) == 2 && strings.TrimSpace(parts[1]) != "" {
+					st.ResidentEnabled = true
+					st.StartupCommand = strings.TrimSpace(parts[1])
+				}
+			}
+		}
 	}
 	return st
 }

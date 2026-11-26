@@ -83,7 +83,9 @@ func IsSystemProxyPointingTo(port int) bool {
 }
 
 // RelaunchAsAdmin triggers a Windows UAC elevation prompt to restart ozevpn.exe with TUN privileges.
-func RelaunchAsAdmin() error {
+// Passes -no-browser -takeover so the elevated process waits for the old process to release the port
+// and seamlessly takes over the existing UI window without spawning a duplicate browser window.
+func RelaunchAsAdmin(listenAddr string) error {
 	if runtime.GOOS != "windows" {
 		return nil
 	}
@@ -91,7 +93,13 @@ func RelaunchAsAdmin() error {
 	if err != nil {
 		return err
 	}
-	ps := fmt.Sprintf(`Start-Process -FilePath '%s' -Verb RunAs`, strings.ReplaceAll(exe, "'", "''"))
+	escExe := strings.ReplaceAll(exe, "'", "''")
+	args := []string{"'-no-browser'", "'-takeover'"}
+	if strings.TrimSpace(listenAddr) != "" {
+		escAddr := strings.ReplaceAll(strings.TrimSpace(listenAddr), "'", "''")
+		args = append(args, "'-addr'", "'"+escAddr+"'")
+	}
+	ps := fmt.Sprintf(`Start-Process -FilePath '%s' -ArgumentList %s -Verb RunAs`, escExe, strings.Join(args, ","))
 	return runPS(ps)
 }
 

@@ -69,6 +69,8 @@ type EngineState struct {
 
 type Manager struct {
 	mu            sync.Mutex
+	snapMu        sync.RWMutex
+	lastSnap      EngineState
 	baseDir       string
 	warpClient    *warp.Client
 	torCmd        *exec.Cmd
@@ -141,14 +143,26 @@ func procAlive(cmd *exec.Cmd) bool {
 }
 
 func (m *Manager) Status() EngineState {
-	m.mu.Lock()
+	if !m.mu.TryLock() {
+		// Start() or RotateTorIdentity() is currently in progress; return non-blocking snapshot immediately
+		// so /api/status never stalls or times out during a 10-15s connection handshake.
+		m.snapMu.RLock()
+		snap := m.lastSnap
+		m.snapMu.RUnlock()
+		if snap.State == "" {
+			snap.State = "Connecting"
+		}
+		snap.IsAdmin = m.isAdmin
+		snap.ProxyPort = m.mixedPort
+		return snap
+	}
 	defer m.mu.Unlock()
 
 	var up int64
 	if m.running && !m.startedAt.IsZero() {
 		up = int64(time.Since(m.startedAt).Seconds())
 	}
-	return EngineState{
+	st := EngineState{
 		Running:        m.running,
 		State:          m.state,
 		ActiveProfile:  m.activeProf,
@@ -166,6 +180,10 @@ func (m *Manager) Status() EngineState {
 		UptimeSec:      up,
 		LastError:      m.lastErr,
 	}
+	m.snapMu.Lock()
+	m.lastSnap = st
+	m.snapMu.Unlock()
+	return st
 }
 
 func (m *Manager) Start(cfg config.Config) ([]string, error) {
@@ -176,6 +194,10 @@ func (m *Manager) Start(cfg config.Config) ([]string, error) {
 	m.state = "Connecting"
 	m.lastErr = ""
 	m.torBridge = cfg.TorBridge
+	m.snapMu.Lock()
+	m.lastSnap.State = "Connecting"
+	m.lastSnap.Running = false
+	m.snapMu.Unlock()
 
 	var logMu sync.Mutex
 	var logs []string
@@ -384,6 +406,7 @@ func (m *Manager) watchdogLoop(stopCh chan struct{}, sbBin, sbCfgPath string) {
 				sbLogFile, err := newCappedFileWriter(filepath.Join(m.baseDir, "bin", "sing-box.log"), defaultMaxLogBytes)
 				if err == nil {
 					cmd := exec.Command(sbBin, "run", "-c", sbCfgPath)
+					procutil.HideWindow(cmd)
 					cmd.Stdout = sbLogFile
 					cmd.Stderr = sbLogFile
 					if err := cmd.Start(); err == nil {
@@ -486,6 +509,9 @@ func (m *Manager) RotateTorIdentity() (string, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
+	if !m.running {
+		return "", errors.New("Yeni Avrupa IP almak için önce güç düğmesine basıp bağlanmalısın.")
+	}
 	torBin := m.findBin(filepath.Join("tor", "tor", "tor.exe"))
 	if torBin == "" {
 		return "", errors.New("bin/tor/tor/tor.exe bulunamadı")

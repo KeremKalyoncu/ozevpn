@@ -115,6 +115,10 @@ func withConcurrencyLimit(maxConcurrent int, next http.HandlerFunc) http.Handler
 }
 
 func buildHandler(store *config.Store, eng *engine.Manager) http.Handler {
+	return buildHandlerWithLifecycle(store, eng, "", nil)
+}
+
+func buildHandlerWithLifecycle(store *config.Store, eng *engine.Manager, listenAddr string, onExit func()) http.Handler {
 	mux := http.NewServeMux()
 
 	subWeb, err := fs.Sub(webFS, "web")
@@ -262,6 +266,12 @@ func buildHandler(store *config.Store, eng *engine.Manager) http.Handler {
 				writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
 				return
 			}
+			if strings.TrimSpace(incoming.CustomServer) != "" {
+				if _, err := engine.ParseCustomOutbound(incoming.CustomServer); err != nil {
+					writeJSON(w, http.StatusBadRequest, map[string]string{"error": "Geçersiz özel sunucu bağlantısı: " + err.Error()})
+					return
+				}
+			}
 			incoming.CustomBypass = cleanSlice(incoming.CustomBypass)
 			incoming.CustomTunnel = cleanSlice(incoming.CustomTunnel)
 			if err := store.Update(func(c *config.Config) {
@@ -351,13 +361,20 @@ func buildHandler(store *config.Store, eng *engine.Manager) http.Handler {
 			w.WriteHeader(http.StatusMethodNotAllowed)
 			return
 		}
-		if err := engine.RelaunchAsAdmin(); err != nil {
+		if err := engine.RelaunchAsAdmin(listenAddr); err != nil {
 			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 			return
 		}
-		writeJSON(w, http.StatusOK, map[string]any{"ok": true})
+		writeJSON(w, http.StatusOK, map[string]any{"ok": true, "message": "Yönetici (Oyun TUN) süreci başlatıldı, port devrediliyor..."})
+		if fl, ok := w.(http.Flusher); ok {
+			fl.Flush()
+		}
 		go func() {
-			time.Sleep(500 * time.Millisecond)
+			time.Sleep(150 * time.Millisecond)
+			if onExit != nil {
+				onExit()
+				return
+			}
 			eng.Stop()
 			os.Exit(0)
 		}()
@@ -436,6 +453,10 @@ func buildHandler(store *config.Store, eng *engine.Manager) http.Handler {
 			w.WriteHeader(http.StatusMethodNotAllowed)
 			return
 		}
+		if !eng.Status().Running {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "Yeni Avrupa IP almak için önce güç düğmesine basıp bağlanmalısın."})
+			return
+		}
 		msg, err := eng.RotateTorIdentity()
 		if err != nil {
 			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
@@ -463,8 +484,15 @@ func buildHandler(store *config.Store, eng *engine.Manager) http.Handler {
 			return
 		}
 		writeJSON(w, http.StatusOK, map[string]any{"ok": true, "message": "OzeVPN güvenli şekilde kapatılıyor..."})
+		if fl, ok := w.(http.Flusher); ok {
+			fl.Flush()
+		}
 		go func() {
-			time.Sleep(300 * time.Millisecond)
+			time.Sleep(150 * time.Millisecond)
+			if onExit != nil {
+				onExit()
+				return
+			}
 			eng.Stop()
 			os.Exit(0)
 		}()
@@ -483,6 +511,7 @@ func main() {
 	noBrowser := flag.Bool("no-browser", false, "Tarayıcıyı otomatik açma")
 	silent := flag.Bool("silent", false, "Sessiz arka plan modu (tarayıcı açmaz)")
 	autoConnect := flag.Bool("autoconnect", false, "Başlangıçta otomatik bağlan")
+	takeover := flag.Bool("takeover", false, "Mevcut örneğin portu bırakmasını bekle (Yönetici geçişi)")
 	addrFlag := flag.String("addr", "", "Dinleme adresi (varsayılan: 127.0.0.1:7777)")
 	flag.Parse()
 
@@ -516,8 +545,18 @@ func main() {
 	}
 
 	u := "http://" + listenAddr
-	// Single-Instance Guard: if OzeVPN is already running (e.g. Yerleşik Mod), just open the panel and exit cleanly!
-	if conn, err := net.DialTimeout("tcp", listenAddr, 350*time.Millisecond); err == nil {
+	// Single-Instance Guard: if -takeover is set (Oyun TUN admin handoff), wait cleanly
+	// for the previous non-admin process to release the port instead of exiting or opening a 2nd window.
+	if *takeover {
+		for i := 0; i < 48; i++ {
+			conn, err := net.DialTimeout("tcp", listenAddr, 200*time.Millisecond)
+			if err != nil {
+				break // Port is free!
+			}
+			_ = conn.Close()
+			time.Sleep(250 * time.Millisecond)
+		}
+	} else if conn, err := net.DialTimeout("tcp", listenAddr, 350*time.Millisecond); err == nil {
 		_ = conn.Close()
 		if !*noBrowser && !*silent {
 			openBrowser(u)
@@ -538,11 +577,17 @@ func main() {
 
 	srv := &http.Server{
 		Addr:              listenAddr,
-		Handler:           buildHandler(store, eng),
 		ReadHeaderTimeout: 10 * time.Second,
 		ReadTimeout:       15 * time.Second,
 		IdleTimeout:       60 * time.Second,
 	}
+	gracefulExit := func() {
+		// Close listener FIRST so an elevated -takeover process can bind the port within milliseconds
+		_ = srv.Close()
+		eng.Stop()
+		os.Exit(0)
+	}
+	srv.Handler = buildHandlerWithLifecycle(store, eng, listenAddr, gracefulExit)
 
 	if !*silent {
 		fmt.Printf("\n  OzeVPN v6 (sing-box + DoH + Hot-Reload + Hız Kalkanı) çalışıyor -> %s\n", u)

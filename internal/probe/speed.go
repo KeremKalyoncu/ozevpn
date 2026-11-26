@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -134,57 +135,67 @@ type RescueReport struct {
 }
 
 // TestDomainPaths tests a specific domain across direct, active sing-box proxy, and Tor EU
-// so the user immediately sees which path unblocks it fastest.
+// in parallel so the user immediately sees which path unblocks it fastest (~2-6s total).
 func TestDomainPaths(ctx context.Context, domain string, mixedPort, torPort int) RescueReport {
 	targetURL := "https://" + domain + "/"
-	paths := []struct {
-		name      string
-		proxyURL  string
-		enabled   bool
-	}{
-		{name: "direct", proxyURL: "", enabled: true},
-		{name: "active_tunnel", proxyURL: fmt.Sprintf("http://127.0.0.1:%d", mixedPort), enabled: mixedPort > 0},
-		{name: "tor_eu", proxyURL: fmt.Sprintf("socks5://127.0.0.1:%d", torPort), enabled: torPort > 0},
+	type pathDef struct {
+		name     string
+		proxyURL string
+	}
+	activePaths := []pathDef{
+		{name: "direct", proxyURL: ""},
+	}
+	if mixedPort > 0 {
+		activePaths = append(activePaths, pathDef{name: "active_tunnel", proxyURL: fmt.Sprintf("http://127.0.0.1:%d", mixedPort)})
+	}
+	if torPort > 0 {
+		activePaths = append(activePaths, pathDef{name: "tor_eu", proxyURL: fmt.Sprintf("socks5://127.0.0.1:%d", torPort)})
 	}
 
-	report := RescueReport{Domain: domain, Recommended: "none"}
-	for _, p := range paths {
-		if !p.enabled {
-			continue
-		}
-		tr := &http.Transport{
-			DialContext:         (&net.Dialer{Timeout: 6 * time.Second}).DialContext,
-			TLSHandshakeTimeout: 6 * time.Second,
-			DisableKeepAlives:   true,
-		}
-		if p.proxyURL != "" {
-			if u, err := url.Parse(p.proxyURL); err == nil {
-				tr.Proxy = http.ProxyURL(u)
-			}
-		}
-		client := &http.Client{
-			Timeout:   9 * time.Second,
-			Transport: tr,
-			CheckRedirect: func(req *http.Request, via []*http.Request) error {
-				return http.ErrUseLastResponse
-			},
-		}
-		res := probeTarget(ctx, client, target{Name: p.name, URL: targetURL})
-		report.Paths = append(report.Paths, RescuePath{
-			Path:       p.name,
-			Reachable:  res.Reachable,
-			StatusCode: res.StatusCode,
-			LatencyMS:  res.LatencyMS,
-			Error:      res.Error,
-		})
+	report := RescueReport{
+		Domain:      domain,
+		Recommended: "none",
+		Paths:       make([]RescuePath, len(activePaths)),
 	}
+
+	var wg sync.WaitGroup
+	for i, p := range activePaths {
+		wg.Add(1)
+		go func(idx int, pd pathDef) {
+			defer wg.Done()
+			tr := &http.Transport{
+				DialContext:         (&net.Dialer{Timeout: 6 * time.Second}).DialContext,
+				TLSHandshakeTimeout: 6 * time.Second,
+				DisableKeepAlives:   true,
+			}
+			if pd.proxyURL != "" {
+				if u, err := url.Parse(pd.proxyURL); err == nil {
+					tr.Proxy = http.ProxyURL(u)
+				}
+			}
+			client := &http.Client{
+				Timeout:   9 * time.Second,
+				Transport: tr,
+				CheckRedirect: func(req *http.Request, via []*http.Request) error {
+					return http.ErrUseLastResponse
+				},
+			}
+			res := probeTarget(ctx, client, target{Name: pd.name, URL: targetURL})
+			report.Paths[idx] = RescuePath{
+				Path:       pd.name,
+				Reachable:  res.Reachable,
+				StatusCode: res.StatusCode,
+				LatencyMS:  res.LatencyMS,
+				Error:      res.Error,
+			}
+		}(i, p)
+	}
+	wg.Wait()
 
 	// Pick fastest reachable path, preferring active_tunnel / tor_eu if direct is blocked
 	for _, rp := range report.Paths {
-		if rp.Reachable {
-			if report.Recommended == "none" {
-				report.Recommended = rp.Path
-			}
+		if rp.Reachable && report.Recommended == "none" {
+			report.Recommended = rp.Path
 		}
 	}
 	return report

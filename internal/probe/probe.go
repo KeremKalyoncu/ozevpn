@@ -155,7 +155,7 @@ func probeTarget(ctx context.Context, client *http.Client, tgt target) TargetRes
 		res.Error = err.Error()
 		return res
 	}
-	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) OzeVPN/3.0")
+	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) OzeVPN/6.0")
 
 	start := time.Now()
 	resp, err := client.Do(req)
@@ -177,12 +177,14 @@ func simplifyErr(e string) string {
 	switch {
 	case strings.Contains(l, "timeout") || strings.Contains(l, "deadline exceeded"):
 		return "Zaman aşımı (engelli olabilir)"
-	case strings.Contains(l, "connection reset"):
+	case strings.Contains(l, "connection reset") || strings.Contains(l, "forcibly closed") || strings.Contains(l, "wsarecv") || strings.Contains(l, "eof"):
 		return "Bağlantı sıfırlandı (DPI/engel)"
 	case strings.Contains(l, "no such host"):
 		return "DNS çözümlenemedi"
 	case strings.Contains(l, "refused"):
 		return "Bağlantı reddedildi"
+	case strings.Contains(l, "read tcp") || strings.Contains(l, "write tcp"):
+		return "Bağlantı kesildi (DPI/engel)"
 	default:
 		if len(e) > 70 {
 			return e[:70] + "..."
