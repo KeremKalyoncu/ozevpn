@@ -421,3 +421,31 @@ func TestRateLimitBlocksExcessiveCalls(t *testing.T) {
 		t.Fatalf("expected 429 on 3rd rapid call, got %d", rec3.Code)
 	}
 }
+
+func TestMetricsHealthzAndBuildProvenance(t *testing.T) {
+	tmp := t.TempDir()
+	store, _ := config.NewStore(filepath.Join(tmp, "ozevpn.json"))
+	eng := engine.NewManager(tmp, warp.NewClient())
+	tok := generateSessionToken()
+	h := buildHandlerWithAuth(store, eng, tok, "127.0.0.1:7777", nil)
+
+	recHz := httptest.NewRecorder()
+	h.ServeHTTP(recHz, localReq(http.MethodGet, "/api/healthz", ""))
+	if recHz.Code != http.StatusOK || !strings.Contains(recHz.Body.String(), `"build_commit"`) {
+		t.Fatalf("expected 200 with build_commit on /api/healthz, got %d: %s", recHz.Code, recHz.Body.String())
+	}
+
+	// /api/metrics requires session auth
+	recUnauth := httptest.NewRecorder()
+	h.ServeHTTP(recUnauth, localReq(http.MethodGet, "/api/metrics", ""))
+	if recUnauth.Code != http.StatusUnauthorized {
+		t.Fatalf("expected 401 on unauthenticated /api/metrics, got %d", recUnauth.Code)
+	}
+	reqAuthed := localReq(http.MethodGet, "/api/metrics", "")
+	reqAuthed.Header.Set("X-OzeVPN-Token", tok)
+	recMet := httptest.NewRecorder()
+	h.ServeHTTP(recMet, reqAuthed)
+	if recMet.Code != http.StatusOK || !strings.Contains(recMet.Body.String(), `"security_blocks"`) {
+		t.Fatalf("expected 200 with security_blocks on /api/metrics, got %d: %s", recMet.Code, recMet.Body.String())
+	}
+}

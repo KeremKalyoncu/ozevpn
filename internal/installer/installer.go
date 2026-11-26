@@ -112,6 +112,31 @@ func DisableResident() (Status, error) {
 	return GetStatus(), nil
 }
 
+// Uninstall cleanly removes the Windows auto-start registry entry, Desktop shortcut,
+// and user-local runtime/profile data directory (%LOCALAPPDATA%\OzeVPN) without leaving orphans.
+func Uninstall(extraPaths ...string) error {
+	_, _ = DisableResident()
+	if runtime.GOOS == "windows" {
+		ps := `
+$desktop = [Environment]::GetFolderPath('Desktop')
+$lnk = Join-Path $desktop 'OzeVPN.lnk'
+if (Test-Path $lnk) { Remove-Item $lnk -Force -ErrorAction SilentlyContinue }
+`
+		_, _ = runPS(ps)
+		appDir := filepath.Dir(DefaultInstallPath())
+		_ = os.RemoveAll(filepath.Join(appDir, "runtime"))
+		_ = os.RemoveAll(filepath.Join(appDir, "ui-profile"))
+		_ = os.Remove(filepath.Join(appDir, ".ozevpn_token"))
+		_ = os.Remove(filepath.Join(appDir, "ozevpn.json"))
+	}
+	for _, p := range extraPaths {
+		if strings.TrimSpace(p) != "" {
+			_ = os.Remove(p)
+		}
+	}
+	return nil
+}
+
 func copyFile(src, dst string) error {
 	in, err := os.Open(src)
 	if err != nil {

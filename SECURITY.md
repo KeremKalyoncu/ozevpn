@@ -1,33 +1,35 @@
 # Güvenlik Politikası, Tehdit Modeli ve Acil Kurtarma Runbook'u
 
 ## 1. Tehdit Modeli ve Savunma Katmanları
-OzeVPN yalnızca yerel cihazda (`127.0.0.1:7777`) çalışan, bulut sunucusu ve telemetrisi olmayan bir masaüstü kontrol panelidir.
+OzeVPN yalnızca yerel cihazda (`127.0.0.1:7777`) çalışan, bulut sunucusu ve telemetrisi olmayan bir masaüstü kontrol panelidir. Detaylı STRIDE analizi için bkz. [docs/THREAT-MODEL.md](docs/THREAT-MODEL.md) ve [PRIVACY.md](PRIVACY.md).
 
 | Tehdit | Uygulanan Savunma |
 | :--- | :--- |
-| **Harici web sitesinden CSRF** | `Origin` ve `Sec-Fetch-Site` doğrulaması (`403 Forbidden`) + `slog` güvenlik kaydı. |
-| **DNS Rebinding** | `r.Host` yalnızca `127.0.0.1` / `localhost` / `::1` kabul edilir (`403`). |
-| **DOM XSS** | Arayüzde `innerHTML` yerine `textContent`/`createElement` + sıkı `CSP` (`default-src 'self'`). |
-| **Yerel SSRF (`/api/rescue`)** | Loopback, RFC1918, link-local (`169.254.0.0/16`) ve `.local`/`.internal` hedefleri reddedilir. |
-| **Özel Sunucu Anahtar Sızıntısı** | `ozevpn.json` `0600` izniyle yazılır; `GET/POST /api/config` yanıtlarında `custom_server` maskelenir (`custom_server_set: true`). |
-| **DNS Zehirleme & Takipçiler** | `sing-box` içi şifreli DoH (`1.1.1.1`) + `hijack-dns` + 28 ağır reklam/izleyici ağı engeli. |
-| **İkili Bütünlük** | `BINARY_CHECKSUMS.txt` ile `sing-box.exe` ve `tor.exe` SHA256 doğrulaması. |
+| **Yerel Yetkisiz IPC / Admin LPE** | 256-bit `crypto/rand` oturum tokeni (`/auth` → `HttpOnly; SameSite=Strict` + tüm mutasyonlarda zorunlu `X-OzeVPN-Token` + `subtle.ConstantTimeCompare`) + `withRateLimit`. |
+| **Harici Web Sitesinden CSRF / DNS Rebinding** | `r.Host` yalnız loopback (`127.0.0.1`/`localhost`/`::1`), `Origin` & `Sec-Fetch-Site` doğrulaması (`403`) + `slog` güvenlik kaydı. |
+| **Özel Sunucu Anahtar Sızıntısı** | Windows **DPAPI** (`CryptProtectData`) şifrelemesi + NTFS DACL (yalnız mevcut kullanıcı + `SYSTEM` + `Administrators`), API yanıtlarında maskeleme (`custom_server_set: true`), hata loglarında `RedactSecrets` ve kapatmada `sing-box-active.json` silme. |
+| **Protokol Downgrade & Zayıf TLS** | Plaintext `vless://`, uzak düz metin `socks5://`, `allowInsecure=1` ve ham JSON `tls.insecure:true` reddedilir; WireGuard Post-Quantum `PresharedKey` desteklenir. |
+| **IPv6, DNS & WebRTC Sızıntıları** | Dual-stack IPv4+IPv6 TUN (`fdfe:dcba:9876::1/126`, `MTU 1400`), DoH tünel `detour`, şifreli `dns-direct`, `ipconfig /flushdns`, UI WebRTC non-proxied UDP engeli. |
+| **Tünel Kopması / Çökme Sızıntısı** | Yönetici (`Oyun TUN`) modunda Windows Firewall fail-closed **Kill Switch** (`OzeVPN-KS-*` + `blockoutbound`), çift `sing-box`+`tor` Watchdog ve `WM_POWERBROADCAST` uyanış kurtarması. |
+| **Yerel SSRF (`/api/rescue`) & DOM XSS** | Loopback/RFC1918/link-local/`.local`/`.internal` engeli; DOM'da `textContent`/`createElement` + sıkı `CSP` (`default-src 'self'`). |
+| **Tedarik Zinciri & İkili Bütünlük** | `BINARY_CHECKSUMS.txt` (5 dosya: `sing-box.exe`, `tor.exe`, `lyrebird.exe`, `geoip`, `geoip6`), CI `govulncheck`, fuzzing, CycloneDX SBOM ve commit provenance (`-ldflags`). |
 
-## 2. Acil Kurtarma Runbook'u (İnternet / Proxy Takılı Kalırsa)
+## 2. Acil Kurtarma Runbook'u (İnternet / Proxy / Kill Switch Takılı Kalırsa)
 1. OzeVPN panelinden **🧯 Proxy Sıfırla** butonuna tıkla (veya uygulamayı yeniden aç; `CleanupStaleOnBoot` otomatik temizler).
-2. Uygulama hiç açılmıyorsa Windows PowerShell'de şu tek komutu çalıştır:
+2. Uygulama hiç açılmıyorsa **Yönetici PowerShell**'de şu komutları çalıştır:
    ```powershell
    reg add "HKCU\Software\Microsoft\Windows\CurrentVersion\Internet Settings" /v ProxyEnable /t REG_DWORD /d 0 /f
+   netsh advfirewall set allprofiles firewallpolicy blockinbound,allowoutbound
+   Get-NetFirewallRule -DisplayName 'OzeVPN-KS-*' -ErrorAction SilentlyContinue | Remove-NetFirewallRule
+   ipconfig /flushdns
    ```
-3. Yerleşik başlangıcı manuel kaldırmak için:
-   ```powershell
-   reg delete "HKCU\Software\Microsoft\Windows\CurrentVersion\Run" /v OzeVPN /f
-   ```
+3. Tam kaldırma için: `OzeVPN.exe -uninstall` (veya manuel: `reg delete "HKCU\Software\Microsoft\Windows\CurrentVersion\Run" /v OzeVPN /f`).
 
-## 3. İkili Güncelleme Prosedürü (`sing-box` & `tor`)
-1. Yeni resmi sürümü yalnızca `SagerNet/sing-box` veya `dist.torproject.org` üzerinden indir.
-2. `Get-FileHash .\bin\sing-box.exe -Algorithm SHA256` ile yeni özeti alıp `BINARY_CHECKSUMS.txt` ve `THIRD_PARTY_LICENSES.md` dosyalarını güncelle.
-3. `go test -v ./...` (`sing-box check` şema testi dahil) ve `.\build-portable.ps1` çalıştırarak doğrula.
+## 3. İkili Güncelleme & Rollback Koruma Prosedürü
+1. Yeni resmi sürümleri yalnızca `SagerNet/sing-box` veya `dist.torproject.org` üzerinden GPG/SHA256 doğrulayarak indir.
+2. Tüm 5 dosya (`sing-box.exe`, `tor.exe`, `lyrebird.exe`, `geoip`, `geoip6`) için `Get-FileHash -Algorithm SHA256` özetlerini `BINARY_CHECKSUMS.txt` ve `THIRD_PARTY_LICENSES.md` dosyalarına işle.
+3. Bilinen kritik zafiyet içeren eski sürümlere geri dönüş (rollback) yasaktır; her yayın öncesi `go vet ./...`, `go test -race ./...`, `govulncheck ./...` ve `.\build-single-exe.ps1` zorunlu yayın kapısıdır.
+4. Dağıtılan `dist\OzeVPN.exe` dosyası `dist\OzeVPN.exe.sha256` ve `dist\sbom.cdx.json` ile yayımlanır (sertifika mevcutsa `$env:OZEVPN_SIGN_THUMBPRINT` ile Authenticode imzalanır).
 
 ## 4. Güvenlik Bildirimi
-Güvenlik açığı tespit ederseniz doğrudan proje sahibine özel mesaj/issue üzerinden tekrar adımlarıyla bildirebilirsiniz; kritik proxy/API açıkları öncelikli olarak yamanır.
+Güvenlik açığı tespit ederseniz proje sahibine tekrar adımlarıyla bildirebilirsiniz; P0/P1 proxy, sızıntı, Kill Switch ve IPC açıkları öncelikli yamanır.

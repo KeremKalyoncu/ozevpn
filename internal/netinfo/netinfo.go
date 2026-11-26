@@ -33,6 +33,12 @@ func Warmup() {
 // DetectCached returns a cached Info snapshot when fresh (<60s), avoiding repeated
 // 2.5–3s PowerShell + network calls on every browser reload.
 func DetectCached() Info {
+	return DetectCachedWithExternal(true)
+}
+
+// DetectCachedWithExternal respects the user's privacy setting (DisableStartupNetProbe):
+// when allowExternal is false, zero outbound requests to cloudflare.com/cdn-cgi/trace are made.
+func DetectCachedWithExternal(allowExternal bool) Info {
 	cacheMu.RLock()
 	if !cachedAt.IsZero() && time.Since(cachedAt) < cacheTTL {
 		info := cachedInfo
@@ -53,7 +59,7 @@ func DetectCached() Info {
 	}
 	cacheMu.RUnlock()
 
-	fresh := Detect()
+	fresh := DetectWithExternal(allowExternal)
 	cacheMu.Lock()
 	cachedInfo = fresh
 	cachedAt = time.Now()
@@ -72,6 +78,10 @@ type Info struct {
 }
 
 func Detect() Info {
+	return DetectWithExternal(true)
+}
+
+func DetectWithExternal(allowExternal bool) Info {
 	info := Info{
 		ModemHint: "Bilinmiyor",
 	}
@@ -126,7 +136,12 @@ if ($cfg) {
 	} else if parsed.Gateway != "" {
 		info.ModemHint = "Modem / Router (" + parsed.Gateway + ")"
 	}
-	info.Country, info.Colo = detectCountry()
+	if allowExternal {
+		info.Country, info.Colo = detectCountry()
+	} else {
+		info.Country = "LOCAL_ONLY"
+		info.Colo = ""
+	}
 	return info
 }
 

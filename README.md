@@ -1,34 +1,26 @@
 # OzeVPN v6 — Hızlı, Güvenli & Sansürsüz İnternet Motoru
 
-**OzeVPN v6**, `sing-box` çekirdeği üzerine kurulu; **paralel hibrit motor (WARP + Avrupa Tor)**, **şifreli DoH DNS**, **Reklam & Takipçi Hız Kalkanı**, **Akıllı TUN / Sistem Proxy**, **Açık/Koyu Tema** ve **CSRF korumalı** yerel kontrol panelidir.
+**OzeVPN v6**, `sing-box 1.14+` çekirdeği üzerine kurulu; **paralel hibrit motor (WARP + Avrupa Tor)**, **dual-stack IPv4+IPv6 TUN**, **tünel içi şifreli DoH DNS**, **Windows Firewall Fail-Closed Kill Switch**, **256-bit oturum tokenli & DPAPI/NTFS DACL korumalı** sıfır bağımlılıklı yerel masaüstü VPN kontrol panelidir.
 
 ## Hemen Çalıştır
-- **[ozevpn.exe](ozevpn.exe)** dosyasına çift tıkla (tarayıcıda `http://127.0.0.1:7777` otomatik açılır).
-- **Oyun / Roblox masaüstü istemcisi (UDP) için:** Sağ tık → **Yönetici olarak çalıştır** veya paneldeki **🎮 Oyun TUN (Yönetici)** butonuna tıkla.
-- İlk açılışta **Kurulum Sihirbazı** sorar:
-  - **⚡ Yerleşik Mod:** Kendini `%LOCALAPPDATA%\OzeVPN` altına kurar, Masaüstüne kısayol atar ve Windows her açıldığında sessizce (`-silent -autoconnect`) başlar.
-  - **🔘 Aç / Kapa Modu:** Sadece sen açtığında çalışır.
+- **[dist/OzeVPN.exe](dist/OzeVPN.exe)** (veya geliştirme ortamında `go run .`) dosyasını çalıştır — uygulama 256-bit oturum anahtarıyla yerel paneli (`http://127.0.0.1:7777`) otomatik açar ve Sistem Tepsisine (System Tray) yerleşir.
+- **Standart Mod vs Yönetici (`🎮 Oyun TUN`) Modu:**
+  - **Standart Mod (Proxy):** UAC istemez; Windows WinINET proxy kullanan tarayıcı ve uygulamaları korur (UDP oyunlar ve proxy-dışı uygulamalar kapsam dışıdır).
+  - **Yönetici Modu (`🎮 Oyun TUN`):** Çift yığınlı (`IPv4 + IPv6`, `MTU 1400`) sanal TUN ağ kartı (`ozevpn0`) açar, tüm sistem/UDP oyun trafiğini yakalar ve isteğe bağlı **🔒 Kill Switch** (Windows Firewall fail-closed) korumasını destekler.
+- **Temiz Kaldırma:** `OzeVPN.exe -uninstall` komutu başlangıç kaydını, kısayolu, proxy/Kill Switch kurallarını ve yerel verileri tamamen temizler.
 
-## Neler İçeriyor?
-1. **⚡ 6.4 Saniyede Paralel Bağlantı:** WARP Proxy ve Avrupa Tor (`DE/NL/BG/RO/AT`) eşzamanlı başlatılır; protokol otomatik seçilir (`MASQUE ↔ WireGuard`).
-2. **🌍 4 Çıkış Motoru:**
-   - **Hibrit (Varsayılan):** `.gov.tr`, `.edu.tr`, `.bel.tr`, TR bankalar ve Steam/Epic/Riot indirmeleri **%100 direkt hızda**; Roblox, Wattpad, PayPal, Booking ve eklediğin domainler **Avrupa Tor** üzerinden; geri kalan tüm dünya düşük pingli WARP'tan çıkar.
-   - **Ultra Global (Saf Avrupa Tor):** Bilgisayarda hiçbir ek yazılım olmadan tüm dünyayı %100 Avrupa IP'siyle açar.
-   - **Sadece Hızlı WARP:** En düşük pingli DPI aşma modu.
-   - **Özel Sunucu:** `vless://`, `socks5://`, **WireGuard `.conf`** (örn. ProtonVPN Free veya kendi VPS'in) veya `sing-box` JSON yapıştırıp tek tıkla 40–50 ms Avrupa hızına geç.
-3. **🛡️ Reklam & Takipçi Hız Kalkanı + Şifreli DoH DNS:** 28 ağır reklam/takipçi ağını paket çıkmadan keser; ISP DNS zehirlemesini önler.
-4. **🔒 Güvenlik & Kendi Kendini Onarma:**
-   - Harici web sitelerinin `127.0.0.1:7777` API'sine müdahale etmesini engelleyen **CSRF / Same-Origin** koruması.
-   - Çökme durumunda `sing-box`'ı otomatik dirilten **Watchdog** ve başlangıçta takılı kalmış proxy'yi otomatik temizleyen **Auto-Heal** + **🧯 Proxy Sıfırla** acil butonu.
-5. **📡 Faz 2: Modem Arkası OpenWrt Router & VPS:** [router/README.md](router/README.md), [router/openwrt-setup.sh](router/openwrt-setup.sh), [vps/setup-vps.sh](vps/setup-vps.sh).
+## Güvenlik & Teknik Özellikler
+1. **🔒 Yerel IPC & Sır Koruması (`PR-VPN1`):** 256-bit `X-OzeVPN-Token` + `HttpOnly; SameSite=Strict` oturum doğrulaması, `Host`/`Origin`/`Sec-Fetch-Site` koruması, `custom_server` için Windows **DPAPI** şifrelemesi, NTFS DACL kısıtlaması (`secfs`) ve başlatma öncesi `sing-box check` doğrulaması.
+2. **🛡️ Sızıntı Koruması (`PR-VPN2`):** Dual-stack IPv4+IPv6 TUN (`fdfe:dcba:9876::1/126`), aktif tünel `detour`'lu DoH DNS (`1.1.1.1`), bağlantı geçişlerinde `ipconfig /flushdns` ve UI penceresinde WebRTC non-proxied UDP engeli.
+3. **⚡ Fail-Closed Kill Switch & Çift Watchdog (`PR-VPN3`):** Yönetici TUN modunda `OzeVPN-KS-*` + `blockoutbound` Windows Güvenlik Duvarı kilidi, `sing-box` + `tor` üstel backoff Watchdog'u ve `WM_POWERBROADCAST` uyku/uyanma kurtarması.
+4. **🔐 Protokol Sertleştirme (`PR-VPN4`):** Şifresiz `vless://`, uzak düz metin `socks5://` ve `tls.insecure` reddedilir; WireGuard Post-Quantum `PresharedKey` desteklenir; hata loglarında özel anahtarlar maskelenir (`RedactSecrets`).
+5. **📡 Sertleştirilmiş OpenWrt Router & VPS (`PR-VPN5`):** [router/openwrt-setup.sh](router/openwrt-setup.sh) ve [vps/setup-vps.sh](vps/setup-vps.sh) (UFW default-deny, SSH sertleştirme, Cloud Metadata `169.254.0.0/16` engeli, Post-Quantum PSK, `chrony`, `unattended-upgrades`, `chmod 600`).
+6. **📦 Tedarik Zinciri & Belgeler (`PR-VPN6`):** 5 dosyalı [BINARY_CHECKSUMS.txt](BINARY_CHECKSUMS.txt), CycloneDX SBOM, [SECURITY.md](SECURITY.md), [PRIVACY.md](PRIVACY.md), [docs/THREAT-MODEL.md](docs/THREAT-MODEL.md), [docs/OPERATIONS.md](docs/OPERATIONS.md), [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
-## Desteklenen Platform & Tarayıcı Matrisi
-- **İşletim Sistemi:** Windows 10 / Windows 11 (64-bit).
-- **Masaüstü Arayüz:** Microsoft Edge veya Google Chrome `--app` modu (birincil, tam doğrulanmış); standart tarayıcı olarak modern Chromium ve Firefox desteklenir.
-- **Tema & Erişilebilirlik:** Açık / Koyu tema (`prefers-color-scheme` + kalıcı tercih), WCAG 2.2 AA kontrast & klavye erişimi, `prefers-reduced-motion` ve `@media print` desteği.
-
-## Testleri Çalıştır
+## Test, Benchmark & Tek-EXE Derleme
 ```powershell
 go vet ./...
-go test -v ./...
+go test -race -cover ./...
+go run ./tools/bench
+.\build-single-exe.ps1
 ```

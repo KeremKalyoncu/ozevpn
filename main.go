@@ -22,6 +22,7 @@ import (
 	"runtime"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -40,6 +41,17 @@ import (
 
 //go:embed web/*
 var webFS embed.FS
+
+var (
+	buildCommit = "dev"
+	buildDate   = "unknown"
+
+	metricConnects       atomic.Int64
+	metricDisconnects    atomic.Int64
+	metricReloads        atomic.Int64
+	metricConfigUpdates  atomic.Int64
+	metricSecurityBlocks atomic.Int64
+)
 
 func isLoopbackHost(rawHost string) bool {
 	if rawHost == "" {
@@ -127,6 +139,7 @@ func securityMiddlewareWithToken(sessionToken string, next http.Handler) http.Ha
 
 		// Block DNS Rebinding attacks via non-loopback Host headers
 		if !isLoopbackHost(r.Host) {
+			metricSecurityBlocks.Add(1)
 			slog.Warn("security_blocked_host", "host", r.Host, "path", r.URL.Path)
 			writeJSON(w, http.StatusForbidden, map[string]string{"error": "Geçersiz Host başlığı reddedildi (DNS Rebinding koruması)"})
 			return
@@ -164,6 +177,7 @@ func securityMiddlewareWithToken(sessionToken string, next http.Handler) http.Ha
 				authorized = tokensEqual(ckTok, sessionToken)
 			}
 			if !authorized {
+				metricSecurityBlocks.Add(1)
 				slog.Warn("security_blocked_unauth", "method", r.Method, "path", r.URL.Path)
 				writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "Yetkisiz yerel API isteği (geçerli oturum anahtarı gerekli)"})
 				return
@@ -329,6 +343,24 @@ func buildHandlerWithAuth(store *config.Store, eng *engine.Manager, sessionToken
 			"running":       st.Running,
 			"singbox_alive": st.SingBoxAlive,
 			"tor_alive":     st.TorAlive,
+			"build_commit":  buildCommit,
+			"build_date":    buildDate,
+		})
+	})
+
+	mux.HandleFunc("/api/metrics", func(w http.ResponseWriter, r *http.Request) {
+		st := eng.Status()
+		writeJSON(w, http.StatusOK, map[string]any{
+			"build_commit":      buildCommit,
+			"build_date":        buildDate,
+			"uptime_sec":        st.UptimeSec,
+			"connects":          metricConnects.Load(),
+			"disconnects":       metricDisconnects.Load(),
+			"reloads":           metricReloads.Load(),
+			"config_updates":    metricConfigUpdates.Load(),
+			"security_blocks":   metricSecurityBlocks.Load(),
+			"watchdog_restarts": st.WatchdogRestarts,
+			"tor_restarts":      st.TorRestarts,
 		})
 	})
 
@@ -337,7 +369,8 @@ func buildHandlerWithAuth(store *config.Store, eng *engine.Manager, sessionToken
 	})
 
 	mux.HandleFunc("/api/netinfo", func(w http.ResponseWriter, r *http.Request) {
-		writeJSON(w, http.StatusOK, netinfo.DetectCached())
+		allowExt := !store.Get().DisableStartupNetProbe
+		writeJSON(w, http.StatusOK, netinfo.DetectCachedWithExternal(allowExt))
 	})
 
 	mux.HandleFunc("/api/install/status", func(w http.ResponseWriter, r *http.Request) {
@@ -480,6 +513,8 @@ func buildHandlerWithAuth(store *config.Store, eng *engine.Manager, sessionToken
 				writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 				return
 			}
+			metricConfigUpdates.Add(1)
+			slog.Info("audit_action", "action", "config_update", "mode", incoming.Mode, "profile", incoming.EngineProfile, "kill_switch", incoming.KillSwitch)
 			writeJSON(w, http.StatusOK, store.Get().Redacted())
 		default:
 			w.WriteHeader(http.StatusMethodNotAllowed)
@@ -491,6 +526,8 @@ func buildHandlerWithAuth(store *config.Store, eng *engine.Manager, sessionToken
 			w.WriteHeader(http.StatusMethodNotAllowed)
 			return
 		}
+		metricConnects.Add(1)
+		slog.Info("audit_action", "action", "connect", "profile", store.Get().EngineProfile)
 		logs, err := eng.Start(store.Get())
 		if err != nil {
 			writeJSON(w, http.StatusInternalServerError, map[string]any{
@@ -511,6 +548,8 @@ func buildHandlerWithAuth(store *config.Store, eng *engine.Manager, sessionToken
 			w.WriteHeader(http.StatusMethodNotAllowed)
 			return
 		}
+		metricDisconnects.Add(1)
+		slog.Info("audit_action", "action", "disconnect")
 		eng.Stop()
 		writeJSON(w, http.StatusOK, map[string]any{"ok": true, "status": eng.Status()})
 	})
@@ -543,7 +582,9 @@ func buildHandlerWithAuth(store *config.Store, eng *engine.Manager, sessionToken
 				onExit()
 				return
 			}
-			eng.Stop()
+			metricDisconnects.Add(1)
+		slog.Info("audit_action", "action", "disconnect")
+		eng.Stop()
 			os.Exit(0)
 		}()
 	}))
@@ -597,7 +638,9 @@ func buildHandlerWithAuth(store *config.Store, eng *engine.Manager, sessionToken
 				writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "Domain kaydedilemedi: " + err.Error()})
 				return
 			}
-			msg, err := eng.ReloadRouting(store.Get())
+			metricReloads.Add(1)
+		slog.Info("audit_action", "action", "reload_routing")
+		msg, err := eng.ReloadRouting(store.Get())
 			if err != nil {
 				writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 				return
@@ -638,6 +681,8 @@ func buildHandlerWithAuth(store *config.Store, eng *engine.Manager, sessionToken
 			w.WriteHeader(http.StatusMethodNotAllowed)
 			return
 		}
+		metricReloads.Add(1)
+		slog.Info("audit_action", "action", "reload_routing")
 		msg, err := eng.ReloadRouting(store.Get())
 		if err != nil {
 			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
@@ -661,7 +706,9 @@ func buildHandlerWithAuth(store *config.Store, eng *engine.Manager, sessionToken
 				onExit()
 				return
 			}
-			eng.Stop()
+			metricDisconnects.Add(1)
+		slog.Info("audit_action", "action", "disconnect")
+		eng.Stop()
 			os.Exit(0)
 		}()
 	})
@@ -681,6 +728,7 @@ func main() {
 	silent := flag.Bool("silent", false, "Sessiz arka plan modu (tarayıcı açmaz)")
 	autoConnect := flag.Bool("autoconnect", false, "Başlangıçta otomatik bağlan")
 	takeover := flag.Bool("takeover", false, "Mevcut örneğin portu bırakmasını bekle (Yönetici geçişi)")
+	uninstallFlag := flag.Bool("uninstall", false, "OzeVPN başlangıç kaydını, kısayolu, proxy/kill-switch kurallarını ve yerel verileri temizle")
 	addrFlag := flag.String("addr", "", "Dinleme adresi (varsayılan: 127.0.0.1:7777)")
 	flag.Parse()
 
@@ -701,6 +749,15 @@ func main() {
 	} else {
 		_ = f.Close()
 		_ = os.Remove(filepath.Join(exeDir, ".ozevpn_write_test"))
+	}
+
+	if *uninstallFlag {
+		tmpEng := engine.NewManager(baseDir, warp.NewClient())
+		tmpEng.EmergencyReset()
+		tokenPath := filepath.Join(filepath.Dir(cfgPath), ".ozevpn_token")
+		_ = installer.Uninstall(cfgPath, tokenPath)
+		fmt.Println("OzeVPN tamamen temizlendi (başlangıç kaydı, kısayol, proxy, kill-switch ve yerel dosyalar kaldırıldı).")
+		return
 	}
 
 	store, err := config.NewStore(cfgPath)
@@ -752,7 +809,9 @@ func main() {
 
 	warpClient := warp.NewClient()
 	eng := engine.NewManager(baseDir, warpClient)
-	netinfo.Warmup()
+	if !cfg.DisableStartupNetProbe {
+		netinfo.Warmup()
+	}
 
 	srv := &http.Server{
 		Addr:              listenAddr,
@@ -767,6 +826,8 @@ func main() {
 			trayHandle.Stop()
 		}
 		_ = srv.Close()
+		metricDisconnects.Add(1)
+		slog.Info("audit_action", "action", "disconnect")
 		eng.Stop()
 		os.Exit(0)
 	}
@@ -790,7 +851,9 @@ func main() {
 			},
 			OnToggleConnect: func() {
 				if eng.Status().Running {
-					eng.Stop()
+					metricDisconnects.Add(1)
+		slog.Info("audit_action", "action", "disconnect")
+		eng.Stop()
 				} else {
 					_, _ = eng.Start(store.Get())
 				}
@@ -834,6 +897,8 @@ func main() {
 		if trayHandle != nil {
 			trayHandle.Stop()
 		}
+		metricDisconnects.Add(1)
+		slog.Info("audit_action", "action", "disconnect")
 		eng.Stop()
 		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 		defer cancel()

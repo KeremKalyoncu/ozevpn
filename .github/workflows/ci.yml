@@ -24,8 +24,30 @@ jobs:
       - name: Static analysis (go vet)
         run: go vet ./...
 
-      - name: Unit, security & schema tests
-        run: go test -v -cover ./...
+      - name: Unit, security, race & schema tests
+        run: go test -race -v -cover ./...
 
-      - name: Reproducible build check
-        run: go build -trimpath -ldflags="-s -w" -o ozevpn.exe .
+      - name: Short fuzzing regression gate
+        run: |
+          go test -fuzz=FuzzCleanDomain -fuzztime=5s ./internal/config
+          go test -fuzz=FuzzParseCustomOutbound -fuzztime=5s ./internal/engine
+
+      - name: Vulnerability scan (govulncheck)
+        run: |
+          go install golang.org/x/vuln/cmd/govulncheck@latest
+          govulncheck ./...
+
+      - name: Repository secret scan
+        shell: pwsh
+        run: |
+          $files = git ls-files | Where-Object { $_ -notmatch '\.(zip|ico|syso|png|jpg|exe|pdf)$' }
+          $hits = Select-String -Path $files -Pattern '(AKIA[0-9A-Z]{16}|-----BEGIN (RSA |EC |OPENSSH )?PRIVATE KEY-----|ghp_[A-Za-z0-9]{36}|sk-[A-Za-z0-9]{32,})' -ErrorAction SilentlyContinue
+          if ($hits) { $hits | Format-Table Path, LineNumber; exit 1 }
+          Write-Output "SECRET_SCAN_CLEAN"
+
+      - name: Reproducible build check with provenance
+        shell: pwsh
+        run: |
+          $sha = git rev-parse --short HEAD
+          $dt = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
+          go build -trimpath -ldflags="-s -w -X main.buildCommit=$sha -X main.buildDate=$dt" -o ozevpn.exe .
