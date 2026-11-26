@@ -327,3 +327,90 @@ func TestInvalidCustomServerAndNewIdentityGuards(t *testing.T) {
 		t.Fatalf("expected 400 for /api/new-identity when disconnected, got %d: %s", recRot.Code, recRot.Body.String())
 	}
 }
+
+func TestSessionTokenBlocksUnauthenticatedLocalCallsAndBootstrapsUI(t *testing.T) {
+	tmp := t.TempDir()
+	store, _ := config.NewStore(filepath.Join(tmp, "ozevpn.json"))
+	eng := engine.NewManager(tmp, warp.NewClient())
+	tok := generateSessionToken()
+	h := buildHandlerWithAuth(store, eng, tok, "127.0.0.1:7777", nil)
+
+	// 1. Unauthenticated GET / and POST /api/config must return 401
+	recRoot := httptest.NewRecorder()
+	h.ServeHTTP(recRoot, localReq(http.MethodGet, "/", ""))
+	if recRoot.Code != http.StatusUnauthorized {
+		t.Fatalf("expected 401 for unauthenticated GET /, got %d", recRoot.Code)
+	}
+	recPost := httptest.NewRecorder()
+	h.ServeHTTP(recPost, localReq(http.MethodPost, "/api/config", `{"ad_block_speed":false}`))
+	if recPost.Code != http.StatusUnauthorized {
+		t.Fatalf("expected 401 for unauthenticated POST /api/config, got %d", recPost.Code)
+	}
+	recGet := httptest.NewRecorder()
+	h.ServeHTTP(recGet, localReq(http.MethodGet, "/api/config", ""))
+	if recGet.Code != http.StatusUnauthorized {
+		t.Fatalf("expected 401 for unauthenticated GET /api/config, got %d", recGet.Code)
+	}
+
+	// 2. /api/healthz remains accessible for lightweight liveness checks
+	recHz := httptest.NewRecorder()
+	h.ServeHTTP(recHz, localReq(http.MethodGet, "/api/healthz", ""))
+	if recHz.Code != http.StatusOK {
+		t.Fatalf("expected 200 for /api/healthz, got %d", recHz.Code)
+	}
+
+	// 3. /auth?t=<valid> sets HttpOnly SameSite=Strict cookie and redirects to /
+	recAuth := httptest.NewRecorder()
+	h.ServeHTTP(recAuth, localReq(http.MethodGet, "/auth?t="+tok, ""))
+	if recAuth.Code != http.StatusFound || recAuth.Header().Get("Location") != "/" {
+		t.Fatalf("expected 302 -> / on valid /auth, got %d loc=%q", recAuth.Code, recAuth.Header().Get("Location"))
+	}
+	cookies := recAuth.Result().Cookies()
+	if len(cookies) == 0 || cookies[0].Name != "ozevpn_session" || !cookies[0].HttpOnly {
+		t.Fatalf("expected HttpOnly ozevpn_session cookie, got %#v", cookies)
+	}
+
+	// 4. GET / with valid cookie injects meta token; POST with only cookie (no X-OzeVPN-Token) is still blocked (401)
+	reqUI := localReq(http.MethodGet, "/", "")
+	reqUI.AddCookie(cookies[0])
+	recUI := httptest.NewRecorder()
+	h.ServeHTTP(recUI, reqUI)
+	if recUI.Code != http.StatusOK || !strings.Contains(recUI.Body.String(), `meta name="ozevpn-token" content="`+tok+`"`) {
+		t.Fatalf("expected 200 with injected meta token, got %d", recUI.Code)
+	}
+
+	reqCookieOnlyPost := localReq(http.MethodPost, "/api/config", `{"ad_block_speed":false}`)
+	reqCookieOnlyPost.AddCookie(cookies[0])
+	recCookieOnly := httptest.NewRecorder()
+	h.ServeHTTP(recCookieOnly, reqCookieOnlyPost)
+	if recCookieOnly.Code != http.StatusUnauthorized {
+		t.Fatalf("expected 401 for cookie-only POST without X-OzeVPN-Token, got %d", recCookieOnly.Code)
+	}
+
+	// 5. POST with valid X-OzeVPN-Token succeeds
+	reqAuthed := localReq(http.MethodPost, "/api/config", `{"ad_block_speed":false}`)
+	reqAuthed.Header.Set("X-OzeVPN-Token", tok)
+	recAuthed := httptest.NewRecorder()
+	h.ServeHTTP(recAuthed, reqAuthed)
+	if recAuthed.Code != http.StatusOK {
+		t.Fatalf("expected 200 for authenticated POST /api/config, got %d: %s", recAuthed.Code, recAuthed.Body.String())
+	}
+}
+
+func TestRateLimitBlocksExcessiveCalls(t *testing.T) {
+	rl := withRateLimit(2, 10_000_000_000, func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+	for i := 0; i < 2; i++ {
+		rec := httptest.NewRecorder()
+		rl(rec, localReq(http.MethodPost, "/api/connect", ""))
+		if rec.Code != http.StatusOK {
+			t.Fatalf("call %d expected 200, got %d", i, rec.Code)
+		}
+	}
+	rec3 := httptest.NewRecorder()
+	rl(rec3, localReq(http.MethodPost, "/api/connect", ""))
+	if rec3.Code != http.StatusTooManyRequests {
+		t.Fatalf("expected 429 on 3rd rapid call, got %d", rec3.Code)
+	}
+}

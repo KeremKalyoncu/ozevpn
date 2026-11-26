@@ -321,15 +321,23 @@ els.confirmOverlay.addEventListener('click', (e) => {
   if (e.target === els.confirmOverlay) finishConfirm(false);
 });
 
-/* ---------- Safe API Client (Timeout + Safe JSON/Text Parse + 429) ---------- */
+/* ---------- Safe API Client (IPC Session Token + Timeout + Safe JSON/Text Parse + 429) ---------- */
+function getSessionToken() {
+  const m = document.querySelector('meta[name="ozevpn-token"]');
+  return m ? (m.getAttribute('content') || '').trim() : '';
+}
+
 async function api(path, opts = {}, timeoutMs = 15000) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
+    const hdrs = { 'Content-Type': 'application/json', ...(opts.headers || {}) };
+    const tok = getSessionToken();
+    if (tok) hdrs['X-OzeVPN-Token'] = tok;
     const res = await fetch(path, {
-      headers: { 'Content-Type': 'application/json' },
-      signal: controller.signal,
       ...opts,
+      headers: hdrs,
+      signal: controller.signal,
     });
     const raw = await res.text();
     let data = {};

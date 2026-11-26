@@ -13,6 +13,7 @@ import (
 
 	"ozevpn/internal/config"
 	"ozevpn/internal/procutil"
+	"ozevpn/internal/secfs"
 	"ozevpn/internal/warp"
 )
 
@@ -316,11 +317,18 @@ func (m *Manager) Start(cfg config.Config) ([]string, error) {
 	}
 
 	sbCfgPath := filepath.Join(m.baseDir, "bin", "sing-box-active.json")
-	if err := os.WriteFile(sbCfgPath, cfgBytes, 0644); err != nil {
+	if err := secfs.WritePrivateFile(sbCfgPath, cfgBytes); err != nil {
 		m.stopLocked()
 		m.state = "Disconnected"
 		m.lastErr = err.Error()
 		return logs, err
+	}
+	if chkOut, chkErr := runHidden(sbBin, "check", "-c", sbCfgPath).CombinedOutput(); chkErr != nil {
+		_ = os.Remove(sbCfgPath)
+		m.stopLocked()
+		m.state = "Disconnected"
+		m.lastErr = fmt.Sprintf("sing-box yapılandırma doğrulaması başarısız: %s", strings.TrimSpace(string(chkOut)))
+		return logs, errors.New(m.lastErr)
 	}
 
 	sbLogPath := filepath.Join(m.baseDir, "bin", "sing-box.log")
@@ -462,7 +470,7 @@ func (m *Manager) startTorLocked(torBin string, useBridge bool) error {
 		}
 	}
 
-	if err := os.WriteFile(torrcPath, []byte(sb.String()), 0644); err != nil {
+	if err := secfs.WritePrivateFile(torrcPath, []byte(sb.String())); err != nil {
 		return err
 	}
 
@@ -552,8 +560,11 @@ func (m *Manager) ReloadRouting(cfg config.Config) (string, error) {
 	}
 
 	sbCfgPath := filepath.Join(m.baseDir, "bin", "sing-box-active.json")
-	if err := os.WriteFile(sbCfgPath, cfgBytes, 0644); err != nil {
+	if err := secfs.WritePrivateFile(sbCfgPath, cfgBytes); err != nil {
 		return "", err
+	}
+	if chkOut, chkErr := runHidden(sbBin, "check", "-c", sbCfgPath).CombinedOutput(); chkErr != nil {
+		return "", fmt.Errorf("sing-box yapılandırma doğrulaması başarısız: %s", strings.TrimSpace(string(chkOut)))
 	}
 	if m.sbCmd != nil && m.sbCmd.Process != nil {
 		_ = m.sbCmd.Process.Kill()
@@ -620,6 +631,7 @@ func (m *Manager) stopLocked() {
 		m.torLogFile = nil
 	}
 	_ = m.warpClient.Disconnect()
+	_ = os.Remove(filepath.Join(m.baseDir, "bin", "sing-box-active.json"))
 	m.running = false
 	m.state = "Disconnected"
 	m.captureLayer = ""

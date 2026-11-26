@@ -2,7 +2,10 @@ package main
 
 import (
 	"context"
+	"crypto/rand"
+	"crypto/subtle"
 	"embed"
+	"encoding/hex"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -18,6 +21,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -29,6 +33,7 @@ import (
 	"ozevpn/internal/pac"
 	"ozevpn/internal/probe"
 	"ozevpn/internal/routerexport"
+	"ozevpn/internal/secfs"
 	"ozevpn/internal/tray"
 	"ozevpn/internal/warp"
 )
@@ -48,9 +53,61 @@ func isLoopbackHost(rawHost string) bool {
 	return h == "127.0.0.1" || h == "localhost" || h == "::1"
 }
 
+func generateSessionToken() string {
+	buf := make([]byte, 32)
+	if _, err := rand.Read(buf); err != nil {
+		log.Fatalf("kriptografik oturum anahtarı üretilemedi: %v", err)
+	}
+	return hex.EncodeToString(buf)
+}
+
+func loadOrCreateSessionToken(tokenPath string, reuseExisting bool) string {
+	if reuseExisting {
+		if raw, err := os.ReadFile(tokenPath); err == nil {
+			tok := strings.TrimSpace(string(raw))
+			if len(tok) == 64 {
+				if _, decErr := hex.DecodeString(tok); decErr == nil {
+					return tok
+				}
+			}
+		}
+	}
+	tok := generateSessionToken()
+	_ = secfs.WritePrivateFile(tokenPath, []byte(tok))
+	return tok
+}
+
+func tokensEqual(a, b string) bool {
+	if len(a) == 0 || len(a) != len(b) {
+		return false
+	}
+	return subtle.ConstantTimeCompare([]byte(a), []byte(b)) == 1
+}
+
+func requestHeaderToken(r *http.Request) string {
+	if t := strings.TrimSpace(r.Header.Get("X-OzeVPN-Token")); t != "" {
+		return t
+	}
+	if auth := strings.TrimSpace(r.Header.Get("Authorization")); strings.HasPrefix(strings.ToLower(auth), "bearer ") {
+		return strings.TrimSpace(auth[7:])
+	}
+	return ""
+}
+
+func requestCookieToken(r *http.Request) string {
+	if c, err := r.Cookie("ozevpn_session"); err == nil {
+		return strings.TrimSpace(c.Value)
+	}
+	return ""
+}
+
 // securityMiddleware adds panic recovery, Host header DNS-rebinding defense, strict CSP/Permissions-Policy,
-// cross-origin CSRF defense, and a 1 MB POST payload cap.
+// cross-origin CSRF defense, per-session IPC token auth, and a 1 MB POST payload cap.
 func securityMiddleware(next http.Handler) http.Handler {
+	return securityMiddlewareWithToken("", next)
+}
+
+func securityMiddlewareWithToken(sessionToken string, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		defer func() {
 			if rec := recover(); rec != nil {
@@ -76,7 +133,8 @@ func securityMiddleware(next http.Handler) http.Handler {
 		}
 
 		// Enforce strict local Origin check & 1 MB payload cap on all state-changing requests
-		if r.Method != http.MethodGet && r.Method != http.MethodHead && r.Method != http.MethodOptions {
+		isMutation := r.Method != http.MethodGet && r.Method != http.MethodHead && r.Method != http.MethodOptions
+		if isMutation {
 			r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
 			if origin := strings.TrimSpace(r.Header.Get("Origin")); origin != "" {
 				u, err := url.Parse(origin)
@@ -96,8 +154,50 @@ func securityMiddleware(next http.Handler) http.Handler {
 				return
 			}
 		}
+
+		// Enforce per-session 256-bit IPC token on /api/* (except lightweight /api/healthz)
+		if sessionToken != "" && strings.HasPrefix(r.URL.Path, "/api/") && r.URL.Path != "/api/healthz" {
+			hdrTok := requestHeaderToken(r)
+			ckTok := requestCookieToken(r)
+			authorized := tokensEqual(hdrTok, sessionToken)
+			if !authorized && !isMutation {
+				authorized = tokensEqual(ckTok, sessionToken)
+			}
+			if !authorized {
+				slog.Warn("security_blocked_unauth", "method", r.Method, "path", r.URL.Path)
+				writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "Yetkisiz yerel API isteği (geçerli oturum anahtarı gerekli)"})
+				return
+			}
+		}
+
 		next.ServeHTTP(w, r)
 	})
+}
+
+// withRateLimit caps requests per sliding window to prevent local control-plane flooding.
+func withRateLimit(maxReq int, window time.Duration, next http.HandlerFunc) http.HandlerFunc {
+	var mu sync.Mutex
+	var stamps []time.Time
+	return func(w http.ResponseWriter, r *http.Request) {
+		now := time.Now()
+		cutoff := now.Add(-window)
+		mu.Lock()
+		kept := stamps[:0]
+		for _, ts := range stamps {
+			if ts.After(cutoff) {
+				kept = append(kept, ts)
+			}
+		}
+		if len(kept) >= maxReq {
+			stamps = kept
+			mu.Unlock()
+			writeJSON(w, http.StatusTooManyRequests, map[string]string{"error": "Çok sık kontrol isteği gönderildi; birkaç saniye bekleyip tekrar dene."})
+			return
+		}
+		stamps = append(kept, now)
+		mu.Unlock()
+		next(w, r)
+	}
 }
 
 // withConcurrencyLimit caps concurrent calls to heavy endpoints (/api/probe, /api/speedtest, /api/rescue)
@@ -116,10 +216,14 @@ func withConcurrencyLimit(maxConcurrent int, next http.HandlerFunc) http.Handler
 }
 
 func buildHandler(store *config.Store, eng *engine.Manager) http.Handler {
-	return buildHandlerWithLifecycle(store, eng, "", nil)
+	return buildHandlerWithAuth(store, eng, "", "", nil)
 }
 
 func buildHandlerWithLifecycle(store *config.Store, eng *engine.Manager, listenAddr string, onExit func()) http.Handler {
+	return buildHandlerWithAuth(store, eng, "", listenAddr, onExit)
+}
+
+func buildHandlerWithAuth(store *config.Store, eng *engine.Manager, sessionToken, listenAddr string, onExit func()) http.Handler {
 	mux := http.NewServeMux()
 
 	subWeb, err := fs.Sub(webFS, "web")
@@ -127,24 +231,71 @@ func buildHandlerWithLifecycle(store *config.Store, eng *engine.Manager, listenA
 		log.Fatalf("Web dosyaları okunamadı: %v", err)
 	}
 	fileSrv := http.FileServer(http.FS(subWeb))
+
+	// Bootstrap route opened by OzeVPN launcher/tray: validates 256-bit token, sets HttpOnly SameSite=Strict cookie, redirects to /
+	mux.HandleFunc("/auth", func(w http.ResponseWriter, r *http.Request) {
+		if sessionToken == "" {
+			http.Redirect(w, r, "/", http.StatusFound)
+			return
+		}
+		tok := strings.TrimSpace(r.URL.Query().Get("t"))
+		if !tokensEqual(tok, sessionToken) {
+			slog.Warn("security_blocked_auth_bootstrap", "path", r.URL.Path)
+			w.Header().Set("Content-Type", "text/html; charset=utf-8")
+			w.Header().Set("Cache-Control", "no-store")
+			w.WriteHeader(http.StatusUnauthorized)
+			_, _ = w.Write([]byte(`<!DOCTYPE html><html lang="tr"><body><h1>401 — Yetkisiz Erişim</h1><p>OzeVPN kontrol panelini açmak için masaüstü kısayolunu veya Sistem Tepsisi (Tray) ikonunu kullanın.</p></body></html>`))
+			return
+		}
+		http.SetCookie(w, &http.Cookie{
+			Name:     "ozevpn_session",
+			Value:    sessionToken,
+			Path:     "/",
+			HttpOnly: true,
+			SameSite: http.SameSiteStrictMode,
+		})
+		http.Redirect(w, r, "/", http.StatusFound)
+	})
+
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		cleanPath := strings.TrimPrefix(r.URL.Path, "/")
-		if cleanPath != "" {
-			if _, err := fs.Stat(subWeb, cleanPath); err != nil {
-				if strings.HasPrefix(r.URL.Path, "/api/") {
-					writeJSON(w, http.StatusNotFound, map[string]string{"error": "İstenen API uç noktası bulunamadı."})
-					return
-				}
+		if cleanPath == "" || cleanPath == "index.html" {
+			if sessionToken != "" && !tokensEqual(requestCookieToken(r), sessionToken) {
 				w.Header().Set("Content-Type", "text/html; charset=utf-8")
 				w.Header().Set("Cache-Control", "no-store")
-				w.WriteHeader(http.StatusNotFound)
-				if data, readErr := webFS.ReadFile("web/404.html"); readErr == nil {
-					_, _ = w.Write(data)
-					return
-				}
-				_, _ = w.Write([]byte("<!DOCTYPE html><html lang=\"tr\"><body><h1>404</h1><a href=\"/\">Ana Panele Dön</a></body></html>"))
+				w.WriteHeader(http.StatusUnauthorized)
+				_, _ = w.Write([]byte(`<!DOCTYPE html><html lang="tr"><body><h1>401 — Oturum Doğrulaması Gerekli</h1><p>Bu yerel kontrol paneli oturum anahtarıyla korunmaktadır. Lütfen OzeVPN'i Sistem Tepsisinden (Tray) veya uygulama kısayolundan açın.</p></body></html>`))
 				return
 			}
+			data, readErr := webFS.ReadFile("web/index.html")
+			if readErr != nil {
+				w.WriteHeader(http.StatusInternalServerError)
+				return
+			}
+			html := string(data)
+			if sessionToken != "" {
+				metaTag := fmt.Sprintf(`<meta name="ozevpn-token" content="%s" />`+"\n</head>", sessionToken)
+				html = strings.Replace(html, "</head>", metaTag, 1)
+			}
+			w.Header().Set("Content-Type", "text/html; charset=utf-8")
+			w.Header().Set("Cache-Control", "no-store")
+			_, _ = w.Write([]byte(html))
+			return
+		}
+		if _, err := fs.Stat(subWeb, cleanPath); err != nil {
+			if strings.HasPrefix(r.URL.Path, "/api/") {
+				writeJSON(w, http.StatusNotFound, map[string]string{"error": "İstenen API uç noktası bulunamadı."})
+				return
+			}
+			w.Header().Set("Content-Type", "text/html; charset=utf-8")
+			w.Header().Set("Cache-Control", "no-store")
+			w.WriteHeader(http.StatusNotFound)
+			if data, readErr := webFS.ReadFile("web/404.html"); readErr == nil {
+				_, _ = w.Write(data)
+				return
+			}
+			_, _ = w.Write([]byte("<!DOCTYPE html><html lang=\"tr\"><body><h1>404</h1><a href=\"/\">Ana Panele Dön</a></body></html>"))
+			return
 		}
 		if strings.HasSuffix(r.URL.Path, ".css") || strings.HasSuffix(r.URL.Path, ".js") || strings.HasSuffix(r.URL.Path, ".svg") {
 			w.Header().Set("Cache-Control", "public, max-age=3600")
@@ -168,6 +319,17 @@ func buildHandlerWithLifecycle(store *config.Store, eng *engine.Manager, listenA
 		w.Header().Set("Content-Type", "application/x-ns-proxy-autoconfig; charset=utf-8")
 		w.Header().Set("Cache-Control", "no-store")
 		_, _ = w.Write([]byte(pac.GeneratePAC(store.Get())))
+	})
+
+	mux.HandleFunc("/api/healthz", func(w http.ResponseWriter, r *http.Request) {
+		st := eng.Status()
+		writeJSON(w, http.StatusOK, map[string]any{
+			"ok":            true,
+			"ready":         st.SingBoxReady,
+			"running":       st.Running,
+			"singbox_alive": st.SingBoxAlive,
+			"tor_alive":     st.TorAlive,
+		})
 	})
 
 	mux.HandleFunc("/api/status", func(w http.ResponseWriter, r *http.Request) {
@@ -319,7 +481,7 @@ func buildHandlerWithLifecycle(store *config.Store, eng *engine.Manager, listenA
 		}
 	})
 
-	mux.HandleFunc("/api/connect", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/api/connect", withRateLimit(10, 10*time.Second, func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			w.WriteHeader(http.StatusMethodNotAllowed)
 			return
@@ -337,7 +499,7 @@ func buildHandlerWithLifecycle(store *config.Store, eng *engine.Manager, listenA
 			"logs":   logs,
 			"status": eng.Status(),
 		})
-	})
+	}))
 
 	mux.HandleFunc("/api/disconnect", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
@@ -357,7 +519,7 @@ func buildHandlerWithLifecycle(store *config.Store, eng *engine.Manager, listenA
 		writeJSON(w, http.StatusOK, map[string]any{"ok": true, "message": "Windows proxy sıfırlandı ve tüm tüneller kapatıldı."})
 	})
 
-	mux.HandleFunc("/api/relaunch-admin", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/api/relaunch-admin", withRateLimit(5, 15*time.Second, func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			w.WriteHeader(http.StatusMethodNotAllowed)
 			return
@@ -379,7 +541,7 @@ func buildHandlerWithLifecycle(store *config.Store, eng *engine.Manager, listenA
 			eng.Stop()
 			os.Exit(0)
 		}()
-	})
+	}))
 
 	mux.HandleFunc("/api/probe", withConcurrencyLimit(2, func(w http.ResponseWriter, r *http.Request) {
 		ctx, cancel := context.WithTimeout(r.Context(), 16*time.Second)
@@ -505,7 +667,7 @@ func buildHandlerWithLifecycle(store *config.Store, eng *engine.Manager, listenA
 		_, _ = w.Write([]byte(routerexport.GenerateOpenWrtSingBox(store.Get())))
 	})
 
-	return securityMiddleware(mux)
+	return securityMiddlewareWithToken(sessionToken, mux)
 }
 
 func main() {
@@ -547,6 +709,7 @@ func main() {
 	}
 
 	u := "http://" + listenAddr
+	tokenPath := filepath.Join(filepath.Dir(cfgPath), ".ozevpn_token")
 	// Single-Instance Guard: if -takeover is set (Oyun TUN admin handoff), wait cleanly
 	// for the previous non-admin process to release the port instead of exiting or opening a 2nd window.
 	if *takeover {
@@ -561,10 +724,19 @@ func main() {
 	} else if conn, err := net.DialTimeout("tcp", listenAddr, 350*time.Millisecond); err == nil {
 		_ = conn.Close()
 		if !*noBrowser && !*silent {
-			openBrowser(u)
+			openURL := u
+			if raw, rErr := os.ReadFile(tokenPath); rErr == nil {
+				if tok := strings.TrimSpace(string(raw)); len(tok) == 64 {
+					openURL = u + "/auth?t=" + tok
+				}
+			}
+			openBrowser(openURL)
 		}
 		return
 	}
+
+	sessionToken := loadOrCreateSessionToken(tokenPath, *takeover)
+	authURL := u + "/auth?t=" + sessionToken
 
 	// In standalone single-EXE builds, extract embedded sing-box + Tor runtime once into %LOCALAPPDATA%\OzeVPN\runtime
 	if runtimeDir, err := embedded.EnsureRuntime(baseDir); err == nil && runtimeDir != "" {
@@ -593,7 +765,7 @@ func main() {
 		eng.Stop()
 		os.Exit(0)
 	}
-	srv.Handler = buildHandlerWithLifecycle(store, eng, listenAddr, gracefulExit)
+	srv.Handler = buildHandlerWithAuth(store, eng, sessionToken, listenAddr, gracefulExit)
 
 	if !*noTray {
 		trayHandle = tray.Start(tray.Options{
@@ -609,7 +781,7 @@ func main() {
 				}
 			},
 			OnOpenPanel: func() {
-				openBrowser(u)
+				openBrowser(authURL)
 			},
 			OnToggleConnect: func() {
 				if eng.Status().Running {
@@ -643,7 +815,7 @@ func main() {
 	if !*noBrowser && !*silent {
 		go func() {
 			time.Sleep(400 * time.Millisecond)
-			openBrowser(u)
+			openBrowser(authURL)
 		}()
 	}
 

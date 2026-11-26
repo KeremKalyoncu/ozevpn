@@ -3,6 +3,8 @@ package engine
 import (
 	"os"
 	"sync"
+
+	"ozevpn/internal/secfs"
 )
 
 const defaultMaxLogBytes = 2 * 1024 * 1024 // 2 MB cap per child process log
@@ -20,10 +22,11 @@ func newCappedFileWriter(path string, maxBytes int64) (*cappedFileWriter, error)
 	if maxBytes <= 0 {
 		maxBytes = defaultMaxLogBytes
 	}
-	f, err := os.Create(path)
+	f, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0600)
 	if err != nil {
 		return nil, err
 	}
+	_ = secfs.RestrictFileOwnerOnly(path)
 	return &cappedFileWriter{
 		file:     f,
 		maxBytes: maxBytes,

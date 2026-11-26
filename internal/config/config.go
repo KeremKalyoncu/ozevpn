@@ -5,10 +5,11 @@ import (
 	"fmt"
 	"net"
 	"os"
-	"path/filepath"
 	"regexp"
 	"strings"
 	"sync"
+
+	"ozevpn/internal/secfs"
 )
 
 var validDomainRe = regexp.MustCompile(`^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)+$`)
@@ -43,13 +44,17 @@ type Config struct {
 	Mode           Mode          `json:"mode"`
 	Protocol       string        `json:"protocol"`     // "Auto", "WireGuard", "MASQUE"
 	DNSFamilies    string        `json:"dns_families"` // "off", "malware", "full"
-	AdBlockSpeed   bool          `json:"ad_block_speed"` // DNS-level ad & tracker blocker for faster page loads
-	TorBridge      bool          `json:"tor_bridge"`     // Use Snowflake pluggable transport if direct Tor is blocked
-	ProxyPort      int           `json:"proxy_port"`
-	ListenAddr      string        `json:"listen_addr"`
-	CustomServer    string        `json:"custom_server"`               // vless://, socks5://, WireGuard .conf veya sing-box JSON
-	CustomServerSet bool          `json:"custom_server_set,omitempty"` // API yanıtında anahtarı sızdırmadan kayıtlı olduğunu bildirir
-	BypassPresets   []PresetGroup `json:"bypass_presets"`
+	AdBlockSpeed           bool          `json:"ad_block_speed"`            // DNS-level ad & tracker blocker for faster page loads
+	TorBridge              bool          `json:"tor_bridge"`                // Use Snowflake pluggable transport if direct Tor is blocked
+	KillSwitch             bool          `json:"kill_switch"`               // Admin TUN Windows Firewall fail-closed Kill Switch
+	BlockLAN               bool          `json:"block_lan"`                 // Block RFC1918 LAN access while Kill Switch / TUN is active
+	DisableStartupNetProbe bool          `json:"disable_startup_net_probe"` // Opt-out of automatic startup external IP/country trace
+	ProxyPort              int           `json:"proxy_port"`
+	ListenAddr             string        `json:"listen_addr"`
+	CustomServer           string        `json:"custom_server"`                  // vless://, socks5://, WireGuard .conf veya sing-box JSON (DPAPI protected on disk)
+	CustomServerSet        bool          `json:"custom_server_set,omitempty"`    // API yanıtında anahtarı sızdırmadan kayıtlı olduğunu bildirir
+	ClearCustomServer      bool          `json:"clear_custom_server,omitempty"`  // Açık özel sunucu silme isteği (diskte saklanmaz)
+	BypassPresets          []PresetGroup `json:"bypass_presets"`
 	CustomBypass   []string      `json:"custom_bypass"`
 	TunnelPresets  []PresetGroup `json:"tunnel_presets"`
 	CustomTunnel   []string      `json:"custom_tunnel"`
@@ -206,7 +211,24 @@ func NewStore(path string) (*Store, error) {
 			if len(loaded.TunnelPresets) == 0 {
 				loaded.TunnelPresets = DefaultConfig().TunnelPresets
 			}
+			needsMigrate := false
+			if strings.TrimSpace(loaded.CustomServer) != "" {
+				if !secfs.IsProtected(loaded.CustomServer) {
+					needsMigrate = true
+				}
+				if dec, decErr := secfs.UnprotectSecret(loaded.CustomServer); decErr == nil {
+					loaded.CustomServer = dec
+				}
+			}
+			loaded.ClearCustomServer = false
 			s.cfg = loaded
+			if needsMigrate {
+				_ = s.Save()
+			}
+		} else if len(data) > 0 {
+			// Preserve corrupt config for forensic/manual recovery instead of silently discarding it
+			_ = secfs.WritePrivateFile(path+".corrupt.bak", data)
+			_ = s.Save()
 		}
 	} else {
 		_ = s.Save()
@@ -242,15 +264,21 @@ func (c Config) Redacted() Config {
 
 func (s *Store) Save() error {
 	s.mu.RLock()
-	data, err := json.MarshalIndent(s.cfg, "", "  ")
+	toSave := s.cfg
 	s.mu.RUnlock()
+
+	toSave.ClearCustomServer = false
+	toSave.CustomServerSet = false
+	if strings.TrimSpace(toSave.CustomServer) != "" {
+		if enc, err := secfs.ProtectSecret(toSave.CustomServer); err == nil {
+			toSave.CustomServer = enc
+		}
+	}
+	data, err := json.MarshalIndent(toSave, "", "  ")
 	if err != nil {
 		return err
 	}
-	if dir := filepath.Dir(s.path); dir != "" && dir != "." {
-		_ = os.MkdirAll(dir, 0700)
-	}
-	return os.WriteFile(s.path, data, 0600)
+	return secfs.WritePrivateFile(s.path, data)
 }
 
 func CleanDomain(raw string) string {

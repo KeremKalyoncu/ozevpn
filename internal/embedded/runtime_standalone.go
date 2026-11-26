@@ -13,6 +13,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"ozevpn/internal/secfs"
 )
 
 //go:embed runtime.zip
@@ -42,7 +44,8 @@ func EnsureRuntime(fallbackDir string) (string, error) {
 	if err := extractZipSafe(runtimeZip, targetRoot); err != nil {
 		return fallbackDir, fmt.Errorf("gömülü çalışma zamanı çıkarılamadı: %w", err)
 	}
-	_ = os.WriteFile(marker, []byte(tag), 0600)
+	_ = secfs.RestrictDirOwnerOnly(targetRoot)
+	_ = secfs.WritePrivateFile(marker, []byte(tag))
 	return targetRoot, nil
 }
 
