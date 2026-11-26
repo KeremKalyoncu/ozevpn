@@ -1,6 +1,8 @@
-# Build outputs & runtime binaries
+# Build outputs, local secrets & runtime binaries
 ozevpn.exe
 ozevpn.json
+*.corrupt.bak
+.ozevpn_token
 dist/
 bin/sing-box.exe
 bin/sing-box-active.json
