@@ -1,0 +1,29 @@
+#include <winver.h>
+
+1 ICON "ozevpn.ico"
+2 ICON "ozevpn-connected.ico"
+
+1 VERSIONINFO
+FILEVERSION     6,0,0,0
+PRODUCTVERSION  6,0,0,0
+FILEOS          VOS__WINDOWS32
+FILETYPE        VFT_APP
+BEGIN
+  BLOCK "StringFileInfo"
+  BEGIN
+    BLOCK "040904B0"
+    BEGIN
+      VALUE "CompanyName",      "OzeVPN"
+      VALUE "FileDescription",  "OzeVPN v6 - Engelsiz ve Hizli Internet"
+      VALUE "FileVersion",      "6.0.0.0"
+      VALUE "InternalName",     "OzeVPN"
+      VALUE "OriginalFilename", "OzeVPN.exe"
+      VALUE "ProductName",      "OzeVPN v6"
+      VALUE "ProductVersion",   "6.0.0.0"
+    END
+  END
+  BLOCK "VarFileInfo"
+  BEGIN
+    VALUE "Translation", 0x0409, 1200
+  END
+END

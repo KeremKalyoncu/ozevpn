@@ -29,6 +29,7 @@ import (
 	"ozevpn/internal/pac"
 	"ozevpn/internal/probe"
 	"ozevpn/internal/routerexport"
+	"ozevpn/internal/tray"
 	"ozevpn/internal/warp"
 )
 
@@ -509,6 +510,7 @@ func buildHandlerWithLifecycle(store *config.Store, eng *engine.Manager, listenA
 
 func main() {
 	noBrowser := flag.Bool("no-browser", false, "Tarayıcıyı otomatik açma")
+	noTray := flag.Bool("no-tray", false, "Sistem tepsisi (System Tray) ikonunu gizle")
 	silent := flag.Bool("silent", false, "Sessiz arka plan modu (tarayıcı açmaz)")
 	autoConnect := flag.Bool("autoconnect", false, "Başlangıçta otomatik bağlan")
 	takeover := flag.Bool("takeover", false, "Mevcut örneğin portu bırakmasını bekle (Yönetici geçişi)")
@@ -581,13 +583,49 @@ func main() {
 		ReadTimeout:       15 * time.Second,
 		IdleTimeout:       60 * time.Second,
 	}
+	var trayHandle *tray.Tray
 	gracefulExit := func() {
-		// Close listener FIRST so an elevated -takeover process can bind the port within milliseconds
+		// Remove system tray icon & close listener FIRST so -takeover binds immediately with 0 ghost icons
+		if trayHandle != nil {
+			trayHandle.Stop()
+		}
 		_ = srv.Close()
 		eng.Stop()
 		os.Exit(0)
 	}
 	srv.Handler = buildHandlerWithLifecycle(store, eng, listenAddr, gracefulExit)
+
+	if !*noTray {
+		trayHandle = tray.Start(tray.Options{
+			GetState: func() (bool, string) {
+				st := eng.Status()
+				switch strings.ToLower(st.State) {
+				case "connected":
+					return true, "OzeVPN v6 — Bağlı (Engelsiz İnternet)"
+				case "connecting":
+					return false, "OzeVPN v6 — Bağlanıyor..."
+				default:
+					return false, "OzeVPN v6 — Bağlı Değil"
+				}
+			},
+			OnOpenPanel: func() {
+				openBrowser(u)
+			},
+			OnToggleConnect: func() {
+				if eng.Status().Running {
+					eng.Stop()
+				} else {
+					_, _ = eng.Start(store.Get())
+				}
+			},
+			OnEmergencyReset: func() {
+				eng.EmergencyReset()
+			},
+			OnQuit: func() {
+				gracefulExit()
+			},
+		})
+	}
 
 	if !*silent {
 		fmt.Printf("\n  OzeVPN v6 (sing-box + DoH + Hot-Reload + Hız Kalkanı) çalışıyor -> %s\n", u)
@@ -613,6 +651,9 @@ func main() {
 	signal.Notify(stop, os.Interrupt, syscall.SIGTERM)
 	go func() {
 		<-stop
+		if trayHandle != nil {
+			trayHandle.Stop()
+		}
 		eng.Stop()
 		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 		defer cancel()
