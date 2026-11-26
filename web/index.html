@@ -95,6 +95,14 @@
           <input type="checkbox" id="adBlockToggle" checked />
         </label>
 
+        <label class="resident-bar clickable">
+          <div>
+            <strong>🔒 Kill Switch (Sızıntı Kesici — Oyun TUN)</strong>
+            <div class="muted-small">Yalnız Yönetici (Oyun TUN) modunda aktiftir: tünel koparsa veya motor çökerse Windows Güvenlik Duvarı fiziksel çıkışı keser. Acil kurtarma: <em>Proxy Sıfırla</em>.</div>
+          </div>
+          <input type="checkbox" id="killSwitchToggle" />
+        </label>
+
         <div class="resident-bar">
           <div>
             <strong id="residentTitle">Yerleşik Başlangıç: Kapalı</strong>
@@ -128,20 +136,37 @@
             </div>
 
             <div id="customServerBox" class="field-group hidden mb-14">
-              <label class="field-label" for="customServerInput">Özel Sunucu Bağlantısı (VLESS, SOCKS5 veya WireGuard .conf)</label>
+              <label class="field-label" for="customServerInput">Özel Sunucu Bağlantısı (VLESS+TLS/Reality veya WireGuard .conf)</label>
               <div class="add-row">
-                <input id="customServerInput" type="text" spellcheck="false" autocomplete="off" aria-describedby="customServerErr" placeholder="vless://, socks5:// veya WireGuard .conf yapıştır" />
+                <input id="customServerInput" type="text" spellcheck="false" autocomplete="off" aria-describedby="customServerErr" placeholder="vless:// (TLS/Reality) veya WireGuard .conf yapıştır" />
                 <button id="saveServerBtn" type="button" class="btn primary">Kaydet</button>
+                <button id="clearServerBtn" type="button" class="btn secondary hidden" title="Kayıtlı özel sunucu anahtarını sil">Temizle</button>
               </div>
               <div id="customServerErr" class="inline-error hidden" role="alert"></div>
             </div>
 
-            <label class="resident-bar clickable mb-0">
+            <label class="resident-bar clickable">
               <div>
                 <strong>❄️ Katı Duvar Kırıcı (Tor Snowflake Köprü)</strong>
                 <div class="muted-small">Okul/işyeri veya katı güvenlik duvarı Tor çıkışını engelliyorsa aç.</div>
               </div>
               <input type="checkbox" id="torBridgeToggle" />
+            </label>
+
+            <label class="resident-bar clickable">
+              <div>
+                <strong>🚧 Yerel Ağı (LAN) İzole Et (Halka Açık Wi-Fi)</strong>
+                <div class="muted-small">Açıkken TUN ve Kill Switch özel ağ (192.168.x.x / 10.x.x.x) erişimini engeller.</div>
+              </div>
+              <input type="checkbox" id="blockLanToggle" />
+            </label>
+
+            <label class="resident-bar clickable mb-0">
+              <div>
+                <strong>🕵️ Başlangıçta Otomatik Harici Ülke Sorgusunu Kapat</strong>
+                <div class="muted-small">Uygulama açılışında <code>cloudflare.com/cdn-cgi/trace</code> otomatik sorgusu gönderilmez.</div>
+              </div>
+              <input type="checkbox" id="disableNetProbeToggle" />
             </label>
           </div>
         </details>

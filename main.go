@@ -441,6 +441,9 @@ func buildHandlerWithAuth(store *config.Store, eng *engine.Manager, sessionToken
 				c.SetupCompleted = incoming.SetupCompleted
 				c.AdBlockSpeed = incoming.AdBlockSpeed
 				c.TorBridge = incoming.TorBridge
+				c.KillSwitch = incoming.KillSwitch
+				c.BlockLAN = incoming.BlockLAN
+				c.DisableStartupNetProbe = incoming.DisableStartupNetProbe
 				if incoming.InstallStyle != "" {
 					c.InstallStyle = incoming.InstallStyle
 				}
@@ -459,8 +462,10 @@ func buildHandlerWithAuth(store *config.Store, eng *engine.Manager, sessionToken
 				if incoming.ProxyPort >= 1024 && incoming.ProxyPort <= 65535 {
 					c.ProxyPort = incoming.ProxyPort
 				}
-				// Only overwrite secret CustomServer when a new non-empty value is explicitly submitted
-				if strings.TrimSpace(incoming.CustomServer) != "" {
+				// Explicit revocation or replacement of stored custom server secret
+				if incoming.ClearCustomServer {
+					c.CustomServer = ""
+				} else if strings.TrimSpace(incoming.CustomServer) != "" {
 					c.CustomServer = incoming.CustomServer
 				}
 				if len(incoming.BypassPresets) > 0 {
@@ -792,6 +797,9 @@ func main() {
 			},
 			OnEmergencyReset: func() {
 				eng.EmergencyReset()
+			},
+			OnPowerResume: func() {
+				eng.OnPowerResume()
 			},
 			OnQuit: func() {
 				gracefulExit()

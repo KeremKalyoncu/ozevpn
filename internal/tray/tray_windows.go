@@ -23,6 +23,7 @@ type Options struct {
 	OnOpenPanel      func()
 	OnToggleConnect  func()
 	OnEmergencyReset func()
+	OnPowerResume    func()
 	OnQuit           func()
 }
 
@@ -45,6 +46,9 @@ const (
 	wmClose         = 0x0010
 	wmNull          = 0x0000
 	wmCommand       = 0x0111
+	wmPowerBroadcast = 0x0218
+	pbtApmResumeSuspend   = 0x0007
+	pbtApmResumeAutomatic = 0x0012
 	wmLButtonUp     = 0x0202
 	wmLButtonDblClk = 0x0203
 	wmRButtonUp     = 0x0205
@@ -403,6 +407,13 @@ func trayWndProc(hwnd uintptr, uMsg uint32, wParam uintptr, lParam uintptr) uint
 		case wmTrayRefresh:
 			t.addOrUpdateIcon(nimModify)
 			return 0
+		case wmPowerBroadcast:
+			if wParam == pbtApmResumeAutomatic || wParam == pbtApmResumeSuspend {
+				if t.opts.OnPowerResume != nil {
+					go t.opts.OnPowerResume()
+				}
+			}
+			return 1
 		case wmTrayCallback:
 			switch uint32(lParam & 0xFFFF) {
 			case wmLButtonUp, wmLButtonDblClk:

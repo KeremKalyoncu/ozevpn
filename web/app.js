@@ -51,7 +51,11 @@ const els = {
   relaunchAdminBtn: document.getElementById('relaunchAdminBtn'),
   emergencyResetBtn: document.getElementById('emergencyResetBtn'),
   adBlockToggle: document.getElementById('adBlockToggle'),
+  killSwitchToggle: document.getElementById('killSwitchToggle'),
+  blockLanToggle: document.getElementById('blockLanToggle'),
+  disableNetProbeToggle: document.getElementById('disableNetProbeToggle'),
   torBridgeToggle: document.getElementById('torBridgeToggle'),
+  clearServerBtn: document.getElementById('clearServerBtn'),
   speedBtn: document.getElementById('speedBtn'),
   rescueInput: document.getElementById('rescueInput'),
   rescueTestBtn: document.getElementById('rescueTestBtn'),
@@ -435,8 +439,10 @@ function renderStatus() {
   els.brandDot.className = 'logo-dot ' + (isConn ? 'connected' : isConnIng ? 'connecting' : '');
 
   if (isConn) {
-    els.statusText.textContent = 'Bağlı — Tüm Dünya Engelsiz';
-    els.statusSub.textContent = `${engineStatus.capture_layer || 'sing-box Aktif'} • Motor: ${engineStatus.active_profile || 'hybrid_eu'}`;
+    const scopeTxt = engineStatus.is_admin ? 'Tam Sistem TUN (IPv4+IPv6+UDP)' : 'Tarayıcı/Proxy Korumalı';
+    const ksTxt = engineStatus.kill_switch_active ? ' • 🔒 Kill Switch Aktif' : '';
+    els.statusText.textContent = `Bağlı — ${scopeTxt}`;
+    els.statusSub.textContent = `${engineStatus.capture_layer || 'sing-box Aktif'} • Motor: ${engineStatus.active_profile || 'hybrid_eu'}${ksTxt}`;
   } else if (isConnIng) {
     els.statusText.textContent = 'Bağlanıyor...';
     els.statusSub.textContent = 'Hibrit sing-box motoru başlatılıyor...';
@@ -478,6 +484,18 @@ function renderConfig() {
   els.customServerBox.classList.toggle('hidden', els.engineProfileSelect.value !== 'custom');
   if (els.adBlockToggle) {
     els.adBlockToggle.checked = !!appConfig.ad_block_speed;
+  }
+  if (els.killSwitchToggle) {
+    els.killSwitchToggle.checked = !!appConfig.kill_switch;
+  }
+  if (els.blockLanToggle) {
+    els.blockLanToggle.checked = !!appConfig.block_lan;
+  }
+  if (els.disableNetProbeToggle) {
+    els.disableNetProbeToggle.checked = !!appConfig.disable_startup_net_probe;
+  }
+  if (els.clearServerBtn) {
+    els.clearServerBtn.classList.toggle('hidden', !appConfig.custom_server_set);
   }
   if (els.torBridgeToggle) {
     els.torBridgeToggle.checked = !!appConfig.tor_bridge;
@@ -892,6 +910,61 @@ if (els.torBridgeToggle) {
       `Tor Snowflake Köprü Modu: ${nextVal ? 'Açık (Yeniden bağlanınca aktif olur)' : 'Kapalı'}`
     );
     els.torBridgeToggle.disabled = false;
+  });
+}
+
+if (els.killSwitchToggle) {
+  els.killSwitchToggle.addEventListener('change', async () => {
+    const nextVal = els.killSwitchToggle.checked;
+    els.killSwitchToggle.disabled = true;
+    await commitConfig(
+      (cfg) => { cfg.kill_switch = nextVal; },
+      `Kill Switch: ${nextVal ? 'Açık (Oyun TUN bağlantısında etkinleşir)' : 'Kapalı'}`
+    );
+    els.killSwitchToggle.disabled = false;
+  });
+}
+
+if (els.blockLanToggle) {
+  els.blockLanToggle.addEventListener('change', async () => {
+    const nextVal = els.blockLanToggle.checked;
+    els.blockLanToggle.disabled = true;
+    await commitConfig(
+      (cfg) => { cfg.block_lan = nextVal; },
+      `Yerel Ağ (LAN) İzolasyonu: ${nextVal ? 'Açık' : 'Kapalı'}`,
+      true
+    );
+    els.blockLanToggle.disabled = false;
+  });
+}
+
+if (els.disableNetProbeToggle) {
+  els.disableNetProbeToggle.addEventListener('change', async () => {
+    const nextVal = els.disableNetProbeToggle.checked;
+    els.disableNetProbeToggle.disabled = true;
+    await commitConfig(
+      (cfg) => { cfg.disable_startup_net_probe = nextVal; },
+      `Başlangıç harici ülke sorgusu: ${nextVal ? 'Kapalı (Gizlilik)' : 'Açık'}`
+    );
+    els.disableNetProbeToggle.disabled = false;
+  });
+}
+
+if (els.clearServerBtn) {
+  els.clearServerBtn.addEventListener('click', async () => {
+    els.clearServerBtn.disabled = true;
+    try {
+      appConfig = await api('/api/config', {
+        method: 'POST',
+        body: JSON.stringify({ ...appConfig, custom_server: '', clear_custom_server: true }),
+      });
+      renderConfig();
+      addLog('Kayıtlı özel sunucu anahtarı güvenli biçimde silindi.');
+    } catch (err) {
+      addLog('Özel sunucu silinemedi: ' + err.message);
+    } finally {
+      els.clearServerBtn.disabled = false;
+    }
   });
 }
 

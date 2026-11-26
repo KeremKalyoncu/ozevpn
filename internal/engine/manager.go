@@ -3,6 +3,7 @@ package engine
 import (
 	"errors"
 	"fmt"
+	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -12,6 +13,7 @@ import (
 	"time"
 
 	"ozevpn/internal/config"
+	"ozevpn/internal/killswitch"
 	"ozevpn/internal/procutil"
 	"ozevpn/internal/secfs"
 	"ozevpn/internal/warp"
@@ -50,47 +52,58 @@ var adTrackerDomains = []string{
 }
 
 type EngineState struct {
-	Running        bool   `json:"running"`
-	State          string `json:"state"`
-	ActiveProfile  string `json:"active_profile"`
-	CaptureLayer   string `json:"capture_layer"`
-	IsAdmin        bool   `json:"is_admin"`
-	SingBoxReady   bool   `json:"singbox_ready"`
-	SingBoxAlive   bool   `json:"singbox_alive"`
-	TorReady       bool   `json:"tor_ready"`
-	TorAlive       bool   `json:"tor_alive"`
-	TorBridgeReady bool   `json:"tor_bridge_ready"`
-	WarpInstalled  bool   `json:"warp_installed"`
-	AdBlockActive  bool   `json:"ad_block_active"`
-	DNSProtected   bool   `json:"dns_protected"`
-	ProxyPort      int    `json:"proxy_port"`
-	UptimeSec      int64  `json:"uptime_sec"`
-	LastError      string `json:"last_error,omitempty"`
+	Running          bool   `json:"running"`
+	State            string `json:"state"`
+	ActiveProfile    string `json:"active_profile"`
+	CaptureLayer     string `json:"capture_layer"`
+	IsAdmin          bool   `json:"is_admin"`
+	KillSwitchActive bool   `json:"kill_switch_active"`
+	SingBoxReady     bool   `json:"singbox_ready"`
+	SingBoxAlive     bool   `json:"singbox_alive"`
+	TorReady         bool   `json:"tor_ready"`
+	TorAlive         bool   `json:"tor_alive"`
+	TorBridgeReady   bool   `json:"tor_bridge_ready"`
+	WarpInstalled    bool   `json:"warp_installed"`
+	AdBlockActive    bool   `json:"ad_block_active"`
+	DNSProtected     bool   `json:"dns_protected"`
+	ProxyPort        int    `json:"proxy_port"`
+	UptimeSec        int64  `json:"uptime_sec"`
+	WatchdogRestarts int64  `json:"watchdog_restarts"`
+	TorRestarts      int64  `json:"tor_restarts"`
+	LastError        string `json:"last_error,omitempty"`
 }
 
 type Manager struct {
-	mu            sync.Mutex
-	snapMu        sync.RWMutex
-	lastSnap      EngineState
-	baseDir       string
-	warpClient    *warp.Client
-	torCmd        *exec.Cmd
-	torLogFile    *cappedFileWriter
-	sbCmd         *exec.Cmd
-	sbLogFile     *cappedFileWriter
-	running       bool
-	isAdmin       bool
-	state         string
-	activeProf    string
-	captureLayer  string
-	adBlockActive bool
-	torBridge     bool
-	startedAt     time.Time
-	lastErr       string
-	mixedPort     int
-	torPort       int
-	warpPort      int
-	stopWatch     chan struct{}
+	mu               sync.Mutex
+	snapMu           sync.RWMutex
+	lastSnap         EngineState
+	baseDir          string
+	warpClient       *warp.Client
+	torCmd           *exec.Cmd
+	torLogFile       *cappedFileWriter
+	sbCmd            *exec.Cmd
+	sbLogFile        *cappedFileWriter
+	running          bool
+	isAdmin          bool
+	killSwitchActive bool
+	torNeeded        bool
+	torBinPath       string
+	sbBinPath        string
+	sbCfgPath        string
+	lastNetSig       string
+	watchdogRestarts int64
+	torRestarts      int64
+	state            string
+	activeProf       string
+	captureLayer     string
+	adBlockActive    bool
+	torBridge        bool
+	startedAt        time.Time
+	lastErr          string
+	mixedPort        int
+	torPort          int
+	warpPort         int
+	stopWatch        chan struct{}
 }
 
 func NewManager(baseDir string, wc *warp.Client) *Manager {
@@ -164,22 +177,25 @@ func (m *Manager) Status() EngineState {
 		up = int64(time.Since(m.startedAt).Seconds())
 	}
 	st := EngineState{
-		Running:        m.running,
-		State:          m.state,
-		ActiveProfile:  m.activeProf,
-		CaptureLayer:   m.captureLayer,
-		IsAdmin:        m.isAdmin,
-		SingBoxReady:   m.findBin("sing-box.exe") != "",
-		SingBoxAlive:   procAlive(m.sbCmd),
-		TorReady:       m.findBin(filepath.Join("tor", "tor", "tor.exe")) != "",
-		TorAlive:       procAlive(m.torCmd),
-		TorBridgeReady: m.findBin(filepath.Join("tor", "tor", "pluggable_transports", "lyrebird.exe")) != "",
-		WarpInstalled:  m.warpClient.BinaryDir() != "",
-		AdBlockActive:  m.running && m.adBlockActive,
-		DNSProtected:   m.running,
-		ProxyPort:      m.mixedPort,
-		UptimeSec:      up,
-		LastError:      m.lastErr,
+		Running:          m.running,
+		State:            m.state,
+		ActiveProfile:    m.activeProf,
+		CaptureLayer:     m.captureLayer,
+		IsAdmin:          m.isAdmin,
+		KillSwitchActive: m.killSwitchActive || killswitch.IsActive(),
+		SingBoxReady:     m.findBin("sing-box.exe") != "",
+		SingBoxAlive:     procAlive(m.sbCmd),
+		TorReady:         m.findBin(filepath.Join("tor", "tor", "tor.exe")) != "",
+		TorAlive:         procAlive(m.torCmd),
+		TorBridgeReady:   m.findBin(filepath.Join("tor", "tor", "pluggable_transports", "lyrebird.exe")) != "",
+		WarpInstalled:    m.warpClient.BinaryDir() != "",
+		AdBlockActive:    m.running && m.adBlockActive,
+		DNSProtected:     m.running,
+		ProxyPort:        m.mixedPort,
+		UptimeSec:        up,
+		WatchdogRestarts: m.watchdogRestarts,
+		TorRestarts:      m.torRestarts,
+		LastError:        m.lastErr,
 	}
 	m.snapMu.Lock()
 	m.lastSnap = st
@@ -230,6 +246,36 @@ func (m *Manager) Start(cfg config.Config) ([]string, error) {
 	var wg sync.WaitGroup
 	needWarp := (cfg.EngineProfile == "hybrid_eu" || useWarpOnly) && !useCustom && !useTorOnly
 	needTor := !useCustom && (useTorOnly || cfg.EngineProfile == "hybrid_eu")
+
+	admin := IsAdmin()
+	if cfg.KillSwitch {
+		if admin {
+			allowedBins := []string{sbBin}
+			if torBin != "" {
+				allowedBins = append(allowedBins, torBin)
+			}
+			if lb := m.findBin(filepath.Join("tor", "tor", "pluggable_transports", "lyrebird.exe")); lb != "" {
+				allowedBins = append(allowedBins, lb)
+			}
+			if ws := killswitch.DefaultWarpServiceExe(); ws != "" {
+				allowedBins = append(allowedBins, ws)
+			}
+			if exePath, eErr := os.Executable(); eErr == nil && exePath != "" {
+				allowedBins = append(allowedBins, exePath)
+			}
+			if ksErr := killswitch.Enable(killswitch.Options{
+				AllowedPrograms: allowedBins,
+				BlockLAN:        cfg.BlockLAN,
+			}); ksErr != nil {
+				addLog("Kill Switch uyarısı: " + ksErr.Error())
+			} else {
+				m.killSwitchActive = true
+				addLog("🛡️ Windows Firewall Fail-Closed Kill Switch aktif (tünel düşerse sıfır sızıntı).")
+			}
+		} else {
+			addLog("Bilgi: Kill Switch (Windows Firewall kilidi) yalnız Yönetici (Oyun TUN) modunda aktiftir.")
+		}
+	}
 
 	if needWarp {
 		ws := m.warpClient.Status()
@@ -290,7 +336,6 @@ func (m *Manager) Start(cfg config.Config) ([]string, error) {
 		}
 	}
 
-	admin := IsAdmin()
 	cfgBytes, err := BuildSingBoxConfig(cfg, BuildOptions{
 		WarpAvailable: warpAvailable,
 		TorAvailable:  torAvailable,
@@ -384,12 +429,88 @@ func (m *Manager) Start(cfg config.Config) ([]string, error) {
 	m.state = "Connected"
 	m.activeProf = cfg.EngineProfile
 	m.adBlockActive = cfg.AdBlockSpeed
+	m.torNeeded = torAvailable
+	m.torBinPath = torBin
+	m.sbBinPath = sbBin
+	m.sbCfgPath = sbCfgPath
+	m.lastNetSig = currentNetSignature()
 	m.startedAt = time.Now()
 	m.stopWatch = make(chan struct{})
 	go m.watchdogLoop(m.stopWatch, sbBin, sbCfgPath)
 
 	addLog("OzeVPN v6 (sing-box + DoH + 4K Hız Bypass + Hız Kalkanı) aktif!")
 	return logs, nil
+}
+
+// OnPowerResume is triggered on Windows WM_POWERBROADCAST wake events to flush stale DNS
+// and immediately verify/recover sing-box and Tor processes.
+func (m *Manager) OnPowerResume() {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if !m.running {
+		return
+	}
+	FlushDNSCache()
+	m.lastNetSig = currentNetSignature()
+	m.recoverProcessesLocked()
+}
+
+func (m *Manager) recoverProcessesLocked() {
+	if !procAlive(m.sbCmd) && m.sbBinPath != "" && m.sbCfgPath != "" {
+		if m.sbLogFile != nil {
+			_ = m.sbLogFile.Close()
+			m.sbLogFile = nil
+		}
+		sbLogFile, err := newCappedFileWriter(filepath.Join(m.baseDir, "bin", "sing-box.log"), defaultMaxLogBytes)
+		if err == nil {
+			cmd := exec.Command(m.sbBinPath, "run", "-c", m.sbCfgPath)
+			procutil.HideWindow(cmd)
+			cmd.Stdout = sbLogFile
+			cmd.Stderr = sbLogFile
+			if err := cmd.Start(); err == nil {
+				m.sbCmd = cmd
+				m.sbLogFile = sbLogFile
+				m.watchdogRestarts++
+				go func(c *exec.Cmd, f *cappedFileWriter) {
+					_ = c.Wait()
+					_ = f.Close()
+				}(cmd, sbLogFile)
+			} else {
+				_ = sbLogFile.Close()
+			}
+		}
+	}
+	if m.torNeeded && !procAlive(m.torCmd) && m.torBinPath != "" {
+		if m.torLogFile != nil {
+			_ = m.torLogFile.Close()
+			m.torLogFile = nil
+		}
+		if err := m.startTorLocked(m.torBinPath, m.torBridge); err == nil {
+			m.torRestarts++
+		}
+	}
+}
+
+func currentNetSignature() string {
+	ifaces, err := net.Interfaces()
+	if err != nil {
+		return ""
+	}
+	var parts []string
+	for _, ifc := range ifaces {
+		if ifc.Flags&net.FlagUp == 0 || ifc.Flags&net.FlagLoopback != 0 {
+			continue
+		}
+		if strings.Contains(strings.ToLower(ifc.Name), "ozevpn") {
+			continue
+		}
+		addrs, err := ifc.Addrs()
+		if err != nil || len(addrs) == 0 {
+			continue
+		}
+		parts = append(parts, fmt.Sprintf("%s=%s", ifc.Name, addrs[0].String()))
+	}
+	return strings.Join(parts, ";")
 }
 
 func (m *Manager) watchdogLoop(stopCh chan struct{}, sbBin, sbCfgPath string) {
@@ -407,29 +528,17 @@ func (m *Manager) watchdogLoop(stopCh chan struct{}, sbBin, sbCfgPath string) {
 				m.mu.Unlock()
 				return
 			}
-			if !procAlive(m.sbCmd) {
-				if m.sbLogFile != nil {
-					_ = m.sbLogFile.Close()
-					m.sbLogFile = nil
-				}
-				sbLogFile, err := newCappedFileWriter(filepath.Join(m.baseDir, "bin", "sing-box.log"), defaultMaxLogBytes)
-				if err == nil {
-					cmd := exec.Command(sbBin, "run", "-c", sbCfgPath)
-					procutil.HideWindow(cmd)
-					cmd.Stdout = sbLogFile
-					cmd.Stderr = sbLogFile
-					if err := cmd.Start(); err == nil {
-						m.sbCmd = cmd
-						m.sbLogFile = sbLogFile
-						go func(c *exec.Cmd, f *cappedFileWriter) {
-							_ = c.Wait()
-							_ = f.Close()
-						}(cmd, sbLogFile)
-					} else {
-						_ = sbLogFile.Close()
-					}
-				}
-				// Exponential backoff on repeated crashes
+			// Detect physical network/Wi-Fi switch and flush stale OS DNS records
+			if sig := currentNetSignature(); sig != "" && m.lastNetSig != "" && sig != m.lastNetSig {
+				m.lastNetSig = sig
+				FlushDNSCache()
+			}
+			sbDead := !procAlive(m.sbCmd)
+			torDead := m.torNeeded && !procAlive(m.torCmd)
+			if sbDead || torDead {
+				m.sbBinPath = sbBin
+				m.sbCfgPath = sbCfgPath
+				m.recoverProcessesLocked()
 				backoff *= 2
 				if backoff > maxBackoff {
 					backoff = maxBackoff
@@ -608,6 +717,8 @@ func (m *Manager) Stop() {
 func (m *Manager) EmergencyReset() {
 	m.Stop()
 	_ = DisableSystemProxy()
+	_ = killswitch.Disable()
+	FlushDNSCache()
 }
 
 func (m *Manager) stopLocked() {
@@ -616,6 +727,10 @@ func (m *Manager) stopLocked() {
 		m.stopWatch = nil
 	}
 	_ = DisableSystemProxy()
+	if m.killSwitchActive || killswitch.IsActive() {
+		_ = killswitch.Disable()
+		m.killSwitchActive = false
+	}
 	if m.sbCmd != nil && m.sbCmd.Process != nil {
 		_ = m.sbCmd.Process.Kill()
 		m.sbCmd = nil
