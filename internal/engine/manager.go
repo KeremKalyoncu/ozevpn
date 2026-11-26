@@ -372,7 +372,7 @@ func (m *Manager) Start(cfg config.Config) ([]string, error) {
 		_ = os.Remove(sbCfgPath)
 		m.stopLocked()
 		m.state = "Disconnected"
-		m.lastErr = fmt.Sprintf("sing-box yapılandırma doğrulaması başarısız: %s", strings.TrimSpace(string(chkOut)))
+		m.lastErr = fmt.Sprintf("sing-box yapılandırma doğrulaması başarısız: %s", RedactSecrets(strings.TrimSpace(string(chkOut))))
 		return logs, errors.New(m.lastErr)
 	}
 
@@ -411,7 +411,7 @@ func (m *Manager) Start(cfg config.Config) ([]string, error) {
 		m.sbCmd = nil
 		m.stopLocked()
 		m.state = "Disconnected"
-		m.lastErr = fmt.Sprintf("sing-box başlangıçta kapandı (%v): %s", err, strings.TrimSpace(string(logOut)))
+		m.lastErr = fmt.Sprintf("sing-box başlangıçta kapandı (%v): %s", err, RedactSecrets(strings.TrimSpace(string(logOut))))
 		return logs, errors.New(m.lastErr)
 	case <-time.After(1100 * time.Millisecond):
 	}

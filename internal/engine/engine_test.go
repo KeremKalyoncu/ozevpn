@@ -1,11 +1,22 @@
 package engine
 
 import (
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rand"
+	"crypto/tls"
+	"crypto/x509"
+	"crypto/x509/pkix"
 	"encoding/json"
+	"math/big"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
+	"time"
 
 	"ozevpn/internal/config"
 )
@@ -67,6 +78,7 @@ DNS = 10.2.0.1
 
 [Peer]
 PublicKey = BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB=
+PresharedKey = CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC=
 Endpoint = 185.159.157.10:51820
 AllowedIPs = 0.0.0.0/0
 `
@@ -74,8 +86,8 @@ AllowedIPs = 0.0.0.0/0
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if out["type"] != "wireguard" || out["server"] != "185.159.157.10" || out["server_port"] != 51820 {
-		t.Fatalf("unexpected parsed wireguard outbound: %#v", out)
+	if out["type"] != "wireguard" || out["server"] != "185.159.157.10" || out["server_port"] != 51820 || out["pre_shared_key"] == "" {
+		t.Fatalf("unexpected parsed wireguard outbound (expected PQ pre_shared_key): %#v", out)
 	}
 
 	// Verify full BuildSingBoxConfig with WireGuard custom server passes official sing-box 1.14+ check!
@@ -98,22 +110,82 @@ AllowedIPs = 0.0.0.0/0
 	}
 }
 
-func TestParseCustomOutboundSOCKS5AndInvalid(t *testing.T) {
-	out, err := ParseCustomOutbound("socks5://user:pass@1.2.3.4:1080")
+func TestParseCustomOutboundSOCKS5AndDowngradeGuards(t *testing.T) {
+	// Loopback SOCKS5 is allowed
+	out, err := ParseCustomOutbound("socks5://user:pass@127.0.0.1:1080")
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf("unexpected error for loopback socks5: %v", err)
 	}
 	if out["type"] != "socks" || out["username"] != "user" || out["password"] != "pass" {
 		t.Fatalf("unexpected socks5 outbound: %#v", out)
 	}
+	// Remote plaintext SOCKS5 must be rejected (VPN-02-07)
+	if _, err := ParseCustomOutbound("socks5://user:pass@1.2.3.4:1080"); err == nil {
+		t.Fatal("expected error rejecting remote plaintext socks5")
+	}
+	// Plaintext VLESS without security=tls|reality must be rejected (VPN-02-07)
+	if _, err := ParseCustomOutbound("vless://11111111-2222-3333-4444-555555555555@eu.example.com:443"); err == nil {
+		t.Fatal("expected error rejecting plaintext VLESS without TLS/Reality")
+	}
+	// VLESS with allowInsecure=1 must be rejected (VPN-03-06)
+	if _, err := ParseCustomOutbound("vless://11111111-2222-3333-4444-555555555555@eu.example.com:443?security=tls&allowInsecure=1"); err == nil {
+		t.Fatal("expected error rejecting allowInsecure=1 in VLESS")
+	}
+	// Raw JSON with disallowed type or tls.insecure=true must be rejected
+	if _, err := ParseCustomOutbound(`{"type":"direct"}`); err == nil {
+		t.Fatal("expected error rejecting disallowed JSON outbound type 'direct'")
+	}
+	if _, err := ParseCustomOutbound(`{"type":"vless","server":"eu.example.com","server_port":443,"uuid":"abc","tls":{"enabled":true,"insecure":true}}`); err == nil {
+		t.Fatal("expected error rejecting tls.insecure=true in raw JSON")
+	}
 	if _, err := ParseCustomOutbound("ftp://bad.example.com"); err == nil {
 		t.Fatal("expected error for unsupported scheme")
 	}
-	if _, err := ParseCustomOutbound("vless://@example.com:443"); err == nil {
+	if _, err := ParseCustomOutbound("vless://@example.com:443?security=tls"); err == nil {
 		t.Fatal("expected error for missing UUID in vless URI")
 	}
-	if _, err := ParseCustomOutbound("vless://11111111-2222-3333-4444-555555555555@example.com:99999"); err == nil {
+	if _, err := ParseCustomOutbound("vless://11111111-2222-3333-4444-555555555555@example.com:99999?security=tls"); err == nil {
 		t.Fatal("expected error for out-of-range port")
+	}
+}
+
+func TestRedactSecretsAndNegativeTLSCertVerification(t *testing.T) {
+	raw := `error parsing "private_key": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=" password=mySecret123 uuid=1111-2222`
+	red := RedactSecrets(raw)
+	if strings.Contains(red, "AAAA") || strings.Contains(red, "mySecret123") || strings.Contains(red, "1111-2222") {
+		t.Fatalf("RedactSecrets leaked sensitive values: %s", red)
+	}
+
+	// Verify Go default TLS client strictly rejects both self-signed/untrusted and expired certificates (VPN-03-06 / VPN-03-07)
+	priv, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	expiredTmpl := &x509.Certificate{
+		SerialNumber: big.NewInt(1),
+		Subject:      pkix.Name{CommonName: "127.0.0.1"},
+		NotBefore:    time.Now().Add(-48 * time.Hour),
+		NotAfter:     time.Now().Add(-24 * time.Hour),
+		KeyUsage:     x509.KeyUsageDigitalSignature,
+		ExtKeyUsage:  []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
+	}
+	der, err := x509.CreateCertificate(rand.Reader, expiredTmpl, expiredTmpl, &priv.PublicKey, priv)
+	if err != nil {
+		t.Fatal(err)
+	}
+	srv := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	srv.TLS = &tls.Config{
+		Certificates: []tls.Certificate{{Certificate: [][]byte{der}, PrivateKey: priv}},
+	}
+	srv.StartTLS()
+	defer srv.Close()
+
+	// Strict default client (no InsecureSkipVerify) must reject the expired/untrusted certificate
+	client := &http.Client{Timeout: 3 * time.Second}
+	if _, err := client.Get(srv.URL); err == nil {
+		t.Fatal("expected TLS verification failure on expired/untrusted certificate, got nil error")
 	}
 }
 

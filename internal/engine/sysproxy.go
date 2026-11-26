@@ -7,12 +7,57 @@ import (
 	"net/url"
 	"os"
 	"os/exec"
+	"regexp"
 	"runtime"
 	"strconv"
 	"strings"
 
 	"ozevpn/internal/procutil"
 )
+
+var (
+	reRedactedKV    = regexp.MustCompile(`(?i)("?(?:private_key|pre_shared_key|password|uuid|secret|token)"?\s*[:=]\s*"?)([^",\s\r\n}]+)`)
+	reRedactedWGKey = regexp.MustCompile(`[A-Za-z0-9+/]{42,43}=`)
+)
+
+// RedactSecrets masks private keys, UUIDs, passwords, and WireGuard keys before returning
+// child process logs or error messages to the UI/audit logs.
+func RedactSecrets(s string) string {
+	if s == "" {
+		return ""
+	}
+	s = reRedactedKV.ReplaceAllString(s, `${1}[REDACTED]`)
+	s = reRedactedWGKey.ReplaceAllString(s, `[REDACTED_KEY]`)
+	return s
+}
+
+var allowedCustomJSONTypes = map[string]bool{
+	"vless":       true,
+	"wireguard":   true,
+	"trojan":      true,
+	"hysteria2":   true,
+	"tuic":        true,
+	"shadowsocks": true,
+}
+
+func validateCustomJSONOutbound(obj map[string]any) error {
+	typ, _ := obj["type"].(string)
+	typ = strings.ToLower(strings.TrimSpace(typ))
+	if !allowedCustomJSONTypes[typ] {
+		return fmt.Errorf("güvenlik politikası: özel JSON outbound tipi '%s' izinli değil (izinli: vless, wireguard, trojan, hysteria2, tuic, shadowsocks)", typ)
+	}
+	if tlsMap, ok := obj["tls"].(map[string]any); ok {
+		if ins, _ := tlsMap["insecure"].(bool); ins {
+			return fmt.Errorf("güvenlik politikası: tls.insecure=true (sertifika doğrulamasını atlama) yasaktır")
+		}
+	}
+	return nil
+}
+
+func isLoopbackHostname(h string) bool {
+	h = strings.ToLower(strings.Trim(strings.TrimSpace(h), "[]"))
+	return h == "127.0.0.1" || h == "localhost" || h == "::1"
+}
 
 // IsAdmin checks whether the current process has Administrator privileges on Windows.
 func IsAdmin() bool {
@@ -148,6 +193,9 @@ func ParseCustomOutbound(rawURI string) (map[string]any, error) {
 	if strings.HasPrefix(rawURI, "{") {
 		var obj map[string]any
 		if err := json.Unmarshal([]byte(rawURI), &obj); err == nil && obj["type"] != nil {
+			if err := validateCustomJSONOutbound(obj); err != nil {
+				return nil, err
+			}
 			obj["tag"] = "custom-out"
 			return obj, nil
 		}
@@ -174,6 +222,17 @@ func ParseCustomOutbound(rawURI string) (map[string]any, error) {
 			port = p
 		}
 		q := u.Query()
+		if q.Get("allowInsecure") == "1" || strings.EqualFold(q.Get("insecure"), "1") || strings.EqualFold(q.Get("insecure"), "true") {
+			return nil, fmt.Errorf("güvenlik politikası: VLESS TLS sertifika doğrulamasını kapatan insecure/allowInsecure parametresi reddedildi")
+		}
+		sec := strings.ToLower(strings.TrimSpace(q.Get("security")))
+		if sec != "tls" && sec != "reality" {
+			return nil, fmt.Errorf("güvenlik politikası: şifresiz VLESS bağlantıları reddedilir (security=tls veya security=reality zorunludur)")
+		}
+		sni := strings.TrimSpace(q.Get("sni"))
+		if sni == "" {
+			sni = host
+		}
 		out := map[string]any{
 			"type":        "vless",
 			"tag":         "custom-out",
@@ -184,27 +243,29 @@ func ParseCustomOutbound(rawURI string) (map[string]any, error) {
 		if flow := q.Get("flow"); flow != "" {
 			out["flow"] = flow
 		}
-		sec := strings.ToLower(q.Get("security"))
-		if sec == "tls" || sec == "reality" {
-			tlsObj := map[string]any{
-				"enabled":     true,
-				"server_name": q.Get("sni"),
-			}
-			if fp := q.Get("fp"); fp != "" {
-				tlsObj["utls"] = map[string]any{
-					"enabled":     true,
-					"fingerprint": fp,
-				}
-			}
-			if sec == "reality" {
-				tlsObj["reality"] = map[string]any{
-					"enabled":    true,
-					"public_key": q.Get("pbk"),
-					"short_id":   q.Get("sid"),
-				}
-			}
-			out["tls"] = tlsObj
+		tlsObj := map[string]any{
+			"enabled":     true,
+			"insecure":    false,
+			"server_name": sni,
 		}
+		if fp := q.Get("fp"); fp != "" {
+			tlsObj["utls"] = map[string]any{
+				"enabled":     true,
+				"fingerprint": fp,
+			}
+		}
+		if sec == "reality" {
+			pbk := strings.TrimSpace(q.Get("pbk"))
+			if pbk == "" {
+				return nil, fmt.Errorf("VLESS Reality bağlantısı için pbk (public key) zorunludur")
+			}
+			tlsObj["reality"] = map[string]any{
+				"enabled":    true,
+				"public_key": pbk,
+				"short_id":   q.Get("sid"),
+			}
+		}
+		out["tls"] = tlsObj
 		if t := strings.ToLower(q.Get("type")); t == "ws" {
 			out["transport"] = map[string]any{
 				"type": "ws",
@@ -215,6 +276,12 @@ func ParseCustomOutbound(rawURI string) (map[string]any, error) {
 
 	case "socks", "socks5":
 		host := u.Hostname()
+		if host == "" {
+			return nil, fmt.Errorf("socks5 linkinde sunucu adresi zorunludur")
+		}
+		if !isLoopbackHostname(host) {
+			return nil, fmt.Errorf("güvenlik politikası: internet üzerinden şifresiz uzak SOCKS5 bağlantısı reddedilir (yalnız 127.0.0.1/localhost veya şifreli WireGuard/VLESS+TLS kullanın)")
+		}
 		port, err := strconv.Atoi(u.Port())
 		if err != nil || port == 0 {
 			port = 1080
@@ -243,16 +310,19 @@ func ParseCustomOutbound(rawURI string) (map[string]any, error) {
 		if strings.HasPrefix(rawURI, "{") {
 			var obj map[string]any
 			if err := json.Unmarshal([]byte(rawURI), &obj); err == nil && obj["type"] != nil {
+				if err := validateCustomJSONOutbound(obj); err != nil {
+					return nil, err
+				}
 				obj["tag"] = "custom-out"
 				return obj, nil
 			}
 		}
-		return nil, fmt.Errorf("desteklenmeyen format '%s' (vless://, socks5://, WireGuard .conf veya sing-box JSON desteklenir)", u.Scheme)
+		return nil, fmt.Errorf("desteklenmeyen format '%s' (vless:// TLS/Reality, yerel socks5://, WireGuard .conf veya izinli sing-box JSON desteklenir)", u.Scheme)
 	}
 }
 
 func parseWireGuardConf(conf string) (map[string]any, error) {
-	var privKey, pubKey, endpoint string
+	var privKey, pubKey, psk, endpoint string
 	var addrs []string
 	for _, line := range strings.Split(conf, "\n") {
 		l := strings.TrimSpace(line)
@@ -270,6 +340,8 @@ func parseWireGuardConf(conf string) (map[string]any, error) {
 			privKey = v
 		case "publickey":
 			pubKey = v
+		case "presharedkey":
+			psk = v
 		case "address":
 			for _, a := range strings.Split(v, ",") {
 				a = strings.TrimSpace(a)
@@ -292,7 +364,7 @@ func parseWireGuardConf(conf string) (map[string]any, error) {
 			port = p
 		}
 	}
-	return map[string]any{
+	out := map[string]any{
 		"type":            "wireguard",
 		"tag":             "custom-out",
 		"server":          host,
@@ -301,5 +373,9 @@ func parseWireGuardConf(conf string) (map[string]any, error) {
 		"private_key":     privKey,
 		"peer_public_key": pubKey,
 		"mtu":             1280,
-	}, nil
+	}
+	if psk != "" {
+		out["pre_shared_key"] = psk
+	}
+	return out, nil
 }

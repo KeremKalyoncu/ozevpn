@@ -66,21 +66,23 @@ func BuildSingBoxConfig(cfg config.Config, opts BuildOptions) ([]byte, error) {
 			return nil, err
 		}
 		if customObj["type"] == "wireguard" {
-			// sing-box 1.11+/1.14+ uses top-level "endpoints" for WireGuard
+			// sing-box 1.11+/1.14+ uses top-level "endpoints" for WireGuard (with optional Post-Quantum PresharedKey)
+			peer := map[string]any{
+				"address":     customObj["server"],
+				"port":        customObj["server_port"],
+				"public_key":  customObj["peer_public_key"],
+				"allowed_ips": []string{"0.0.0.0/0", "::/0"},
+			}
+			if psk, ok := customObj["pre_shared_key"].(string); ok && psk != "" {
+				peer["pre_shared_key"] = psk
+			}
 			ep := map[string]any{
 				"type":        "wireguard",
 				"tag":         "custom-out",
 				"mtu":         1280,
 				"address":     customObj["local_address"],
 				"private_key": customObj["private_key"],
-				"peers": []map[string]any{
-					{
-						"address":     customObj["server"],
-						"port":        customObj["server_port"],
-						"public_key":  customObj["peer_public_key"],
-						"allowed_ips": []string{"0.0.0.0/0", "::/0"},
-					},
-				},
+				"peers":       []map[string]any{peer},
 			}
 			endpoints = append(endpoints, ep)
 		} else {

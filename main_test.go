@@ -180,6 +180,13 @@ func TestConfigMasksCustomServerSecrets(t *testing.T) {
 	if recUpd.Code != http.StatusOK || store.Get().CustomServer != secret {
 		t.Fatal("updating unrelated config field wiped stored custom_server")
 	}
+
+	// Explicit clear_custom_server must revoke the stored secret cleanly
+	recClr := httptest.NewRecorder()
+	h.ServeHTTP(recClr, localReq(http.MethodPost, "/api/config", `{"clear_custom_server":true}`))
+	if recClr.Code != http.StatusOK || store.Get().CustomServer != "" {
+		t.Fatalf("expected clear_custom_server to revoke secret, got code=%d secret=%q", recClr.Code, store.Get().CustomServer)
+	}
 }
 
 func TestConcurrencyLimitReturns429AndStaticCacheHeaders(t *testing.T) {
