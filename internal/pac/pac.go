@@ -22,10 +22,16 @@ func GeneratePAC(cfg config.Config) string {
 		port = 40000
 	}
 
+	proxyChain := fmt.Sprintf("SOCKS5 127.0.0.1:%d; SOCKS 127.0.0.1:%d; DIRECT", port, port)
+	if cfg.KillSwitch {
+		// Fail-closed PAC mode: never silently fall back to DIRECT if local proxy is down
+		proxyChain = fmt.Sprintf("SOCKS5 127.0.0.1:%d; SOCKS 127.0.0.1:%d", port, port)
+	}
+
 	return fmt.Sprintf(`// OzeVPN Akıllı PAC Yönlendirme Dosyası
 // Sadece seçili domainler şifreli tünele gider, geri kalan tüm internet %%100 direkt çıkar.
 var TUNNEL_DOMAINS = %s;
-var PROXY = "SOCKS5 127.0.0.1:%d; SOCKS 127.0.0.1:%d; DIRECT";
+var PROXY = "%s";
 
 function FindProxyForURL(url, host) {
   host = host.toLowerCase();
@@ -45,7 +51,7 @@ function FindProxyForURL(url, host) {
   }
   return "DIRECT";
 }
-`, string(domainsJSON), port, port)
+`, string(domainsJSON), proxyChain)
 }
 
 // EnableWindowsPAC sets Windows system AutoConfigURL to point to OzeVPN's PAC endpoint.

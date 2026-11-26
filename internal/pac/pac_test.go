@@ -21,4 +21,11 @@ func TestGeneratePACContainsActiveDomainsAndPort(t *testing.T) {
 			t.Errorf("PAC script missing %q", want)
 		}
 	}
+
+	// KillSwitch=true must enforce fail-closed PROXY chain without "; DIRECT" fallback
+	cfg.KillSwitch = true
+	strictScript := GeneratePAC(cfg)
+	if strings.Contains(strictScript, "; DIRECT") {
+		t.Fatalf("expected fail-closed PAC without '; DIRECT' when KillSwitch=true:\n%s", strictScript)
+	}
 }
