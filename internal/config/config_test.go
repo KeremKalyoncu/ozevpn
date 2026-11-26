@@ -1,6 +1,11 @@
 package config
 
-import "testing"
+import (
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+)
 
 func TestCleanDomain(t *testing.T) {
 	cases := map[string]string{
@@ -60,4 +65,43 @@ func FuzzCleanDomain(f *testing.F) {
 			t.Fatalf("invalid cleaned domain %q from %q", out, input)
 		}
 	})
+}
+
+func TestConfigCorruptBackupAndVersionRollbackCompatibility(t *testing.T) {
+	dir := t.TempDir()
+	// 1. Corrupt config must be backed up to .corrupt.bak instead of silent loss (VPN-16-07)
+	corruptPath := filepath.Join(dir, "corrupt.json")
+	if err := os.WriteFile(corruptPath, []byte(`{"mode": broken`), 0600); err != nil {
+		t.Fatal(err)
+	}
+	st, err := NewStore(corruptPath)
+	if err != nil {
+		t.Fatalf("NewStore on corrupt file failed: %v", err)
+	}
+	if st.Get().Mode != ModeGlobalUnrestricted {
+		t.Fatalf("expected fallback default mode full, got %q", st.Get().Mode)
+	}
+	if _, err := os.Stat(corruptPath + ".corrupt.bak"); err != nil {
+		t.Fatalf("expected .corrupt.bak recovery file, got err=%v", err)
+	}
+
+	// 2. Legacy v5 config without new v6 security fields loads cleanly & preserves data (VPN-18-06)
+	legacyPath := filepath.Join(dir, "legacy.json")
+	legacyJSON := `{"setup_completed":true,"mode":"smart","engine_profile":"hybrid_eu","custom_server":"vless://11111111-2222-3333-4444-555555555555@eu.example.com:443?security=tls"}`
+	if err := os.WriteFile(legacyPath, []byte(legacyJSON), 0600); err != nil {
+		t.Fatal(err)
+	}
+	stLegacy, err := NewStore(legacyPath)
+	if err != nil {
+		t.Fatalf("NewStore on legacy config failed: %v", err)
+	}
+	got := stLegacy.Get()
+	if !got.SetupCompleted || got.Mode != ModeSmartSplit || !strings.Contains(got.CustomServer, "11111111") {
+		t.Fatalf("legacy config migration failed: %+v", got)
+	}
+	// On disk, secret should have been automatically encrypted with DPAPI on Windows
+	rawAfter, _ := os.ReadFile(legacyPath)
+	if strings.Contains(string(rawAfter), "11111111-2222-3333-4444-555555555555") {
+		t.Fatalf("expected legacy plaintext custom_server to be DPAPI-encrypted on disk")
+	}
 }
