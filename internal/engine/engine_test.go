@@ -77,6 +77,25 @@ AllowedIPs = 0.0.0.0/0
 	if out["type"] != "wireguard" || out["server"] != "185.159.157.10" || out["server_port"] != 51820 {
 		t.Fatalf("unexpected parsed wireguard outbound: %#v", out)
 	}
+
+	// Verify full BuildSingBoxConfig with WireGuard custom server passes official sing-box 1.14+ check!
+	cfg := config.DefaultConfig()
+	cfg.EngineProfile = "custom"
+	cfg.CustomServer = conf
+	b, err := BuildSingBoxConfig(cfg, BuildOptions{MixedPort: 10808})
+	if err != nil {
+		t.Fatalf("BuildSingBoxConfig(wireguard) failed: %v", err)
+	}
+	sbBin := filepath.Join("..", "..", "bin", "sing-box.exe")
+	if _, err := os.Stat(sbBin); err == nil {
+		tmpCfg := filepath.Join(t.TempDir(), "wg-check.json")
+		if err := os.WriteFile(tmpCfg, b, 0644); err != nil {
+			t.Fatal(err)
+		}
+		if checkOut, err := exec.Command(sbBin, "check", "-c", tmpCfg).CombinedOutput(); err != nil {
+			t.Fatalf("official sing-box check FAILED on WireGuard custom server: %v\n%s", err, string(checkOut))
+		}
+	}
 }
 
 func TestParseCustomOutboundSOCKS5AndInvalid(t *testing.T) {

@@ -38,6 +38,7 @@ func BuildSingBoxConfig(cfg config.Config, opts BuildOptions) ([]byte, error) {
 	outbounds := []map[string]any{
 		{"type": "direct", "tag": "direct"},
 	}
+	var endpoints []map[string]any
 
 	defaultOut := "direct"
 	euOut := ""
@@ -47,7 +48,27 @@ func BuildSingBoxConfig(cfg config.Config, opts BuildOptions) ([]byte, error) {
 		if err != nil {
 			return nil, err
 		}
-		outbounds = append(outbounds, customObj)
+		if customObj["type"] == "wireguard" {
+			// sing-box 1.11+/1.14+ uses top-level "endpoints" for WireGuard
+			ep := map[string]any{
+				"type":        "wireguard",
+				"tag":         "custom-out",
+				"mtu":         1280,
+				"address":     customObj["local_address"],
+				"private_key": customObj["private_key"],
+				"peers": []map[string]any{
+					{
+						"address":     customObj["server"],
+						"port":        customObj["server_port"],
+						"public_key":  customObj["peer_public_key"],
+						"allowed_ips": []string{"0.0.0.0/0", "::/0"},
+					},
+				},
+			}
+			endpoints = append(endpoints, ep)
+		} else {
+			outbounds = append(outbounds, customObj)
+		}
 		defaultOut = "custom-out"
 		euOut = "custom-out"
 	} else {
@@ -193,6 +214,9 @@ func BuildSingBoxConfig(cfg config.Config, opts BuildOptions) ([]byte, error) {
 			"auto_detect_interface":   true,
 			"default_domain_resolver": "dns-direct",
 		},
+	}
+	if len(endpoints) > 0 {
+		sbConfig["endpoints"] = endpoints
 	}
 
 	b, err := json.MarshalIndent(sbConfig, "", "  ")
