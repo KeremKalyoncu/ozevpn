@@ -148,3 +148,57 @@ func TestCappedFileWriterEnforcesMaxBytes(t *testing.T) {
 		t.Fatalf("expected capped log file <= 1024 bytes, got %d", fi.Size())
 	}
 }
+
+func TestBuildSingBoxConfigAdminDualStackIPv6DoHDetourAndOfficialCheck(t *testing.T) {
+	cfg := config.DefaultConfig()
+	cfg.BlockLAN = true
+	b, err := BuildSingBoxConfig(cfg, BuildOptions{
+		WarpAvailable: true,
+		TorAvailable:  true,
+		IsAdmin:       true,
+		MixedPort:     10808,
+		WarpPort:      40000,
+		TorPort:       9055,
+	})
+	if err != nil {
+		t.Fatalf("BuildSingBoxConfig(admin) failed: %v", err)
+	}
+	raw := string(b)
+	for _, want := range []string{
+		`"fdfe:dcba:9876::1/126"`,
+		`"mtu": 1400`,
+		`"detour": "warp-fast"`,
+		`"action": "reject"`,
+	} {
+		if !containsStr(raw, want) {
+			t.Fatalf("admin dual-stack sing-box config missing %s:\n%s", want, raw)
+		}
+	}
+	if containsStr(raw, `"type": "udp"`) {
+		t.Fatalf("expected encrypted DoH dns-direct (no plaintext udp DNS):\n%s", raw)
+	}
+
+	sbBin := filepath.Join("..", "..", "bin", "sing-box.exe")
+	if _, err := os.Stat(sbBin); err == nil {
+		tmpCfg := filepath.Join(t.TempDir(), "admin-dualstack-check.json")
+		if err := os.WriteFile(tmpCfg, b, 0600); err != nil {
+			t.Fatal(err)
+		}
+		if out, err := exec.Command(sbBin, "check", "-c", tmpCfg).CombinedOutput(); err != nil {
+			t.Fatalf("official sing-box check FAILED on dual-stack admin config: %v\n%s", err, string(out))
+		}
+	}
+}
+
+func containsStr(s, sub string) bool {
+	return len(s) >= len(sub) && (s == sub || indexStr(s, sub) >= 0)
+}
+
+func indexStr(s, sub string) int {
+	for i := 0; i+len(sub) <= len(s); i++ {
+		if s[i:i+len(sub)] == sub {
+			return i
+		}
+	}
+	return -1
+}

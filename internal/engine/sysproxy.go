@@ -54,6 +54,15 @@ func EnableSystemProxy(port int) error {
 	return nil
 }
 
+// FlushDNSCache clears the Windows OS DNS resolver cache on tunnel state transitions
+// to prevent stale ISP DNS records from leaking or breaking split-DNS policies.
+func FlushDNSCache() {
+	if runtime.GOOS != "windows" {
+		return
+	}
+	_ = runHidden("ipconfig", "/flushdns").Run()
+}
+
 // DisableSystemProxy restores Windows WinINET proxy settings to direct.
 func DisableSystemProxy() error {
 	if runtime.GOOS != "windows" {

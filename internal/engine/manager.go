@@ -307,10 +307,10 @@ func (m *Manager) Start(cfg config.Config) ([]string, error) {
 	}
 
 	if admin {
-		m.captureLayer = fmt.Sprintf("TUN Tam Sistem + Proxy (127.0.0.1:%d)", m.mixedPort)
-		addLog("Yönetici izni aktif → Gerçek TUN sanal ağ kartı açılıyor.")
+		m.captureLayer = fmt.Sprintf("Tam Sistem TUN (IPv4+IPv6+UDP) + Proxy (127.0.0.1:%d)", m.mixedPort)
+		addLog("Yönetici izni aktif → Çift yığınlı (IPv4+IPv6) TUN sanal ağ kartı açılıyor.")
 	} else {
-		m.captureLayer = fmt.Sprintf("Akıllı Sistem Proxy (127.0.0.1:%d)", m.mixedPort)
+		m.captureLayer = fmt.Sprintf("Tarayıcı/Proxy Korumalı (127.0.0.1:%d — UDP için Oyun TUN)", m.mixedPort)
 	}
 	if cfg.AdBlockSpeed {
 		addLog(fmt.Sprintf("Reklam & Takipçi Hız Kalkanı aktif (%d ağır reklam ağı engellendi).", len(adTrackerDomains)))
@@ -378,6 +378,7 @@ func (m *Manager) Start(cfg config.Config) ([]string, error) {
 			addLog(fmt.Sprintf("Windows Sistem Proxy etkinleştirildi (127.0.0.1:%d).", m.mixedPort))
 		}
 	}
+	FlushDNSCache()
 
 	m.running = true
 	m.state = "Connected"
@@ -590,6 +591,7 @@ func (m *Manager) ReloadRouting(cfg config.Config) (string, error) {
 	m.sbCmd = cmd
 	m.sbLogFile = sbLogFile
 	m.adBlockActive = cfg.AdBlockSpeed
+	FlushDNSCache()
 	go func(c *exec.Cmd, f *cappedFileWriter) {
 		_ = c.Wait()
 		_ = f.Close()
@@ -632,6 +634,7 @@ func (m *Manager) stopLocked() {
 	}
 	_ = m.warpClient.Disconnect()
 	_ = os.Remove(filepath.Join(m.baseDir, "bin", "sing-box-active.json"))
+	FlushDNSCache()
 	m.running = false
 	m.state = "Disconnected"
 	m.captureLayer = ""

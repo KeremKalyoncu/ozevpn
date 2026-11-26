@@ -4,10 +4,27 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net"
 	"strings"
 
 	"ozevpn/internal/config"
 )
+
+// pickSafeTUNv4Subnet returns 172.19.0.1/30 unless a local interface already occupies 172.19.0.0/30,
+// in which case it safely falls back to RFC 2544 benchmark space 198.18.0.1/30 to avoid subnet collision.
+func pickSafeTUNv4Subnet() string {
+	_, primaryNet, _ := net.ParseCIDR("172.19.0.0/30")
+	if addrs, err := net.InterfaceAddrs(); err == nil {
+		for _, a := range addrs {
+			if ipNet, ok := a.(*net.IPNet); ok && ipNet.IP != nil {
+				if ip4 := ipNet.IP.To4(); ip4 != nil && primaryNet.Contains(ip4) {
+					return "198.18.0.1/30"
+				}
+			}
+		}
+	}
+	return "172.19.0.1/30"
+}
 
 type BuildOptions struct {
 	WarpAvailable bool
@@ -114,7 +131,8 @@ func BuildSingBoxConfig(cfg config.Config, opts BuildOptions) ([]byte, error) {
 			"type":           "tun",
 			"tag":            "tun-in",
 			"interface_name": "ozevpn0",
-			"address":        []string{"172.19.0.1/30"},
+			"address":        []string{pickSafeTUNv4Subnet(), "fdfe:dcba:9876::1/126"},
+			"mtu":            1400,
 			"auto_route":     true,
 			"strict_route":   true,
 			"stack":          "gvisor",
@@ -124,7 +142,11 @@ func BuildSingBoxConfig(cfg config.Config, opts BuildOptions) ([]byte, error) {
 	rules := []map[string]any{
 		{"action": "sniff"},
 		{"protocol": "dns", "action": "hijack-dns"},
-		{"ip_is_private": true, "outbound": "direct"},
+	}
+	if cfg.BlockLAN {
+		rules = append(rules, map[string]any{"ip_is_private": true, "action": "reject"})
+	} else {
+		rules = append(rules, map[string]any{"ip_is_private": true, "outbound": "direct"})
 	}
 
 	if cfg.AdBlockSpeed {
@@ -194,10 +216,11 @@ func BuildSingBoxConfig(cfg config.Config, opts BuildOptions) ([]byte, error) {
 					"tag":    "dns-doh",
 					"type":   "https",
 					"server": "1.1.1.1",
+					"detour": defaultOut,
 				},
 				{
 					"tag":    "dns-direct",
-					"type":   "udp",
+					"type":   "https",
 					"server": "1.1.1.1",
 				},
 			},

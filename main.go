@@ -876,6 +876,7 @@ func openBrowser(targetURL string) {
 					"--window-size=1180,820",
 					"--user-data-dir="+profileDir,
 					"--disable-extensions",
+					"--force-webrtc-ip-handling-policy=disable_non_proxied_udp",
 					"--no-first-run",
 					"--no-default-browser-check",
 				)
