@@ -9,46 +9,111 @@
 <br/>
 <br/>
 
-**[Türkçe](README.md) · English**
+**[🇹🇷 Türkçe](README.md) · 🇬🇧 English**
 
-[![CI](https://github.com/KeremKalyoncu/ozevpn/actions/workflows/ci.yml/badge.svg)](https://github.com/KeremKalyoncu/ozevpn/actions/workflows/ci.yml)
-[![CodeQL](https://github.com/KeremKalyoncu/ozevpn/actions/workflows/codeql.yml/badge.svg)](https://github.com/KeremKalyoncu/ozevpn/actions/workflows/codeql.yml)
-[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/KeremKalyoncu/ozevpn/badge)](https://scorecard.dev/viewer/?uri=github.com/KeremKalyoncu/ozevpn)
-[![OpenSSF Best Practices](https://www.bestpractices.dev/projects/17200/badge)](https://www.bestpractices.dev/projects/17200)
-[![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=KeremKalyoncu_ozevpn&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=KeremKalyoncu_ozevpn)
-[![Security Rating](https://sonarcloud.io/api/project_badges/measure?project=KeremKalyoncu_ozevpn&metric=security_rating)](https://sonarcloud.io/summary/new_code?id=KeremKalyoncu_ozevpn)
-[![REUSE status](https://api.reuse.software/badge/github.com/KeremKalyoncu/ozevpn)](https://api.reuse.software/info/github.com/KeremKalyoncu/ozevpn)
-[![SLSA Provenance](https://github.com/KeremKalyoncu/ozevpn/actions/workflows/release.yml/badge.svg)](https://github.com/KeremKalyoncu/ozevpn/actions/workflows/release.yml)
-[![Release](https://img.shields.io/github/v/release/KeremKalyoncu/ozevpn?color=0EA5E9)](https://github.com/KeremKalyoncu/ozevpn/releases)
-[![License: GPL-3.0](https://img.shields.io/badge/License-GPL--3.0-22C55E)](LICENSE)
+<p>
+  <a href="https://www.bestpractices.dev/en/projects/17200"><img src="https://www.bestpractices.dev/projects/17200/badge" alt="OpenSSF Best Practices Passing"/></a>
+  <a href="https://scorecard.dev/viewer/?uri=github.com/KeremKalyoncu/ozevpn"><img src="https://api.scorecard.dev/projects/github.com/KeremKalyoncu/ozevpn/badge" alt="OpenSSF Scorecard"/></a>
+  <a href="https://sonarcloud.io/summary/new_code?id=KeremKalyoncu_ozevpn"><img src="https://sonarcloud.io/api/project_badges/measure?project=KeremKalyoncu_ozevpn&metric=alert_status" alt="SonarCloud Quality Gate"/></a>
+  <a href="https://sonarcloud.io/summary/new_code?id=KeremKalyoncu_ozevpn"><img src="https://sonarcloud.io/api/project_badges/measure?project=KeremKalyoncu_ozevpn&metric=security_rating" alt="SonarCloud Security Rating"/></a>
+</p>
+<p>
+  <a href="https://github.com/KeremKalyoncu/ozevpn/actions/workflows/ci.yml"><img src="https://github.com/KeremKalyoncu/ozevpn/actions/workflows/ci.yml/badge.svg" alt="CI"/></a>
+  <a href="https://github.com/KeremKalyoncu/ozevpn/actions/workflows/codeql.yml"><img src="https://github.com/KeremKalyoncu/ozevpn/actions/workflows/codeql.yml/badge.svg" alt="CodeQL SAST"/></a>
+  <a href="https://github.com/KeremKalyoncu/ozevpn/actions/workflows/release.yml"><img src="https://github.com/KeremKalyoncu/ozevpn/actions/workflows/release.yml/badge.svg" alt="SLSA Provenance"/></a>
+  <a href="https://api.reuse.software/info/github.com/KeremKalyoncu/ozevpn"><img src="https://api.reuse.software/badge/github.com/KeremKalyoncu/ozevpn" alt="FSFE REUSE 3.3"/></a>
+  <a href="https://github.com/KeremKalyoncu/ozevpn/releases"><img src="https://img.shields.io/github/v/release/KeremKalyoncu/ozevpn?color=0EA5E9" alt="Latest Release"/></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-GPL--3.0-22C55E" alt="License: GPL-3.0"/></a>
+</p>
 
-**Zero third-party Go/npm dependencies. Single-file Windows desktop VPN (`.exe`) combining native Cloudflare WARP WireGuard (`TCP+UDP`), EU Tor + Snowflake, smart split tunneling, LAN proxy sharing, live throughput telemetry, and a WFP Kill Switch.**
+<h3>Zero third-party Go/npm dependencies. Single-file Windows desktop hybrid VPN (<code>.exe</code>) built for speed, gaming UDP, and zero leaks.</h3>
 
-[Quick Start](#quick-start) · [Architecture](#architecture) · [Security](#security--privacy) · [Supply Chain](#verification--supply-chain) · [Contributing](CONTRIBUTING.md)
+<p>
+  <a href="#-certifications--independent-audits"><b>Certifications</b></a> ·
+  <a href="#-live-preview--signal-cockpit-ui"><b>Preview</b></a> ·
+  <a href="#-why-ozevpn"><b>Comparison</b></a> ·
+  <a href="#-architecture--defense-in-depth"><b>Architecture</b></a> ·
+  <a href="#-quick-start"><b>Quick Start</b></a> ·
+  <a href="#-verification--supply-chain"><b>Verification</b></a> ·
+  <a href="CONTRIBUTING.md"><b>Contributing</b></a>
+</p>
 
 </div>
 
 ---
 
-## Live Preview
+## 🏆 Certifications & Independent Audits
+
+OzeVPN is continuously audited on every commit against **Linux Foundation OpenSSF**, **GitHub CodeQL**, **SonarCloud**, **Sigstore SLSA**, and **FSFE REUSE** standards.
 
 <div align="center">
-  <img src="docs/screenshots/demo.gif" alt="OzeVPN Signal Cockpit Demo" width="90%" />
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="assets/certifications-dark.svg">
+  <source media="(prefers-color-scheme: light)" srcset="assets/certifications-light.svg">
+  <img alt="OzeVPN Independent Certifications and Supply-Chain Audit" src="assets/certifications-dark.svg" width="100%">
+</picture>
 </div>
 
-| Dark Theme (Obsidian Cockpit) | Light Theme (Cool Porcelain) |
+<br/>
+
+| Independent Audit / Standard | Live Certificate & Badge | Verified Scope | Audit Record |
+| :--- | :---: | :--- | :--- |
+| **Linux Foundation OpenSSF Best Practices** | [![OpenSSF Best Practices](https://www.bestpractices.dev/projects/17200/badge)](https://www.bestpractices.dev/en/projects/17200) | **115% Passing** (`67/67` security, crypto, testing & release criteria) | [Project #17200](https://www.bestpractices.dev/en/projects/17200) |
+| **OpenSSF Scorecard** | [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/KeremKalyoncu/ozevpn/badge)](https://scorecard.dev/viewer/?uri=github.com/KeremKalyoncu/ozevpn) | **`7.2 / 10`** — **10 checks at `10/10`** + `License 9/10` | [Live Viewer](https://scorecard.dev/viewer/?uri=github.com/KeremKalyoncu/ozevpn) |
+| **SonarCloud Quality & Security** | [![Quality Gate](https://sonarcloud.io/api/project_badges/measure?project=KeremKalyoncu_ozevpn&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=KeremKalyoncu_ozevpn) [![Security](https://sonarcloud.io/api/project_badges/measure?project=KeremKalyoncu_ozevpn&metric=security_rating)](https://sonarcloud.io/summary/new_code?id=KeremKalyoncu_ozevpn) | Continuous static quality gate and **Grade A** security rating | [SonarCloud Dashboard](https://sonarcloud.io/summary/new_code?id=KeremKalyoncu_ozevpn) |
+| **GitHub CodeQL SAST** | [![CodeQL](https://github.com/KeremKalyoncu/ozevpn/actions/workflows/codeql.yml/badge.svg)](https://github.com/KeremKalyoncu/ozevpn/actions/workflows/codeql.yml) | Automated **Go + JavaScript** security scanning on every push, PR & schedule | [CodeQL Workflow](https://github.com/KeremKalyoncu/ozevpn/actions/workflows/codeql.yml) |
+| **Sigstore SLSA Build Provenance** | [![SLSA](https://github.com/KeremKalyoncu/ozevpn/actions/workflows/release.yml/badge.svg)](https://github.com/KeremKalyoncu/ozevpn/actions/workflows/release.yml) | Cryptographic build attestation (`gh attestation verify`) + CycloneDX 1.5 SBOM | [Release Workflow](https://github.com/KeremKalyoncu/ozevpn/actions/workflows/release.yml) |
+| **FSFE REUSE 3.3 License Compliance** | [![REUSE](https://api.reuse.software/badge/github.com/KeremKalyoncu/ozevpn)](https://api.reuse.software/info/github.com/KeremKalyoncu/ozevpn) | Machine-readable `SPDX: GPL-3.0-or-later` coverage across all files | [REUSE Status](https://api.reuse.software/info/github.com/KeremKalyoncu/ozevpn) |
+| **OzeVPN CI (Race + Fuzz + Live EXE)** | [![CI](https://github.com/KeremKalyoncu/ozevpn/actions/workflows/ci.yml/badge.svg)](https://github.com/KeremKalyoncu/ozevpn/actions/workflows/ci.yml) | `go test -race`, fuzzing, `staticcheck`, `govulncheck`, live Windows `.exe` smoke test | [CI Workflow](https://github.com/KeremKalyoncu/ozevpn/actions/workflows/ci.yml) |
+| **VirusTotal & Windows Distribution** | [![Release](https://img.shields.io/github/v/release/KeremKalyoncu/ozevpn?color=0EA5E9)](https://github.com/KeremKalyoncu/ozevpn/releases/tag/v6.1.1) | `v6.1.1` SHA-256 scanned binary · Winget PR · SignPath code-signing application | [VirusTotal](https://www.virustotal.com/gui/file/37ea85b678e37bfa02958fdd16d4513026e585351a9530d2899cfa287d931558) · [Winget PR](https://github.com/microsoft/winget-pkgs/pull/491333) |
+
+<details>
+<summary><b>📊 OpenSSF Scorecard Breakdown — 10 Perfect <code>10/10</code> Checks</b></summary>
+
+<br/>
+
+| Scorecard Check | Score | Evidence |
+| :--- | :---: | :--- |
+| **SAST** | `10 / 10` | CodeQL (Go + JS), `staticcheck`, `go vet`, and SonarCloud on every commit |
+| **Fuzzing** | `10 / 10` | Native Go fuzz targets (`FuzzCleanDomain`, `FuzzParseCustomOutbound`) |
+| **Vulnerabilities** | `10 / 10` | Zero known CVEs (`govulncheck` + `0` external Go/npm dependencies) |
+| **Security-Policy** | `10 / 10` | [SECURITY.md](SECURITY.md) — supported versions, 48h ack, 90d coordinated disclosure |
+| **Pinned-Dependencies** | `10 / 10` | Every GitHub Actions step pinned to full 40-char commit SHA |
+| **Token-Permissions** | `10 / 10` | Least-privilege workflow tokens (`permissions: contents: read` top-level) |
+| **CI-Tests** | `10 / 10` | Race detector (`-race`), 36-combo `sing-box check` matrix, live Windows EXE test |
+| **Binary-Artifacts** | `10 / 10` | Zero binaries checked into Git; embedded runtimes `5/5` SHA-256 pinned |
+| **Dangerous-Workflow** | `10 / 10` | Zero dangerous workflow patterns or script injections |
+| **Dependency-Update-Tool** | `10 / 10` | Automated weekly `Dependabot` (`.github/dependabot.yml`) |
+| **License** | `9 / 10` | Root [LICENSE](LICENSE) (`GPL-3.0`) + [REUSE.toml](REUSE.toml) |
+| **CII-Best-Practices** | `5 / 10` | OpenSSF Best Practices **Passing (115%)** verified |
+
+</details>
+
+---
+
+## 🖥️ Live Preview — Signal Cockpit UI
+
+Handcrafted **pure HTML/CSS/Vanilla JS (`< 120 KB` total embedded budget)** with **zero Electron overhead**, native dark (`Obsidian Cockpit`) & light (`Cool Porcelain`) themes, and keyboard navigation:
+
+<div align="center">
+  <img src="docs/screenshots/demo.gif" alt="OzeVPN Signal Cockpit Live Demo" width="92%" />
+</div>
+
+<br/>
+
+| 🌑 Obsidian Cockpit (Dark Theme) | ☀️ Cool Porcelain (Light Theme) |
 | :---: | :---: |
 | ![OzeVPN Dark Theme](docs/screenshots/signal-cockpit-dark.png) | ![OzeVPN Light Theme](docs/screenshots/signal-cockpit-light.png) |
 
 ---
 
-## Why OzeVPN?
+## ⚡ Why OzeVPN?
 
-Named after Turkish **"Öz"** *(core, pure, unadorned)* and **Oze** *(an unobstructed natural pass)*, OzeVPN is a local, telemetry-free desktop tunnel controller built with pure Go stdlib and a `<120 KB` embedded Vanilla Web UI — no Electron, no accounts, no cloud backend.
+Named after Turkish **"Öz"** *(core, pure, unadorned)* and **Oze** *(an unobstructed natural pass)*, OzeVPN is a local, telemetry-free desktop tunnel controller built strictly on Go's standard library — no Electron, no accounts, no cloud backend.
 
-| Capability | Typical Free VPNs | OzeVPN v6.1 |
+| Capability | Typical Free / Electron VPNs | OzeVPN v6.1.1 |
 | :--- | :--- | :--- |
-| **External Dependencies** | Hundreds of npm / Electron / SDK packages | **`0` external Go/npm modules** (Go stdlib + `<120 KB` Vanilla UI) |
+| **External Dependencies** | Hundreds of npm / Electron / SDK packages | **`0` external Go/npm modules** (pure Go stdlib + `<120 KB` Vanilla UI) |
 | **Gaming UDP (Roblox / Discord Voice)** | Often TCP-only SOCKS proxies | **Native pure-Go Cloudflare WARP WireGuard (full L3 TCP+UDP, `MTU 1280`, `25s` keepalive)** |
 | **Smart Split Tunneling** | Routes everything through slow nodes | **Direct bypass** for banking, `.gov`, and 4K/Steam CDNs + EU Tor for geo-restricted TCP |
 | **Home Wi-Fi / Phone / TV Sharing** | Requires router flashing | **1-click LAN Proxy Sharing** (`192.168.x.x:10808`, opt-in, disabled by default) |
@@ -58,89 +123,77 @@ Named after Turkish **"Öz"** *(core, pure, unadorned)* and **Oze** *(an unobstr
 
 ---
 
-## Architecture
+## 🧩 Architecture & Defense-in-Depth
 
-```mermaid
-flowchart LR
-    subgraph User["Local Windows Host"]
-        UI["Desktop Panel (Edge/Chrome --app)\nWebRTC non-proxied UDP disabled"]
-        TRAY["Win32 System Tray\nWM_POWERBROADCAST Wake Recovery"]
-        CFG["ozevpn.json (DPAPI + NTFS DACL)\n.ozevpn_token (256-bit, NTFS DACL)"]
-    end
+<div align="center">
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="assets/architecture-dark.svg">
+  <source media="(prefers-color-scheme: light)" srcset="assets/architecture-light.svg">
+  <img alt="OzeVPN Hybrid Tunnel and Zero-Leak Architecture" src="assets/architecture-dark.svg" width="100%">
+</picture>
+</div>
 
-    subgraph Control["Control Plane (127.0.0.1:7777)"]
-        API["Go HTTP API (internal/server)\n256-bit X-OzeVPN-Token + CSRF + Rate Limit"]
-    end
+<br/>
 
-    subgraph Data["Data Plane (sing-box 1.14+)"]
-        PROXY["mixed-in :10808 (Loopback or Opt-in LAN)"]
-        TUN["tun-in ozevpn0 (IPv4+IPv6, MTU 1280/1400)\n+ WFP Fail-Closed Kill Switch (Admin)"]
-        DNS["DoH 1.1.1.1 (Tunnel Detour)\n+ 28 Ad/Tracker Reject Rules"]
-    end
+<details>
+<summary><b>🛡️ 8-Layer Security & Privacy Controls</b></summary>
 
-    subgraph Exit["Exit Layers"]
-        WARP["Native WARP WireGuard\n(Full L3 TCP + UDP, 25s Keepalive)"]
-        TOR["Tor 0.4.9.17 + Snowflake\n(EU TCP Exit + Watchdog)"]
-        CUST["Custom Server\n(VLESS+TLS/Reality | WG+PQ PSK)"]
-        DIR["Direct Line (Local & 4K CDN Bypass)"]
-    end
+<br/>
 
-    UI -->|"HttpOnly Cookie + X-OzeVPN-Token"| API
-    TRAY -.-> API
-    API --> CFG
-    API -.->|"sing-box check + Traffic Stream"| TUN
-    PROXY --> DNS
-    TUN --> DNS
-    DNS --> WARP
-    DNS --> TOR
-    DNS --> CUST
-    DNS --> DIR
-```
-
----
-
-## Security & Privacy
-
-- **Local IPC Auth & CSRF:** Per-session 256-bit `crypto/rand` token (`HttpOnly; SameSite=Strict` + mandatory `X-OzeVPN-Token` on mutations), loopback-only `Host` check (DNS rebinding defense), `Origin`/`Sec-Fetch-Site` CSRF guard, rate & concurrency limits.
+- **Local IPC Hardening:** Per-session 256-bit `crypto/rand` token (`/auth?t=...` → `HttpOnly; SameSite=Strict` cookie + required `X-OzeVPN-Token` header with `subtle.ConstantTimeCompare`), loopback-only `Host` check, `Origin`/`Sec-Fetch-Site` CSRF guard, rate & concurrency limiting.
 - **Secret Isolation:** Custom server credentials and native WARP WireGuard private keys are encrypted via Windows **DPAPI** (`CryptProtectData`) and restricted with owner-only **NTFS DACL**. Active `sing-box-active.json` is deleted on disconnect.
 - **Protocol Hardening:** Rejects plaintext `vless://`, remote plaintext `socks5://`, `allowInsecure=1`, and `tls.insecure: true`; supports WireGuard Post-Quantum `PresharedKey`; masks secrets in error logs (`RedactSecrets`).
-- **Leak Protection & Kill Switch:** Dual-stack `IPv4 + IPv6` TUN, tunnel-detoured DoH DNS, `ipconfig /flushdns` on state changes, WebRTC non-proxied UDP restriction, and optional Windows Firewall (`blockoutbound`) Kill Switch in Admin `Oyun TUN` mode.
+- **Leak Protection & Kill Switch:** Dual-stack `IPv4 + IPv6` TUN (`fdfe:dcba:9876::1/126`), tunnel-detoured DoH DNS (`1.1.1.1`), `ipconfig /flushdns` on state transitions, WebRTC non-proxied UDP restriction, and fail-closed Windows Firewall (`OzeVPN-KS-*` + `blockoutbound`) Kill Switch in Admin `Oyun TUN` mode.
+- **Anti-SSRF & Strict CSP:** Blocks RFC1918/loopback/link-local/`.local`/`.internal` on `/api/rescue`; strict `default-src 'self'` CSP with zero unsafe inline DOM sinks.
 
-See [SECURITY.md](SECURITY.md), [PRIVACY.md](PRIVACY.md), and [docs/THREAT-MODEL.md](docs/THREAT-MODEL.md) for full details.
+See [SECURITY.md](SECURITY.md), [PRIVACY.md](PRIVACY.md), and [docs/THREAT-MODEL.md](docs/THREAT-MODEL.md) for the complete STRIDE threat model.
 
----
-
-## Verification & Supply Chain
-
-- **CI Gates (`.github/workflows/ci.yml`):** SHA-pinned Actions, `gofmt`, `go vet`, `staticcheck`, `node --check`, `go test -race -cover ./...` (14 packages + 36-combination official `sing-box check` matrix), fuzzing, `govulncheck`, secret scan, and a **live Windows `ozevpn.exe` HTTP/security smoke test**.
-- **Static & Supply-Chain Security:** `CodeQL` SAST (`Go` + `JavaScript`), Linux Foundation **OpenSSF Scorecard**, `Dependabot`, `5/5` bundled runtime SHA-256 pinning (`BINARY_CHECKSUMS.txt`), and **CycloneDX 1.5 SBOM**.
-- **Cryptographic Provenance & Code Signing:** [CODE_SIGNING_POLICY.md](CODE_SIGNING_POLICY.md) (applying for free open-source Windows Authenticode signing via [SignPath.io](https://signpath.io/) / [SignPath Foundation](https://signpath.org/)) + Sigstore SLSA Attestation:
-  ```powershell
-  gh attestation verify OzeVPN-core.exe -R KeremKalyoncu/ozevpn
-  ```
+</details>
 
 ---
 
-## Quick Start
+## 🚀 Quick Start
 
-### Option 1: One-Line PowerShell Installer (SHA-256 Verified)
+### Option 1 — One-Line PowerShell Installer *(SHA-256 Verified, Recommended)*
+
 ```powershell
 irm https://raw.githubusercontent.com/KeremKalyoncu/ozevpn/main/scripts/install.ps1 | iex
 ```
 
-### Option 2: Portable Single-EXE Download
-1. Download `OzeVPN.exe` from [Releases](https://github.com/KeremKalyoncu/ozevpn/releases) and double-click.
-2. Click **Oyun TUN** in the top bar for full-system IPv4+IPv6+UDP tunneling and Kill Switch.
-3. Clean uninstall anytime: `.\OzeVPN.exe -uninstall`.
+### Option 2 — Portable Single-EXE Download or Winget
 
-### Build from Source (Windows `amd64`, Go 1.22+ / 1.26+)
+1. Download `OzeVPN.exe` from [GitHub Releases (`v6.1.1`)](https://github.com/KeremKalyoncu/ozevpn/releases/tag/v6.1.1) and double-click.
+2. Click **Oyun TUN** in the top bar for full-system `IPv4+IPv6+UDP` tunneling and WFP Kill Switch.
+3. Clean uninstall anytime: `.\OzeVPN.exe -uninstall`.
+4. **Winget:** Manifest submitted in [microsoft/winget-pkgs#491333](https://github.com/microsoft/winget-pkgs/pull/491333) (`winget install KeremKalyoncu.OzeVPN`).
+
+### Option 3 — Build from Source (Windows `amd64`, Go 1.22+ / 1.26+)
+
 ```powershell
 go run ./cmd/ozevpn
-gofmt -l . && go vet ./... && go test -race -cover ./...
+gofmt -l . ; go vet ./... ; go test -race -cover ./...
 .\scripts\build-single-exe.ps1
 ```
 
 ---
 
-## License
-Licensed under the **GNU General Public License v3.0 (GPL-3.0)** — see [LICENSE](LICENSE) and [THIRD_PARTY_LICENSES.md](THIRD_PARTY_LICENSES.md).
+## 🔐 Verification & Supply Chain
+
+```powershell
+# 1. Verify SHA-256 checksum of downloaded OzeVPN.exe (v6.1.1)
+(Get-FileHash .\OzeVPN.exe -Algorithm SHA256).Hash
+# Expected: 37EA85B678E37BFA02958FDD16D4513026E585351A9530D2899CFA287D931558
+
+# 2. Verify Sigstore SLSA Build Provenance via GitHub CLI
+gh attestation verify OzeVPN-core.exe -R KeremKalyoncu/ozevpn
+```
+
+- **VirusTotal (`v6.1.1`):** [Public SHA-256 Scan Report](https://www.virustotal.com/gui/file/37ea85b678e37bfa02958fdd16d4513026e585351a9530d2899cfa287d931558)
+- **SBOM:** `sbom.cdx.json` (CycloneDX 1.5) attached to every GitHub Release
+- **Code Signing Policy:** [CODE_SIGNING_POLICY.md](CODE_SIGNING_POLICY.md) *(applying for free open-source Windows Authenticode signing via [SignPath.io](https://signpath.io/) / [SignPath Foundation](https://signpath.org/))*
+
+---
+
+## 📄 License
+
+Distributed under the **GNU General Public License v3.0 (`GPL-3.0-or-later`)** — see [LICENSE](LICENSE) and [THIRD_PARTY_LICENSES.md](THIRD_PARTY_LICENSES.md).

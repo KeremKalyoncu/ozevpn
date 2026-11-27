@@ -1,0 +1,121 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 388" width="960" height="388" role="img" aria-label="OzeVPN Hybrid Tunnel and Zero-Leak Architecture Diagram (Dark)">
+  <defs>
+    <linearGradient id="archBg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#080c14"/>
+      <stop offset="55%" stop-color="#0d1524"/>
+      <stop offset="100%" stop-color="#071219"/>
+    </linearGradient>
+    <linearGradient id="coreCard" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#111e33"/>
+      <stop offset="100%" stop-color="#0b1322"/>
+    </linearGradient>
+    <marker id="arrowSky" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 1 L 10 5 L 0 9 z" fill="#38bdf8"/>
+    </marker>
+    <marker id="arrowGreen" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 1 L 10 5 L 0 9 z" fill="#34d399"/>
+    </marker>
+    <marker id="arrowViolet" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 1 L 10 5 L 0 9 z" fill="#a78bfa"/>
+    </marker>
+    <marker id="arrowSlate" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 1 L 10 5 L 0 9 z" fill="#94a3b8"/>
+    </marker>
+  </defs>
+
+  <rect x="1" y="1" width="958" height="386" rx="18" fill="url(#archBg)" stroke="#1e293b" stroke-width="1.5"/>
+
+  <!-- Header -->
+  <circle cx="34" cy="34" r="5" fill="#38bdf8"/>
+  <text x="48" y="38" fill="#e2e8f0" font-family="'Segoe UI Variable', 'Segoe UI', system-ui, sans-serif" font-size="13.5" font-weight="700" letter-spacing="0.8">HYBRID TUNNEL &amp; ZERO-LEAK ARCHITECTURE</text>
+  <rect x="676" y="20" width="258" height="26" rx="13" fill="#0c2638" stroke="#0ea5e9" stroke-opacity="0.5" stroke-width="1"/>
+  <text x="805" y="37" text-anchor="middle" fill="#38bdf8" font-family="'Cascadia Mono', Consolas, monospace" font-size="10.8" font-weight="700">SING-BOX 1.14 · LAYER-3 TUN + PROXY</text>
+
+  <!-- Column 1: Local Clients -->
+  <text x="26" y="76" fill="#64748b" font-family="'Cascadia Mono', Consolas, monospace" font-size="10.5" font-weight="700">01 · LOCAL DEVICE &amp; LAN</text>
+
+  <g transform="translate(24, 88)">
+    <rect width="234" height="68" rx="12" fill="url(#coreCard)" stroke="#334155"/>
+    <text x="14" y="26" fill="#f8fafc" font-family="'Segoe UI Variable', 'Segoe UI', system-ui, sans-serif" font-size="13" font-weight="700">Windows Apps &amp; Games</text>
+    <text x="14" y="45" fill="#94a3b8" font-family="'Cascadia Mono', Consolas, monospace" font-size="10.5">Browser · Roblox UDP · Discord</text>
+    <text x="14" y="59" fill="#38bdf8" font-family="'Cascadia Mono', Consolas, monospace" font-size="9.8">WinINET Proxy or Admin TUN</text>
+  </g>
+
+  <g transform="translate(24, 168)">
+    <rect width="234" height="68" rx="12" fill="url(#coreCard)" stroke="#0ea5e9" stroke-opacity="0.5"/>
+    <text x="14" y="26" fill="#f8fafc" font-family="'Segoe UI Variable', 'Segoe UI', system-ui, sans-serif" font-size="13" font-weight="700">Signal Cockpit Web UI</text>
+    <text x="14" y="45" fill="#94a3b8" font-family="'Cascadia Mono', Consolas, monospace" font-size="10.5">127.0.0.1:7777 · &lt;120 KB UI</text>
+    <text x="14" y="59" fill="#34d399" font-family="'Cascadia Mono', Consolas, monospace" font-size="9.8">256-bit Token · Origin/CSRF Guard</text>
+  </g>
+
+  <g transform="translate(24, 248)">
+    <rect width="234" height="68" rx="12" fill="url(#coreCard)" stroke="#334155"/>
+    <text x="14" y="26" fill="#f8fafc" font-family="'Segoe UI Variable', 'Segoe UI', system-ui, sans-serif" font-size="13" font-weight="700">LAN Phone / Tablet / TV</text>
+    <text x="14" y="45" fill="#94a3b8" font-family="'Cascadia Mono', Consolas, monospace" font-size="10.5">Opt-in 192.168.x.x:10808</text>
+    <text x="14" y="59" fill="#94a3b8" font-family="'Cascadia Mono', Consolas, monospace" font-size="9.8">Disabled by default · 1-Click Share</text>
+  </g>
+
+  <!-- Arrows Col 1 -> Col 2 -->
+  <line x1="258" y1="122" x2="314" y2="148" stroke="#38bdf8" stroke-width="2" marker-end="url(#arrowSky)"/>
+  <line x1="258" y1="202" x2="314" y2="202" stroke="#34d399" stroke-width="2" marker-end="url(#arrowGreen)"/>
+  <line x1="258" y1="282" x2="314" y2="256" stroke="#94a3b8" stroke-width="2" stroke-dasharray="4 3" marker-end="url(#arrowSlate)"/>
+
+  <!-- Column 2: OzeVPN Control & Data Engine -->
+  <text x="320" y="76" fill="#64748b" font-family="'Cascadia Mono', Consolas, monospace" font-size="10.5" font-weight="700">02 · LOCAL CONTROL &amp; ROUTER</text>
+
+  <g transform="translate(318, 88)">
+    <rect width="268" height="228" rx="14" fill="url(#coreCard)" stroke="#0ea5e9" stroke-opacity="0.7" stroke-width="1.5"/>
+    <rect x="14" y="14" width="240" height="58" rx="10" fill="#0b1220" stroke="#1e3a5f"/>
+    <text x="26" y="34" fill="#38bdf8" font-family="'Segoe UI Variable', 'Segoe UI', system-ui, sans-serif" font-size="13" font-weight="700">OzeVPN Go Core (Stdlib)</text>
+    <text x="26" y="51" fill="#cbd5e1" font-family="'Cascadia Mono', Consolas, monospace" font-size="10">Win32 Tray · Watchdog · DPAPI</text>
+    <text x="26" y="64" fill="#64748b" font-family="'Cascadia Mono', Consolas, monospace" font-size="9.5">5/5 SHA-256 Verified Runtime</text>
+
+    <rect x="14" y="84" width="240" height="68" rx="10" fill="#0b1220" stroke="#1e3a5f"/>
+    <text x="26" y="104" fill="#f8fafc" font-family="'Segoe UI Variable', 'Segoe UI', system-ui, sans-serif" font-size="13" font-weight="700">sing-box 1.14+ Hybrid Engine</text>
+    <text x="26" y="121" fill="#34d399" font-family="'Cascadia Mono', Consolas, monospace" font-size="10">ozevpn0 TUN (IPv4+IPv6 · MTU 1280)</text>
+    <text x="26" y="136" fill="#94a3b8" font-family="'Cascadia Mono', Consolas, monospace" font-size="9.8">Live Clash API Throughput Telemetry</text>
+
+    <rect x="14" y="164" width="240" height="50" rx="10" fill="#071a26" stroke="#0ea5e9" stroke-opacity="0.45"/>
+    <text x="26" y="184" fill="#7dd3fc" font-family="'Segoe UI Variable', 'Segoe UI', system-ui, sans-serif" font-size="12" font-weight="700">Encrypted DoH DNS + Smart Split</text>
+    <text x="26" y="201" fill="#94a3b8" font-family="'Cascadia Mono', Consolas, monospace" font-size="9.8">1.1.1.1 Tunnel Detour · 28 Ad-Block Rules</text>
+  </g>
+
+  <!-- Arrows Col 2 -> Col 3 -->
+  <line x1="586" y1="128" x2="644" y2="114" stroke="#38bdf8" stroke-width="2" marker-end="url(#arrowSky)"/>
+  <line x1="586" y1="178" x2="644" y2="174" stroke="#34d399" stroke-width="2" marker-end="url(#arrowGreen)"/>
+  <line x1="586" y1="224" x2="644" y2="232" stroke="#a78bfa" stroke-width="2" marker-end="url(#arrowViolet)"/>
+  <line x1="586" y1="274" x2="644" y2="290" stroke="#94a3b8" stroke-width="2" stroke-dasharray="4 3" marker-end="url(#arrowSlate)"/>
+
+  <!-- Column 3: Parallel Exit Lanes -->
+  <text x="650" y="76" fill="#64748b" font-family="'Cascadia Mono', Consolas, monospace" font-size="10.5" font-weight="700">03 · PARALLEL EXIT LANES</text>
+
+  <g transform="translate(648, 88)">
+    <rect width="286" height="50" rx="10" fill="#0b172a" stroke="#0ea5e9" stroke-opacity="0.6"/>
+    <text x="14" y="21" fill="#38bdf8" font-family="'Segoe UI Variable', 'Segoe UI', system-ui, sans-serif" font-size="12.5" font-weight="700">Cloudflare WARP WireGuard</text>
+    <text x="14" y="38" fill="#cbd5e1" font-family="'Cascadia Mono', Consolas, monospace" font-size="10">Pure-Go L3 TCP+UDP · 25s Keepalive</text>
+  </g>
+
+  <g transform="translate(648, 147)">
+    <rect width="286" height="50" rx="10" fill="#081d1a" stroke="#10b981" stroke-opacity="0.6"/>
+    <text x="14" y="21" fill="#34d399" font-family="'Segoe UI Variable', 'Segoe UI', system-ui, sans-serif" font-size="12.5" font-weight="700">EU Tor 0.4.9 + Snowflake Bridge</text>
+    <text x="14" y="38" fill="#cbd5e1" font-family="'Cascadia Mono', Consolas, monospace" font-size="10">WebRTC PT · Geo-Restricted TCP Sites</text>
+  </g>
+
+  <g transform="translate(648, 206)">
+    <rect width="286" height="50" rx="10" fill="#17142e" stroke="#818cf8" stroke-opacity="0.55"/>
+    <text x="14" y="21" fill="#c4b5fd" font-family="'Segoe UI Variable', 'Segoe UI', system-ui, sans-serif" font-size="12.5" font-weight="700">Custom Server (BYO VPS)</text>
+    <text x="14" y="38" fill="#cbd5e1" font-family="'Cascadia Mono', Consolas, monospace" font-size="10">VLESS+TLS/Reality · WireGuard + PQ PSK</text>
+  </g>
+
+  <g transform="translate(648, 265)">
+    <rect width="286" height="50" rx="10" fill="#0f172a" stroke="#475569"/>
+    <text x="14" y="21" fill="#e2e8f0" font-family="'Segoe UI Variable', 'Segoe UI', system-ui, sans-serif" font-size="12.5" font-weight="700">Direct Fiber Bypass (Smart Split)</text>
+    <text x="14" y="38" fill="#94a3b8" font-family="'Cascadia Mono', Consolas, monospace" font-size="10">TR Banks · .gov.tr · Steam &amp; 4K CDNs</text>
+  </g>
+
+  <!-- Bottom Fail-Closed Shield Bar -->
+  <g transform="translate(24, 332)">
+    <rect width="910" height="36" rx="10" fill="#06281e" stroke="#10b981" stroke-opacity="0.55"/>
+    <text x="455" y="22" text-anchor="middle" fill="#6ee7b7" font-family="'Cascadia Mono', Consolas, monospace" font-size="11.2" font-weight="700">FAIL-CLOSED SHIELD · WFP Kill Switch · Dual-Stack IPv6 TUN · Anti-WebRTC UDP · Zero Runtime Traces on Exit</text>
+  </g>
+</svg>
