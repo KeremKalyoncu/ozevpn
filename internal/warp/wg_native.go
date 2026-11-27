@@ -16,7 +16,9 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"ozevpn/internal/procutil"
@@ -26,13 +28,26 @@ import (
 // NativeWGProfile holds credentials for a zero-dependency native Cloudflare WARP WireGuard
 // endpoint executed directly inside sing-box (full TCP + UDP support for Roblox, Discord Voice, games).
 type NativeWGProfile struct {
-	PrivateKey string `json:"private_key"` // DPAPI-protected on disk via secfs.ProtectSecret
-	AddressV4  string `json:"address_v4"`  // e.g. "172.16.0.2/32"
-	AddressV6  string `json:"address_v6"`  // e.g. "2606:4700:110:... /128"
-	PeerPubKey string `json:"peer_public_key"`
-	Endpoint   string `json:"endpoint"` // IPv4 literal e.g. "162.159.192.1"
-	Port       int    `json:"port"`     // e.g. 2408
-	Reserved   []int  `json:"reserved"` // 3-byte Cloudflare WARP client_id routing header
+	PrivateKey     string `json:"private_key"` // DPAPI-protected on disk via secfs.ProtectSecret
+	AddressV4      string `json:"address_v4"`  // e.g. "172.16.0.2/32"
+	AddressV6      string `json:"address_v6"`  // e.g. "2606:4700:110:... /128"
+	PeerPubKey     string `json:"peer_public_key"`
+	Endpoint       string `json:"endpoint"`                   // IPv4 literal e.g. "162.159.192.1"
+	Port           int    `json:"port"`                       // e.g. 2408
+	Reserved       []int  `json:"reserved"`                   // 3-byte Cloudflare WARP client_id routing header
+	LastRTTMs      int    `json:"last_rtt_ms,omitempty"`      // Last verified encrypted WireGuard RTT
+	LastColo       string `json:"last_colo,omitempty"`        // Last verified Cloudflare POP (e.g. IST, FRA, SOF)
+	LastProbedUnix int64  `json:"last_probed_unix,omitempty"` // Unix timestamp of last full RTT race
+}
+
+// ProbeResult captures the winning Cloudflare WARP endpoint from an encrypted RTT race.
+type ProbeResult struct {
+	Endpoint       string
+	Port           int
+	RTTMs          int
+	Colo           string
+	TestedCount    int
+	ReachableCount int
 }
 
 type wgEndpointCandidate struct {
@@ -40,13 +55,24 @@ type wgEndpointCandidate struct {
 	port int
 }
 
+// Official Cloudflare WARP engage.cloudflareclient.com Anycast IPv4 pools and standard UDP ports.
 var defaultWarpWGCandidates = []wgEndpointCandidate{
 	{"162.159.192.1", 2408},
 	{"162.159.192.1", 500},
 	{"162.159.193.1", 2408},
-	{"188.114.96.1", 2408},
 	{"162.159.195.1", 4500},
+	{"188.114.96.1", 2408},
+	{"188.114.97.1", 2408},
+	{"188.114.98.1", 1701},
+	{"188.114.99.1", 854},
 }
+
+const (
+	fastCacheTTL      = 30 * time.Minute
+	fastPathMaxRTTMs  = 95
+	multiProbeGrace   = 450 * time.Millisecond
+	multiProbeHardCap = 3400 * time.Millisecond
+)
 
 // DefaultWGProfilePath returns the persistent owner-locked path for cached WARP WireGuard credentials.
 func DefaultWGProfilePath(fallbackDir string) string {
@@ -69,17 +95,17 @@ func LoadNativeWGProfile(path string) (*NativeWGProfile, error) {
 	if strings.TrimSpace(p.PrivateKey) != "" {
 		dec, err := secfs.UnprotectSecret(p.PrivateKey)
 		if err != nil {
-			return nil, fmt.Errorf("WARP WireGuard anahtarı çözülemedi: %w", err)
+			return nil, err
 		}
-		p.PrivateKey = strings.TrimSpace(dec)
+		p.PrivateKey = dec
 	}
-	if p.PrivateKey == "" || p.AddressV4 == "" || p.PeerPubKey == "" {
-		return nil, errors.New("eksik WARP WireGuard profili")
+	if p.PrivateKey == "" || p.PeerPubKey == "" || p.AddressV4 == "" {
+		return nil, errors.New("eksik WARP WireGuard profil alanları")
 	}
 	if p.Endpoint == "" {
 		p.Endpoint = defaultWarpWGCandidates[0].addr
 	}
-	if p.Port <= 0 || p.Port > 65535 {
+	if p.Port == 0 {
 		p.Port = defaultWarpWGCandidates[0].port
 	}
 	return &p, nil
@@ -236,16 +262,50 @@ func EnsureNativeWGProfile(path string) (*NativeWGProfile, error) {
 	return prof, nil
 }
 
-// ProbeNativeWG verifies that the current ISP allows native Cloudflare WARP WireGuard UDP
-// traffic using an isolated ephemeral sing-box instance, trying fallback ports if needed.
+// ProbeNativeWG is a compatibility wrapper returning the winning endpoint and port.
 func ProbeNativeWG(sbBin string, prof *NativeWGProfile) (string, int, error) {
+	res, err := ProbeBestNativeWG(sbBin, prof, false)
+	if err != nil {
+		return "", 0, err
+	}
+	return res.Endpoint, res.Port, nil
+}
+
+// ProbeBestNativeWG races Cloudflare WARP WireGuard endpoints through a single ephemeral
+// sing-box process, measuring real end-to-end encrypted RTT and POP (colo), and selects
+// the lowest-latency healthy endpoint.
+func ProbeBestNativeWG(sbBin string, prof *NativeWGProfile, forceFullRace bool) (ProbeResult, error) {
 	if sbBin == "" || prof == nil || prof.PrivateKey == "" || prof.PeerPubKey == "" {
-		return "", 0, errors.New("eksik WireGuard doğrulama bilgisi")
+		return ProbeResult{}, errors.New("eksik WireGuard doğrulama bilgisi")
 	}
 
+	candidates := collectProbeCandidates(prof)
+	tmpDir, err := os.MkdirTemp("", "ozevpn-wgprobe-*")
+	if err != nil {
+		return ProbeResult{}, err
+	}
+	defer os.RemoveAll(tmpDir)
+
+	// Fast path: if cached endpoint was recently benchmarked with low latency (<= 95ms),
+	// verify it directly (~0.35s) and only run the full race if it degraded or failed.
+	cacheFresh := !forceFullRace && prof.LastProbedUnix > 0 &&
+		time.Since(time.Unix(prof.LastProbedUnix, 0)) < fastCacheTTL &&
+		prof.LastRTTMs > 0 && prof.LastRTTMs <= fastPathMaxRTTMs
+	if cacheFresh && len(candidates) > 0 {
+		fastRes, fastErr := runSingleProcessRace(sbBin, tmpDir, prof, candidates[:1])
+		if fastErr == nil && fastRes.RTTMs <= fastPathMaxRTTMs {
+			return fastRes, nil
+		}
+	}
+
+	return runSingleProcessRace(sbBin, tmpDir, prof, candidates)
+}
+
+func collectProbeCandidates(prof *NativeWGProfile) []wgEndpointCandidate {
 	var candidates []wgEndpointCandidate
 	seen := map[string]bool{}
 	addCand := func(addr string, port int) {
+		addr = strings.TrimSpace(addr)
 		if addr == "" || port <= 0 || port > 65535 {
 			return
 		}
@@ -255,120 +315,171 @@ func ProbeNativeWG(sbBin string, prof *NativeWGProfile) (string, int, error) {
 			candidates = append(candidates, wgEndpointCandidate{addr: addr, port: port})
 		}
 	}
-	addCand(prof.Endpoint, prof.Port)
+	if prof != nil {
+		addCand(prof.Endpoint, prof.Port)
+	}
 	for _, c := range defaultWarpWGCandidates {
 		addCand(c.addr, c.port)
 	}
-
-	tmpDir, err := os.MkdirTemp("", "ozevpn-wgprobe-*")
-	if err != nil {
-		return "", 0, err
-	}
-	defer os.RemoveAll(tmpDir)
-
-	// Fast path: try primary/cached endpoint first (~0.5s on healthy networks).
-	first := candidates[0]
-	if err := probeSingleWGEndpoint(context.Background(), sbBin, tmpDir, prof, first.addr, first.port); err == nil {
-		return first.addr, first.port, nil
-	} else if len(candidates) == 1 {
-		return "", 0, err
-	}
-
-	// Fallback: probe remaining candidate ports in parallel so worst-case failure stays under ~4s.
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	type probeRes struct {
-		cand wgEndpointCandidate
-		err  error
-	}
-	rest := candidates[1:]
-	ch := make(chan probeRes, len(rest))
-	for _, c := range rest {
-		cand := c
-		go func() {
-			ch <- probeRes{cand: cand, err: probeSingleWGEndpoint(ctx, sbBin, tmpDir, prof, cand.addr, cand.port)}
-		}()
-	}
-	var lastErr error
-	for range rest {
-		res := <-ch
-		if res.err == nil {
-			cancel()
-			return res.cand.addr, res.cand.port, nil
-		}
-		lastErr = res.err
-	}
-	if lastErr == nil {
-		lastErr = errors.New("hiçbir WireGuard UDP kapısı yanıt vermedi")
-	}
-	return "", 0, lastErr
+	return candidates
 }
 
-func probeSingleWGEndpoint(parentCtx context.Context, sbBin, tmpDir string, prof *NativeWGProfile, addr string, port int) error {
-	ln, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		return err
+// BuildMultiProbeConfig creates a single sing-box configuration mapping N local loopback
+// proxy ports 1:1 to N Cloudflare WARP WireGuard endpoints for concurrent RTT racing.
+func BuildMultiProbeConfig(prof *NativeWGProfile, candidates []wgEndpointCandidate, ports []int) ([]byte, error) {
+	if prof == nil || len(candidates) == 0 || len(candidates) != len(ports) {
+		return nil, errors.New("geçersiz çoklu WARP probe yapılandırması")
 	}
-	mixPort := ln.Addr().(*net.TCPAddr).Port
-	_ = ln.Close()
-
 	addrs := []string{prof.AddressV4}
 	if prof.AddressV6 != "" {
 		addrs = append(addrs, prof.AddressV6)
 	}
-	peer := map[string]any{
-		"address":     addr,
-		"port":        port,
-		"public_key":  prof.PeerPubKey,
-		"allowed_ips": []string{"0.0.0.0/0", "::/0"},
-	}
-	if len(prof.Reserved) == 3 {
-		peer["reserved"] = prof.Reserved
+	endpoints := make([]map[string]any, 0, len(candidates))
+	inbounds := make([]map[string]any, 0, len(candidates))
+	rules := make([]map[string]any, 0, len(candidates))
+	for i, c := range candidates {
+		epTag := fmt.Sprintf("ep-%d", i)
+		inTag := fmt.Sprintf("in-%d", i)
+		peer := map[string]any{
+			"address":     c.addr,
+			"port":        c.port,
+			"public_key":  prof.PeerPubKey,
+			"allowed_ips": []string{"0.0.0.0/0", "::/0"},
+		}
+		if len(prof.Reserved) == 3 {
+			peer["reserved"] = prof.Reserved
+		}
+		endpoints = append(endpoints, map[string]any{
+			"type":        "wireguard",
+			"tag":         epTag,
+			"mtu":         1280,
+			"address":     addrs,
+			"private_key": prof.PrivateKey,
+			"peers":       []map[string]any{peer},
+		})
+		inbounds = append(inbounds, map[string]any{
+			"type":        "mixed",
+			"tag":         inTag,
+			"listen":      "127.0.0.1",
+			"listen_port": ports[i],
+		})
+		rules = append(rules, map[string]any{
+			"inbound":  []string{inTag},
+			"outbound": epTag,
+		})
 	}
 	cfg := map[string]any{
-		"log": map[string]any{"level": "error"},
-		"endpoints": []map[string]any{
-			{
-				"type":        "wireguard",
-				"tag":         "warp-probe",
-				"mtu":         1280,
-				"address":     addrs,
-				"private_key": prof.PrivateKey,
-				"peers":       []map[string]any{peer},
-			},
-		},
-		"inbounds": []map[string]any{
-			{
-				"type":        "mixed",
-				"tag":         "probe-in",
-				"listen":      "127.0.0.1",
-				"listen_port": mixPort,
-			},
-		},
-		"outbounds": []map[string]any{
-			{"type": "direct", "tag": "direct"},
-		},
+		"log":       map[string]any{"level": "error"},
+		"endpoints": endpoints,
+		"inbounds":  inbounds,
+		"outbounds": []map[string]any{{"type": "direct", "tag": "direct"}},
 		"route": map[string]any{
-			"final":                 "warp-probe",
+			"rules":                 rules,
+			"final":                 "direct",
 			"auto_detect_interface": true,
 		},
 	}
-	cfgBytes, err := json.Marshal(cfg)
-	if err != nil {
-		return err
+	return json.Marshal(cfg)
+}
+
+func allocateFreeLoopbackPorts(n int) ([]int, error) {
+	listeners := make([]net.Listener, 0, n)
+	ports := make([]int, 0, n)
+	defer func() {
+		for _, ln := range listeners {
+			_ = ln.Close()
+		}
+	}()
+	for range n {
+		ln, err := net.Listen("tcp", "127.0.0.1:0")
+		if err != nil {
+			return nil, err
+		}
+		listeners = append(listeners, ln)
+		ports = append(ports, ln.Addr().(*net.TCPAddr).Port)
 	}
-	cfgPath := filepath.Join(tmpDir, fmt.Sprintf("probe-%d.json", mixPort))
+	return ports, nil
+}
+
+type singleEndpointSample struct {
+	cand wgEndpointCandidate
+	rtt  int
+	colo string
+	err  error
+}
+
+// ParseCloudflareTrace extracts warp=on status and POP colo code from 1.1.1.1/cdn-cgi/trace.
+func ParseCloudflareTrace(body string) (warpOn bool, colo string) {
+	for _, line := range strings.Split(body, "\n") {
+		k, v, ok := strings.Cut(strings.TrimSpace(line), "=")
+		if !ok {
+			continue
+		}
+		switch k {
+		case "warp":
+			warpOn = strings.EqualFold(strings.TrimSpace(v), "on") || strings.EqualFold(strings.TrimSpace(v), "plus")
+		case "colo":
+			colo = strings.ToUpper(strings.TrimSpace(v))
+		}
+	}
+	return warpOn, colo
+}
+
+// SelectBestProbeResult chooses the lowest-RTT reachable endpoint deterministically.
+func SelectBestProbeResult(samples []singleEndpointSample) (ProbeResult, error) {
+	var okSamples []singleEndpointSample
+	var lastErr error
+	for _, s := range samples {
+		if s.err == nil && s.rtt > 0 {
+			okSamples = append(okSamples, s)
+		} else if s.err != nil {
+			lastErr = s.err
+		}
+	}
+	if len(okSamples) == 0 {
+		if lastErr == nil {
+			lastErr = errors.New("hiçbir WireGuard UDP kapısı yanıt vermedi")
+		}
+		return ProbeResult{}, lastErr
+	}
+	sort.SliceStable(okSamples, func(i, j int) bool {
+		if okSamples[i].rtt != okSamples[j].rtt {
+			return okSamples[i].rtt < okSamples[j].rtt
+		}
+		return okSamples[i].cand.addr < okSamples[j].cand.addr
+	})
+	best := okSamples[0]
+	return ProbeResult{
+		Endpoint:       best.cand.addr,
+		Port:           best.cand.port,
+		RTTMs:          best.rtt,
+		Colo:           best.colo,
+		TestedCount:    len(samples),
+		ReachableCount: len(okSamples),
+	}, nil
+}
+
+func runSingleProcessRace(sbBin, tmpDir string, prof *NativeWGProfile, candidates []wgEndpointCandidate) (ProbeResult, error) {
+	ports, err := allocateFreeLoopbackPorts(len(candidates))
+	if err != nil {
+		return ProbeResult{}, err
+	}
+	cfgBytes, err := BuildMultiProbeConfig(prof, candidates, ports)
+	if err != nil {
+		return ProbeResult{}, err
+	}
+	cfgPath := filepath.Join(tmpDir, fmt.Sprintf("race-%d.json", ports[0]))
 	if err := secfs.WritePrivateFile(cfgPath, cfgBytes); err != nil {
-		return err
+		return ProbeResult{}, err
 	}
 	defer os.Remove(cfgPath)
 
-	ctx, cancel := context.WithTimeout(parentCtx, 4*time.Second)
-	defer cancel()
-	cmd := exec.CommandContext(ctx, sbBin, "run", "-c", cfgPath)
+	procCtx, procCancel := context.WithTimeout(context.Background(), multiProbeHardCap+2*time.Second)
+	defer procCancel()
+	cmd := exec.CommandContext(procCtx, sbBin, "run", "-c", cfgPath)
 	procutil.HideWindow(cmd)
 	if err := cmd.Start(); err != nil {
-		return err
+		return ProbeResult{}, err
 	}
 	defer func() {
 		if cmd.Process != nil {
@@ -377,27 +488,82 @@ func probeSingleWGEndpoint(parentCtx context.Context, sbBin, tmpDir string, prof
 		_ = cmd.Wait()
 	}()
 
-	if !waitLocalTCPPort(mixPort, 1500*time.Millisecond) {
-		return errors.New("probe sing-box dinleme portu açılmadı")
+	if !waitLocalTCPPort(ports[0], 1500*time.Millisecond) {
+		return ProbeResult{}, errors.New("probe sing-box dinleme portu açılmadı")
 	}
 
-	proxyU, _ := url.Parse(fmt.Sprintf("http://127.0.0.1:%d", mixPort))
-	hc := &http.Client{
-		Timeout:   2800 * time.Millisecond,
-		Transport: &http.Transport{Proxy: http.ProxyURL(proxyU)},
+	raceCtx, raceCancel := context.WithTimeout(procCtx, multiProbeHardCap)
+	defer raceCancel()
+
+	resultsCh := make(chan singleEndpointSample, len(candidates))
+	var wg sync.WaitGroup
+	for i, c := range candidates {
+		wg.Add(1)
+		go func(cand wgEndpointCandidate, mixPort int) {
+			defer wg.Done()
+			resultsCh <- measureViaLoopbackProxy(raceCtx, cand, mixPort)
+		}(c, ports[i])
 	}
+	go func() {
+		wg.Wait()
+		close(resultsCh)
+	}()
+
+	samples := make([]singleEndpointSample, 0, len(candidates))
+	var graceTimer *time.Timer
+	var graceCh <-chan time.Time
+
+	for len(samples) < len(candidates) {
+		select {
+		case s, ok := <-resultsCh:
+			if !ok {
+				goto done
+			}
+			samples = append(samples, s)
+			if s.err == nil && graceTimer == nil {
+				// First healthy endpoint arrived; give fast peers a short grace window then decide.
+				graceTimer = time.NewTimer(multiProbeGrace)
+				graceCh = graceTimer.C
+			}
+		case <-graceCh:
+			raceCancel()
+			goto done
+		case <-raceCtx.Done():
+			goto done
+		}
+	}
+
+done:
+	if graceTimer != nil {
+		graceTimer.Stop()
+	}
+	return SelectBestProbeResult(samples)
+}
+
+func measureViaLoopbackProxy(ctx context.Context, cand wgEndpointCandidate, mixPort int) singleEndpointSample {
+	proxyU, _ := url.Parse(fmt.Sprintf("http://127.0.0.1:%d", mixPort)) // NOSONAR: loopback-only local probe proxy
+	tr := &http.Transport{Proxy: http.ProxyURL(proxyU)}
+	defer tr.CloseIdleConnections()
+	hc := &http.Client{Timeout: 2600 * time.Millisecond, Transport: tr}
+
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "https://1.1.1.1/cdn-cgi/trace", nil)
 	if err != nil {
-		return err
+		return singleEndpointSample{cand: cand, err: err}
 	}
+	t0 := time.Now()
 	resp, err := hc.Do(req)
 	if err != nil {
-		return err
+		return singleEndpointSample{cand: cand, err: err}
 	}
 	body, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
 	_ = resp.Body.Close()
-	if resp.StatusCode != http.StatusOK || !strings.Contains(string(body), "warp=on") {
-		return fmt.Errorf("WARP WireGuard yanıtı geçersiz (HTTP %d)", resp.StatusCode)
+	rttMs := int(time.Since(t0).Milliseconds())
+	if rttMs < 1 {
+		rttMs = 1
 	}
-	return nil
+	warpOn, colo := ParseCloudflareTrace(string(body))
+	if resp.StatusCode != http.StatusOK || !warpOn {
+		return singleEndpointSample{cand: cand, err: fmt.Errorf("WARP WireGuard yanıtı geçersiz (HTTP %d)", resp.StatusCode)}
+	}
+	return singleEndpointSample{cand: cand, rtt: rttMs, colo: colo}
 }

@@ -484,12 +484,12 @@ func (m *Manager) tryNativeWarpWG(sbBin string, addLog func(string)) *warp.Nativ
 		addLog("Yerleşik WARP WireGuard kaydı alınamadı, yedek katmana geçiliyor: " + wgErr.Error())
 		return nil
 	}
-	ep, port, pErr := warp.ProbeNativeWG(sbBin, prof)
+	res, pErr := warp.ProbeBestNativeWG(sbBin, prof, false)
 	// Self-healing: if a cached profile failed all ports (e.g. revoked device key), register fresh once.
 	if pErr != nil && hadCached == nil {
 		if fresh, rErr := warp.RegisterNativeWG(); rErr == nil {
-			if fep, fport, fpErr := warp.ProbeNativeWG(sbBin, fresh); fpErr == nil {
-				prof, ep, port, pErr = fresh, fep, fport, nil
+			if fres, fpErr := warp.ProbeBestNativeWG(sbBin, fresh, true); fpErr == nil {
+				prof, res, pErr = fresh, fres, nil
 				_ = warp.SaveNativeWGProfile(profPath, prof)
 			}
 		}
@@ -498,12 +498,18 @@ func (m *Manager) tryNativeWarpWG(sbBin string, addLog func(string)) *warp.Nativ
 		addLog("Yerleşik WARP WireGuard UDP bu ağda yanıt vermedi, yedek katmana geçiliyor: " + pErr.Error())
 		return nil
 	}
-	if prof.Endpoint != ep || prof.Port != port {
-		prof.Endpoint = ep
-		prof.Port = port
-		_ = warp.SaveNativeWGProfile(profPath, prof)
+	prof.Endpoint = res.Endpoint
+	prof.Port = res.Port
+	prof.LastRTTMs = res.RTTMs
+	prof.LastColo = res.Colo
+	prof.LastProbedUnix = time.Now().Unix()
+	_ = warp.SaveNativeWGProfile(profPath, prof)
+	coloLabel := res.Colo
+	if coloLabel == "" {
+		coloLabel = "WARP"
 	}
-	addLog(fmt.Sprintf("Hızlı katman hazır: Yerleşik WARP WireGuard (Tam TCP + UDP — %s:%d).", ep, port))
+	addLog(fmt.Sprintf("En hızlı WARP WireGuard ucu seçildi: %s:%d (%d ms · %s · %d/%d uç yanıt verdi).",
+		res.Endpoint, res.Port, res.RTTMs, coloLabel, res.ReachableCount, res.TestedCount))
 	return prof
 }
 

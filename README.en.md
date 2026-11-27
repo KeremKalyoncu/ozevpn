@@ -151,7 +151,7 @@ Named after Turkish **"Öz"** *(core, pure, unadorned)* and **Oze** *(an unobstr
 - **Leak Protection & Kill Switch:** Dual-stack `IPv4 + IPv6` TUN (`fdfe:dcba:9876::1/126`), tunnel-detoured DoH DNS (`1.1.1.1`), `ipconfig /flushdns` on state transitions, WebRTC non-proxied UDP restriction, and fail-closed Windows Firewall (`OzeVPN-KS-*` + `blockoutbound`) Kill Switch in Admin `Oyun TUN` mode.
 - **Anti-SSRF & Strict CSP:** Blocks RFC1918/loopback/link-local/`.local`/`.internal` on `/api/rescue`; strict `default-src 'self'` CSP with zero unsafe inline DOM sinks.
 
-See [SECURITY.md](SECURITY.md), [PRIVACY.md](PRIVACY.md), and [docs/THREAT-MODEL.md](docs/THREAT-MODEL.md) for the complete STRIDE threat model.
+See [SECURITY.md](SECURITY.md), [PRIVACY.md](PRIVACY.md), [docs/THREAT-MODEL.md](docs/THREAT-MODEL.md), and the live Windows field report in [docs/VERIFICATION.md](docs/VERIFICATION.md) for full details.
 
 </details>
 

@@ -304,3 +304,4 @@ ozevpn/
 | [docs/DESIGN.md](docs/DESIGN.md) | Signal Cockpit arayüz tasarım sistemi ve erişilebilirlik kuralları |
 | [docs/THREAT-MODEL.md](docs/THREAT-MODEL.md) | Varlık envanteri, güven sınırları ve tam STRIDE matrisi |
 | [docs/OPERATIONS.md](docs/OPERATIONS.md) | İstemci SLO hedefleri, `/api/healthz`, `/api/metrics` ve anahtar rotasyon runbook'u |
+| [docs/VERIFICATION.md](docs/VERIFICATION.md) | Canlı Windows saha doğrulama raporu ve tekrarlanabilir `tools/verify-live.ps1` betiği |

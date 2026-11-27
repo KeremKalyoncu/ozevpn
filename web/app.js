@@ -48,6 +48,7 @@ const els = {
   confirmOkBtn: $('confirmOkBtn'),
   openWizardBtn: $('openWizardBtn'),
   copyDiagBtn: $('copyDiagBtn'),
+  checkUpdateBtn: $('checkUpdateBtn'),
   quitAppBtn: $('quitAppBtn'),
   newIpBtn: $('newIpBtn'),
   relaunchAdminBtn: $('relaunchAdminBtn'),
@@ -1146,6 +1147,25 @@ if (els.copyDiagBtn) {
       showToast('Maskeli tanılama raporu panoya kopyalandı.', 'ok', 'diag');
     } catch {
       showToast('Panoya kopyalanamadı.', 'error', 'diag');
+    }
+  });
+}
+if (els.checkUpdateBtn) {
+  els.checkUpdateBtn.addEventListener('click', async () => {
+    setToolsMenuOpen(false, false);
+    showToast('GitHub sürümü kontrol ediliyor...', 'info', 'upd');
+    try {
+      const u = await api('/api/update/check', {}, 8000);
+      if (u.update_available) {
+        addLog(`Yeni sürüm mevcut: ${u.latest} (mevcut: ${u.current}) — ${u.release_url}`);
+        try { await navigator.clipboard.writeText(u.install_cmd); } catch {}
+        showToast(`Yeni sürüm: ${u.latest} (kurulum komutu kopyalandı)`, 'ok', 'upd');
+      } else {
+        addLog(`OzeVPN güncel (${u.current}).`);
+        showToast(`Güncelsin (${u.current})`, 'ok', 'upd');
+      }
+    } catch (e) {
+      showToast('Sürüm kontrolü başarısız: ' + e.message, 'error', 'upd');
     }
   });
 }

@@ -90,6 +90,7 @@ func NewHandler(opts Options) http.Handler {
 	mux.HandleFunc("/api/reload", srv.handleReload)
 	mux.HandleFunc("/api/shutdown", srv.handleShutdown)
 	mux.HandleFunc("/api/export/openwrt", srv.handleExportOpenWrt)
+	mux.HandleFunc("/api/update/check", withRateLimit(6, 60*time.Second, srv.handleUpdateCheck))
 
 	return securityMiddlewareWithToken(opts.SessionToken, mux)
 }
