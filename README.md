@@ -197,6 +197,7 @@ go run ./tools/bench -samples 10 -bytes 3000000
 | [LICENSE](LICENSE) | GNU General Public License v3.0 (GPL-3.0) |
 | [CHANGELOG.md](CHANGELOG.md) | Sürüm geçmişi ve önemli değişiklikler |
 | [SECURITY.md](SECURITY.md) | Güvenlik savunma katmanları, acil Proxy/Kill Switch kurtarma ve güncelleme prosedürü |
+| [CODE_SIGNING_POLICY.md](CODE_SIGNING_POLICY.md) | Kod imzalama politikası (SignPath.io / SignPath Foundation + Sigstore SLSA) |
 | [PRIVACY.md](PRIVACY.md) | Veri akışları, harici çağrılar, anonimlik sınırları ve saklama politikası |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | Geliştirme ilkeleri, PR kontrol listesi ve katkı kuralları |
 | [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) | Topluluk davranış kuralları (Contributor Covenant v2.1) |

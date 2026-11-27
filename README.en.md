@@ -114,7 +114,7 @@ See [SECURITY.md](SECURITY.md), [PRIVACY.md](PRIVACY.md), and [docs/THREAT-MODEL
 
 - **CI Gates (`.github/workflows/ci.yml`):** SHA-pinned Actions, `gofmt`, `go vet`, `staticcheck`, `node --check`, `go test -race -cover ./...` (14 packages + 36-combination official `sing-box check` matrix), fuzzing, `govulncheck`, secret scan, and a **live Windows `ozevpn.exe` HTTP/security smoke test**.
 - **Static & Supply-Chain Security:** `CodeQL` SAST (`Go` + `JavaScript`), Linux Foundation **OpenSSF Scorecard**, `Dependabot`, `5/5` bundled runtime SHA-256 pinning (`BINARY_CHECKSUMS.txt`), and **CycloneDX 1.5 SBOM**.
-- **Cryptographic Provenance (SLSA Attestation):**
+- **Cryptographic Provenance & Code Signing:** [CODE_SIGNING_POLICY.md](CODE_SIGNING_POLICY.md) (applying for free open-source Windows Authenticode signing via [SignPath.io](https://signpath.io/) / [SignPath Foundation](https://signpath.org/)) + Sigstore SLSA Attestation:
   ```powershell
   gh attestation verify OzeVPN-core.exe -R KeremKalyoncu/ozevpn
   ```

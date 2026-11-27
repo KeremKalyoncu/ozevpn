@@ -6,12 +6,12 @@ PackageLocale: en-US
 Publisher: Kerem Kalyoncu
 PublisherUrl: https://github.com/KeremKalyoncu
 PublisherSupportUrl: https://github.com/KeremKalyoncu/ozevpn/issues
-PrivacyUrl: https://github.com/KeremKalyoncu/ozevpn/blob/main/PRIVACY.md
+PrivacyUrl: https://raw.githubusercontent.com/KeremKalyoncu/ozevpn/main/PRIVACY.md
 Author: Kerem Kalyoncu
 PackageName: OzeVPN
 PackageUrl: https://github.com/KeremKalyoncu/ozevpn
 License: GPL-3.0-or-later
-LicenseUrl: https://github.com/KeremKalyoncu/ozevpn/blob/main/LICENSE
+LicenseUrl: https://raw.githubusercontent.com/KeremKalyoncu/ozevpn/main/LICENSE
 Copyright: Copyright (c) 2026 Kerem Kalyoncu
 ShortDescription: Zero-dependency single-EXE Windows hybrid VPN powered by sing-box, native Cloudflare WARP WireGuard (TCP+UDP), and EU Tor.
 Description: |-
