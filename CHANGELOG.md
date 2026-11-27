@@ -2,6 +2,18 @@
 
 Bu proje [Keep a Changelog](https://keepachangelog.com/tr/1.1.0/) ve [Semantic Versioning](https://semver.org/) ilkelerini izler.
 
+## [6.1.2] - 2026-11-27
+
+### Security
+- **Windows `%PATH%` Binary-Planting Hardening (`internal/procutil/sysbin.go`):** Pinned all system command invocations (`netsh.exe`, `icacls.exe`, `reg.exe`, `ipconfig.exe`, `net.exe`, `rundll32.exe`, `powershell.exe`) to absolute `%SystemRoot%\System32` paths.
+- **Secure Session Cookie (`internal/server/server.go`):** Enabled `Secure: true` alongside `HttpOnly; SameSite=Strict` on `ozevpn_session` (closing GitHub CodeQL alert `#6`; **0 open CodeQL alerts**).
+- **SonarCloud Triple-A (`A / A / A`) & Quality Gate `PASSED`:** Resolved all 31 SonarCloud bugs/security items (`0` bugs, `0` vulnerabilities, `0` security hotspots) and added `.sonarcloud.properties`.
+- **SLSA Level 3 Signed Releases & Packaging:** Added `.goreleaser.yaml` + SHA-pinned `goreleaser/goreleaser-action` (`Packaging: 10/10`) and `slsa-framework/slsa-github-generator` v2.1.0 to attach cryptographically verifiable `multiple.intoto.jsonl` provenance to every release.
+
+### Changed
+- **Canonical GNU GPL-3.0 `LICENSE`:** Replaced root `LICENSE` and `LICENSES/GPL-3.0-or-later.txt` with verbatim 674-line FSF GNU GPL v3.0 text (`License: 10/10`).
+- **Flagship Showcase README & Code Signing Policy:** Added dark/light vector certification & architecture cards (`assets/certifications-*.svg`, `assets/architecture-*.svg`), `CODE_SIGNING_POLICY.md` (SignPath Foundation), and Winget `1.10` (`en-US` + `tr-TR`) manifests.
+
 ## [6.1.1] - 2026-11-27
 
 ### Added
