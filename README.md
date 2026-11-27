@@ -179,6 +179,7 @@ go run ./tools/bench -samples 10 -bytes 3000000
 | Belge | İçerik |
 | :--- | :--- |
 | [LICENSE](LICENSE) | GNU General Public License v3.0 (GPL-3.0) |
+| [CHANGELOG.md](CHANGELOG.md) | Sürüm geçmişi ve önemli değişiklikler |
 | [SECURITY.md](SECURITY.md) | Güvenlik savunma katmanları, acil Proxy/Kill Switch kurtarma ve güncelleme prosedürü |
 | [PRIVACY.md](PRIVACY.md) | Veri akışları, harici çağrılar, anonimlik sınırları ve saklama politikası |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | Geliştirme ilkeleri, PR kontrol listesi ve katkı kuralları |
