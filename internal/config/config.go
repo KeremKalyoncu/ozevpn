@@ -38,12 +38,12 @@ type PresetGroup struct {
 }
 
 type Config struct {
-	SetupCompleted bool          `json:"setup_completed"`
-	InstallStyle   InstallStyle  `json:"install_style"`
-	EngineProfile  string        `json:"engine_profile"` // "hybrid_eu", "tor_eu", "warp_fast", "custom"
-	Mode           Mode          `json:"mode"`
-	Protocol       string        `json:"protocol"`     // "Auto", "WireGuard", "MASQUE"
-	DNSFamilies    string        `json:"dns_families"` // "off", "malware", "full"
+	SetupCompleted         bool          `json:"setup_completed"`
+	InstallStyle           InstallStyle  `json:"install_style"`
+	EngineProfile          string        `json:"engine_profile"` // "hybrid_eu", "tor_eu", "warp_fast", "custom"
+	Mode                   Mode          `json:"mode"`
+	Protocol               string        `json:"protocol"`                  // "Auto", "WireGuard", "MASQUE"
+	DNSFamilies            string        `json:"dns_families"`              // "off", "malware", "full"
 	AdBlockSpeed           bool          `json:"ad_block_speed"`            // DNS-level ad & tracker blocker for faster page loads
 	TorBridge              bool          `json:"tor_bridge"`                // Use Snowflake pluggable transport if direct Tor is blocked
 	KillSwitch             bool          `json:"kill_switch"`               // Admin TUN Windows Firewall fail-closed Kill Switch
@@ -51,13 +51,13 @@ type Config struct {
 	DisableStartupNetProbe bool          `json:"disable_startup_net_probe"` // Opt-out of automatic startup external IP/country trace
 	ProxyPort              int           `json:"proxy_port"`
 	ListenAddr             string        `json:"listen_addr"`
-	CustomServer           string        `json:"custom_server"`                  // vless://, socks5://, WireGuard .conf veya sing-box JSON (DPAPI protected on disk)
-	CustomServerSet        bool          `json:"custom_server_set,omitempty"`    // API yanıtında anahtarı sızdırmadan kayıtlı olduğunu bildirir
-	ClearCustomServer      bool          `json:"clear_custom_server,omitempty"`  // Açık özel sunucu silme isteği (diskte saklanmaz)
+	CustomServer           string        `json:"custom_server"`                 // vless://, socks5://, WireGuard .conf veya sing-box JSON (DPAPI protected on disk)
+	CustomServerSet        bool          `json:"custom_server_set,omitempty"`   // API yanıtında anahtarı sızdırmadan kayıtlı olduğunu bildirir
+	ClearCustomServer      bool          `json:"clear_custom_server,omitempty"` // Açık özel sunucu silme isteği (diskte saklanmaz)
 	BypassPresets          []PresetGroup `json:"bypass_presets"`
-	CustomBypass   []string      `json:"custom_bypass"`
-	TunnelPresets  []PresetGroup `json:"tunnel_presets"`
-	CustomTunnel   []string      `json:"custom_tunnel"`
+	CustomBypass           []string      `json:"custom_bypass"`
+	TunnelPresets          []PresetGroup `json:"tunnel_presets"`
+	CustomTunnel           []string      `json:"custom_tunnel"`
 }
 
 type Store struct {

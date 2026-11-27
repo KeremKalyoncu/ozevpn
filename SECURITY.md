@@ -9,13 +9,13 @@ OzeVPN yalnızca yerel cihazda (`127.0.0.1:7777`) çalışan, bulut sunucusu ve 
 | **Harici Web Sitesinden CSRF / DNS Rebinding** | `r.Host` yalnız loopback (`127.0.0.1`/`localhost`/`::1`), `Origin` & `Sec-Fetch-Site` doğrulaması (`403`) + `slog` güvenlik kaydı. |
 | **Özel Sunucu Anahtar Sızıntısı** | Windows **DPAPI** (`CryptProtectData`) şifrelemesi + NTFS DACL (yalnız mevcut kullanıcı + `SYSTEM` + `Administrators`), API yanıtlarında maskeleme (`custom_server_set: true`), hata loglarında `RedactSecrets` ve kapatmada `sing-box-active.json` silme. |
 | **Protokol Downgrade & Zayıf TLS** | Plaintext `vless://`, uzak düz metin `socks5://`, `allowInsecure=1` ve ham JSON `tls.insecure:true` reddedilir; WireGuard Post-Quantum `PresharedKey` desteklenir. |
-| **IPv6, DNS & WebRTC Sızıntıları** | Dual-stack IPv4+IPv6 TUN (`fdfe:dcba:9876::1/126`, `MTU 1400`), DoH tünel `detour`, şifreli `dns-direct`, `ipconfig /flushdns`, UI WebRTC non-proxied UDP engeli. |
+| **Sızıntı Koruması** | Dual-stack IPv4+IPv6 TUN (`fdfe:dcba:9876::1/126`, WireGuard ile `MTU 1280` / diğerleri `MTU 1400`), DoH tünel `detour`, şifreli `dns-direct`, `ipconfig /flushdns`, UI WebRTC non-proxied UDP engeli. |
 | **Tünel Kopması / Çökme Sızıntısı** | Yönetici (`Oyun TUN`) modunda Windows Firewall fail-closed **Kill Switch** (`OzeVPN-KS-*` + `blockoutbound`), çift `sing-box`+`tor` Watchdog ve `WM_POWERBROADCAST` uyanış kurtarması. |
 | **Yerel SSRF (`/api/rescue`) & DOM XSS** | Loopback/RFC1918/link-local/`.local`/`.internal` engeli; DOM'da `textContent`/`createElement` + sıkı `CSP` (`default-src 'self'`). |
 | **Tedarik Zinciri & İkili Bütünlük** | `BINARY_CHECKSUMS.txt` (5 dosya: `sing-box.exe`, `tor.exe`, `lyrebird.exe`, `geoip`, `geoip6`), CI `govulncheck`, fuzzing, CycloneDX SBOM ve commit provenance (`-ldflags`). |
 
 ## 2. Acil Kurtarma Runbook'u (İnternet / Proxy / Kill Switch Takılı Kalırsa)
-1. OzeVPN panelinden **🧯 Proxy Sıfırla** butonuna tıkla (veya uygulamayı yeniden aç; `CleanupStaleOnBoot` otomatik temizler).
+1. OzeVPN panelinden **Araçlar → Proxy Sıfırla** seçeneğine tıkla (veya uygulamayı yeniden aç; `CleanupStaleOnBoot` otomatik temizler).
 2. Uygulama hiç açılmıyorsa **Yönetici PowerShell**'de şu komutları çalıştır:
    ```powershell
    reg add "HKCU\Software\Microsoft\Windows\CurrentVersion\Internet Settings" /v ProxyEnable /t REG_DWORD /d 0 /f

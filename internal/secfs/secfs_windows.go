@@ -18,16 +18,16 @@ import (
 )
 
 const (
-	dpapiPrefix            = "dpapi:"
+	dpapiPrefix             = "dpapi:"
 	cryptProtectUIForbidden = 0x1
 )
 
 var (
-	crypt32               = syscall.NewLazyDLL("crypt32.dll")
-	kernel32              = syscall.NewLazyDLL("kernel32.dll")
-	procCryptProtectData  = crypt32.NewProc("CryptProtectData")
+	crypt32                = syscall.NewLazyDLL("crypt32.dll")
+	kernel32               = syscall.NewLazyDLL("kernel32.dll")
+	procCryptProtectData   = crypt32.NewProc("CryptProtectData")
 	procCryptUnprotectData = crypt32.NewProc("CryptUnprotectData")
-	procLocalFree         = kernel32.NewProc("LocalFree")
+	procLocalFree          = kernel32.NewProc("LocalFree")
 )
 
 type dataBlob struct {

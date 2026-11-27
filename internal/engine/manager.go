@@ -115,9 +115,9 @@ func NewManager(baseDir string, wc *warp.Client) *Manager {
 		warpClient: wc,
 		isAdmin:    IsAdmin(),
 		state:      "Disconnected",
-		mixedPort:  10808,
-		torPort:    9055,
-		warpPort:   40000,
+		mixedPort:  defaultMixedPort,
+		torPort:    defaultTorPort,
+		warpPort:   defaultWarpPort,
 	}
 	m.CleanupStaleOnBoot()
 	return m
@@ -210,6 +210,13 @@ func (m *Manager) Status() EngineState {
 	return st
 }
 
+type exitPrepResult struct {
+	nativeWG       *warp.NativeWGProfile
+	warpAvailable  bool
+	warpCLIStarted bool
+	torAvailable   bool
+}
+
 func (m *Manager) Start(cfg config.Config) ([]string, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -230,6 +237,11 @@ func (m *Manager) Start(cfg config.Config) ([]string, error) {
 		logs = append(logs, fmt.Sprintf("[%s] %s", time.Now().Format("15:04:05"), s))
 		logMu.Unlock()
 	}
+	appendLogs := func(extra []string) {
+		logMu.Lock()
+		logs = append(logs, extra...)
+		logMu.Unlock()
+	}
 
 	sbBin := m.findBin("sing-box.exe")
 	if sbBin == "" {
@@ -243,123 +255,131 @@ func (m *Manager) Start(cfg config.Config) ([]string, error) {
 		cfg.EngineProfile = "hybrid_eu"
 	}
 
+	admin := IsAdmin()
+	m.enableKillSwitchIfNeeded(cfg, admin, sbBin, torBin, addLog)
+	prep := m.prepareExitsLocked(cfg, sbBin, torBin, addLog, appendLogs)
+
+	cfgBytes, err := BuildSingBoxConfig(cfg, BuildOptions{
+		WarpAvailable: prep.warpAvailable,
+		WarpWG:        prep.nativeWG,
+		TorAvailable:  prep.torAvailable,
+		IsAdmin:       admin,
+		MixedPort:     m.mixedPort,
+		WarpPort:      m.warpPort,
+		TorPort:       m.torPort,
+	})
+	if err != nil {
+		return logs, m.failStartLocked(err.Error())
+	}
+
+	m.captureLayer = describeCaptureLayer(admin, prep.nativeWG != nil, m.mixedPort)
+	if admin {
+		addLog("Yönetici izni aktif → Çift yığınlı (IPv4+IPv6) TUN sanal ağ kartı açılıyor.")
+	}
+	if cfg.AdBlockSpeed {
+		addLog(fmt.Sprintf("Reklam & Takipçi Hız Kalkanı aktif (%d ağır reklam ağı engellendi).", len(adTrackerDomains)))
+	}
+
+	sbCfgPath, err := m.launchSingBoxLocked(sbBin, cfgBytes)
+	if err != nil {
+		return logs, m.failStartLocked(err.Error())
+	}
+
+	if !admin {
+		if err := EnableSystemProxy(m.mixedPort); err != nil {
+			addLog("Uyarı: Windows Sistem Proxy ayarlanamadı: " + err.Error())
+		} else {
+			addLog(fmt.Sprintf("Windows Sistem Proxy etkinleştirildi (127.0.0.1:%d).", m.mixedPort))
+		}
+	}
+	FlushDNSCache()
+
+	m.running = true
+	m.state = "Connected"
+	m.activeProf = cfg.EngineProfile
+	m.adBlockActive = cfg.AdBlockSpeed
+	m.warpWG = prep.nativeWG
+	m.warpCLIUsed = prep.warpCLIStarted
+	m.torNeeded = prep.torAvailable
+	m.torBinPath = torBin
+	m.sbBinPath = sbBin
+	m.sbCfgPath = sbCfgPath
+	m.lastNetSig = currentNetSignature()
+	m.startedAt = time.Now()
+	m.stopWatch = make(chan struct{})
+	go m.watchdogLoop(m.stopWatch, sbBin, sbCfgPath)
+
+	addLog("OzeVPN v6 (sing-box + DoH + 4K Hız Bypass + Hız Kalkanı) aktif!")
+	return logs, nil
+}
+
+func (m *Manager) failStartLocked(msg string) error {
+	m.stopLocked()
+	m.state = "Disconnected"
+	m.lastErr = msg
+	return errors.New(msg)
+}
+
+func describeCaptureLayer(admin, hasNativeWG bool, mixedPort int) string {
+	if !admin {
+		return fmt.Sprintf("Tarayıcı/Proxy Korumalı (127.0.0.1:%d — UDP için Oyun TUN)", mixedPort)
+	}
+	if hasNativeWG {
+		return fmt.Sprintf("Tam Sistem TUN (IPv4+IPv6+UDP WireGuard) + Proxy (127.0.0.1:%d)", mixedPort)
+	}
+	return fmt.Sprintf("Tam Sistem TUN (IPv4+IPv6+UDP) + Proxy (127.0.0.1:%d)", mixedPort)
+}
+
+func (m *Manager) enableKillSwitchIfNeeded(cfg config.Config, admin bool, sbBin, torBin string, addLog func(string)) {
+	if !cfg.KillSwitch {
+		return
+	}
+	if !admin {
+		addLog("Bilgi: Kill Switch (Windows Firewall kilidi) yalnız Yönetici (Oyun TUN) modunda aktiftir.")
+		return
+	}
+	allowedBins := []string{sbBin}
+	if torBin != "" {
+		allowedBins = append(allowedBins, torBin)
+	}
+	if lb := m.findBin(filepath.Join("tor", "tor", "pluggable_transports", "lyrebird.exe")); lb != "" {
+		allowedBins = append(allowedBins, lb)
+	}
+	if ws := killswitch.DefaultWarpServiceExe(); ws != "" {
+		allowedBins = append(allowedBins, ws)
+	}
+	if exePath, err := os.Executable(); err == nil && exePath != "" {
+		allowedBins = append(allowedBins, exePath)
+	}
+	if ksErr := killswitch.Enable(killswitch.Options{
+		AllowedPrograms: allowedBins,
+		BlockLAN:        cfg.BlockLAN,
+	}); ksErr != nil {
+		addLog("Kill Switch uyarısı: " + ksErr.Error())
+		return
+	}
+	m.killSwitchActive = true
+	addLog("Windows Firewall Fail-Closed Kill Switch aktif (tünel düşerse sıfır sızıntı).")
+}
+
+func (m *Manager) prepareExitsLocked(cfg config.Config, sbBin, torBin string, addLog func(string), appendLogs func([]string)) exitPrepResult {
+	var res exitPrepResult
 	useCustom := strings.TrimSpace(cfg.CustomServer) != "" && cfg.EngineProfile == "custom"
 	useTorOnly := cfg.EngineProfile == "tor_eu"
 	useWarpOnly := cfg.EngineProfile == "warp_fast"
-
-	warpAvailable := false
-	warpCLIStarted := false
-	var nativeWG *warp.NativeWGProfile
-	torAvailable := false
-	torAttempted := false
-
-	var wg sync.WaitGroup
 	needWarp := (cfg.EngineProfile == "hybrid_eu" || useWarpOnly) && !useCustom && !useTorOnly
 	needTor := !useCustom && (useTorOnly || cfg.EngineProfile == "hybrid_eu")
-	warpDoneCh := make(chan bool, 1)
 
-	admin := IsAdmin()
-	if cfg.KillSwitch {
-		if admin {
-			allowedBins := []string{sbBin}
-			if torBin != "" {
-				allowedBins = append(allowedBins, torBin)
-			}
-			if lb := m.findBin(filepath.Join("tor", "tor", "pluggable_transports", "lyrebird.exe")); lb != "" {
-				allowedBins = append(allowedBins, lb)
-			}
-			if ws := killswitch.DefaultWarpServiceExe(); ws != "" {
-				allowedBins = append(allowedBins, ws)
-			}
-			if exePath, eErr := os.Executable(); eErr == nil && exePath != "" {
-				allowedBins = append(allowedBins, exePath)
-			}
-			if ksErr := killswitch.Enable(killswitch.Options{
-				AllowedPrograms: allowedBins,
-				BlockLAN:        cfg.BlockLAN,
-			}); ksErr != nil {
-				addLog("Kill Switch uyarısı: " + ksErr.Error())
-			} else {
-				m.killSwitchActive = true
-				addLog("🛡️ Windows Firewall Fail-Closed Kill Switch aktif (tünel düşerse sıfır sızıntı).")
-			}
-		} else {
-			addLog("Bilgi: Kill Switch (Windows Firewall kilidi) yalnız Yönetici (Oyun TUN) modunda aktiftir.")
-		}
-	}
+	var wg sync.WaitGroup
+	warpDoneCh := make(chan bool, 1)
+	torAttempted := false
 
 	if needWarp {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			defer func() { warpDoneCh <- warpAvailable }()
-			// 1. Prefer native Cloudflare WARP WireGuard inside sing-box (full Layer-3 TCP + UDP
-			//    for Roblox RakNet UDP, Discord Voice UDP, QUIC, and online gaming; zero external warp-cli needed).
-			if cfg.Protocol != "MASQUE" {
-				addLog("Yerleşik Cloudflare WARP WireGuard (Tam TCP + UDP Oyun Tüneli) hazırlanıyor...")
-				profPath := warp.DefaultWGProfilePath(m.baseDir)
-				_, hadCached := os.Stat(profPath)
-				prof, wgErr := warp.EnsureNativeWGProfile(profPath)
-				if wgErr != nil {
-					addLog("Yerleşik WARP WireGuard kaydı alınamadı, yedek katmana geçiliyor: " + wgErr.Error())
-				} else {
-					ep, port, pErr := warp.ProbeNativeWG(sbBin, prof)
-					// Self-healing: if a cached profile failed all ports (e.g. revoked device key),
-					// register a fresh Cloudflare WARP device once before falling back.
-					if pErr != nil && hadCached == nil {
-						if fresh, rErr := warp.RegisterNativeWG(); rErr == nil {
-							if fep, fport, fpErr := warp.ProbeNativeWG(sbBin, fresh); fpErr == nil {
-								prof, ep, port, pErr = fresh, fep, fport, nil
-								_ = warp.SaveNativeWGProfile(profPath, prof)
-							}
-						}
-					}
-					if pErr != nil {
-						addLog("Yerleşik WARP WireGuard UDP bu ağda yanıt vermedi, yedek katmana geçiliyor: " + pErr.Error())
-					} else {
-						if prof.Endpoint != ep || prof.Port != port {
-							prof.Endpoint = ep
-							prof.Port = port
-							_ = warp.SaveNativeWGProfile(profPath, prof)
-						}
-						nativeWG = prof
-						warpAvailable = true
-						addLog(fmt.Sprintf("Hızlı katman hazır: Yerleşik WARP WireGuard (Tam TCP + UDP — %s:%d).", ep, port))
-						return
-					}
-				}
-			}
-
-			// 2. Fallback to external warp-cli SOCKS5 proxy (MASQUE/TCP-only) if installed.
-			ws := m.warpClient.Status()
-			if ws.Installed {
-				addLog("Yedek hızlı katman (Cloudflare WARP Proxy) başlatılıyor...")
-				proxyCfg := cfg
-				proxyCfg.Mode = config.ModeProxyPAC
-				proxyCfg.ProxyPort = m.warpPort
-				proxyCfg.DNSFamilies = "off"
-				if proxyCfg.Protocol == "" {
-					proxyCfg.Protocol = "Auto"
-				}
-				wLogs, wErr := m.warpClient.ApplyAndConnect(proxyCfg)
-				logMu.Lock()
-				logs = append(logs, wLogs...)
-				logMu.Unlock()
-				if wErr == nil {
-					if conn, dErr := net.DialTimeout("tcp", fmt.Sprintf("127.0.0.1:%d", m.warpPort), 800*time.Millisecond); dErr == nil {
-						_ = conn.Close()
-						warpAvailable = true
-						warpCLIStarted = true
-						addLog(fmt.Sprintf("WARP Proxy hazır (127.0.0.1:%d — TCP yedek modu).", m.warpPort))
-					} else {
-						addLog(fmt.Sprintf("WARP portu (127.0.0.1:%d) dinlemiyor, Avrupa Tor katmanına geçiliyor.", m.warpPort))
-					}
-				} else {
-					addLog("WARP başlatılamadı, Avrupa Tor katmanına geçiliyor: " + wErr.Error())
-				}
-			} else {
-				addLog("Cloudflare WARP istemcisi kurulu değil — bağımsız Avrupa Tor motoruna geçiliyor.")
-			}
+			res.nativeWG, res.warpAvailable, res.warpCLIStarted = m.prepareWarpExit(cfg, sbBin, addLog, appendLogs)
+			warpDoneCh <- res.warpAvailable
 		}()
 	}
 
@@ -379,75 +399,114 @@ func (m *Manager) Start(cfg config.Config) ([]string, error) {
 			}
 			if err := m.startTorLocked(torBin, cfg.TorBridge, fastCutoff); err != nil {
 				addLog("Tor uyarısı: " + err.Error())
-			} else {
-				torAvailable = true
-				addLog(fmt.Sprintf("Avrupa Çıkış Motoru %%100 hazır (127.0.0.1:%d).", m.torPort))
+				return
 			}
+			res.torAvailable = true
+			addLog(fmt.Sprintf("Avrupa Çıkış Motoru %%100 hazır (127.0.0.1:%d).", m.torPort))
 		}()
 	}
 
 	wg.Wait()
 
-	if !useCustom && !warpAvailable && !torAvailable && !torAttempted && torBin != "" {
+	if !useCustom && !res.warpAvailable && !res.torAvailable && !torAttempted && torBin != "" {
 		addLog("Yedek Avrupa Çıkış Motoru (Tor) devreye alınıyor...")
 		if err := m.startTorLocked(torBin, cfg.TorBridge, nil); err == nil {
-			torAvailable = true
+			res.torAvailable = true
 			addLog(fmt.Sprintf("Yedek Avrupa Çıkış Motoru hazır (127.0.0.1:%d).", m.torPort))
 		}
 	}
+	return res
+}
 
-	cfgBytes, err := BuildSingBoxConfig(cfg, BuildOptions{
-		WarpAvailable: warpAvailable,
-		WarpWG:        nativeWG,
-		TorAvailable:  torAvailable,
-		IsAdmin:       admin,
-		MixedPort:     m.mixedPort,
-		WarpPort:      m.warpPort,
-		TorPort:       m.torPort,
-	})
-	if err != nil {
-		m.stopLocked()
-		m.state = "Disconnected"
-		m.lastErr = err.Error()
-		return logs, err
-	}
-
-	if admin {
-		if nativeWG != nil {
-			m.captureLayer = fmt.Sprintf("Tam Sistem TUN (IPv4+IPv6+UDP WireGuard) + Proxy (127.0.0.1:%d)", m.mixedPort)
-		} else {
-			m.captureLayer = fmt.Sprintf("Tam Sistem TUN (IPv4+IPv6+UDP) + Proxy (127.0.0.1:%d)", m.mixedPort)
+func (m *Manager) prepareWarpExit(cfg config.Config, sbBin string, addLog func(string), appendLogs func([]string)) (*warp.NativeWGProfile, bool, bool) {
+	// 1. Prefer native Cloudflare WARP WireGuard inside sing-box (full Layer-3 TCP+UDP; zero external warp-cli needed).
+	if cfg.Protocol != "MASQUE" {
+		if prof := m.tryNativeWarpWG(sbBin, addLog); prof != nil {
+			return prof, true, false
 		}
-		addLog("Yönetici izni aktif → Çift yığınlı (IPv4+IPv6) TUN sanal ağ kartı açılıyor.")
-	} else {
-		m.captureLayer = fmt.Sprintf("Tarayıcı/Proxy Korumalı (127.0.0.1:%d — UDP için Oyun TUN)", m.mixedPort)
 	}
-	if cfg.AdBlockSpeed {
-		addLog(fmt.Sprintf("Reklam & Takipçi Hız Kalkanı aktif (%d ağır reklam ağı engellendi).", len(adTrackerDomains)))
+	// 2. Fallback to external warp-cli SOCKS5 proxy (MASQUE/TCP-only) if installed.
+	if m.tryExternalWarpCLI(cfg, addLog, appendLogs) {
+		return nil, true, true
 	}
+	return nil, false, false
+}
 
+func (m *Manager) tryNativeWarpWG(sbBin string, addLog func(string)) *warp.NativeWGProfile {
+	addLog("Yerleşik Cloudflare WARP WireGuard (Tam TCP + UDP Oyun Tüneli) hazırlanıyor...")
+	profPath := warp.DefaultWGProfilePath(m.baseDir)
+	_, hadCached := os.Stat(profPath)
+	prof, wgErr := warp.EnsureNativeWGProfile(profPath)
+	if wgErr != nil {
+		addLog("Yerleşik WARP WireGuard kaydı alınamadı, yedek katmana geçiliyor: " + wgErr.Error())
+		return nil
+	}
+	ep, port, pErr := warp.ProbeNativeWG(sbBin, prof)
+	// Self-healing: if a cached profile failed all ports (e.g. revoked device key), register fresh once.
+	if pErr != nil && hadCached == nil {
+		if fresh, rErr := warp.RegisterNativeWG(); rErr == nil {
+			if fep, fport, fpErr := warp.ProbeNativeWG(sbBin, fresh); fpErr == nil {
+				prof, ep, port, pErr = fresh, fep, fport, nil
+				_ = warp.SaveNativeWGProfile(profPath, prof)
+			}
+		}
+	}
+	if pErr != nil {
+		addLog("Yerleşik WARP WireGuard UDP bu ağda yanıt vermedi, yedek katmana geçiliyor: " + pErr.Error())
+		return nil
+	}
+	if prof.Endpoint != ep || prof.Port != port {
+		prof.Endpoint = ep
+		prof.Port = port
+		_ = warp.SaveNativeWGProfile(profPath, prof)
+	}
+	addLog(fmt.Sprintf("Hızlı katman hazır: Yerleşik WARP WireGuard (Tam TCP + UDP — %s:%d).", ep, port))
+	return prof
+}
+
+func (m *Manager) tryExternalWarpCLI(cfg config.Config, addLog func(string), appendLogs func([]string)) bool {
+	if !m.warpClient.Status().Installed {
+		addLog("Cloudflare WARP istemcisi kurulu değil — bağımsız Avrupa Tor motoruna geçiliyor.")
+		return false
+	}
+	addLog("Yedek hızlı katman (Cloudflare WARP Proxy) başlatılıyor...")
+	proxyCfg := cfg
+	proxyCfg.Mode = config.ModeProxyPAC
+	proxyCfg.ProxyPort = m.warpPort
+	proxyCfg.DNSFamilies = "off"
+	if proxyCfg.Protocol == "" {
+		proxyCfg.Protocol = "Auto"
+	}
+	wLogs, wErr := m.warpClient.ApplyAndConnect(proxyCfg)
+	appendLogs(wLogs)
+	if wErr != nil {
+		addLog("WARP başlatılamadı, Avrupa Tor katmanına geçiliyor: " + wErr.Error())
+		return false
+	}
+	conn, dErr := net.DialTimeout("tcp", fmt.Sprintf("127.0.0.1:%d", m.warpPort), 800*time.Millisecond)
+	if dErr != nil {
+		addLog(fmt.Sprintf("WARP portu (127.0.0.1:%d) dinlemiyor, Avrupa Tor katmanına geçiliyor.", m.warpPort))
+		return false
+	}
+	_ = conn.Close()
+	addLog(fmt.Sprintf("WARP Proxy hazır (127.0.0.1:%d — TCP yedek modu).", m.warpPort))
+	return true
+}
+
+func (m *Manager) launchSingBoxLocked(sbBin string, cfgBytes []byte) (string, error) {
 	sbCfgPath := filepath.Join(m.baseDir, "bin", "sing-box-active.json")
 	if err := secfs.WritePrivateFile(sbCfgPath, cfgBytes); err != nil {
-		m.stopLocked()
-		m.state = "Disconnected"
-		m.lastErr = err.Error()
-		return logs, err
+		return "", err
 	}
 	if chkOut, chkErr := runHidden(sbBin, "check", "-c", sbCfgPath).CombinedOutput(); chkErr != nil {
 		_ = os.Remove(sbCfgPath)
-		m.stopLocked()
-		m.state = "Disconnected"
-		m.lastErr = fmt.Sprintf("sing-box yapılandırma doğrulaması başarısız: %s", RedactSecrets(strings.TrimSpace(string(chkOut))))
-		return logs, errors.New(m.lastErr)
+		return "", fmt.Errorf("sing-box yapılandırma doğrulaması başarısız: %s", RedactSecrets(strings.TrimSpace(string(chkOut))))
 	}
 
 	sbLogPath := filepath.Join(m.baseDir, "bin", "sing-box.log")
 	sbLogFile, err := newCappedFileWriter(sbLogPath, defaultMaxLogBytes)
 	if err != nil {
-		m.stopLocked()
-		m.state = "Disconnected"
-		m.lastErr = "sing-box log dosyası açılamadı: " + err.Error()
-		return logs, errors.New(m.lastErr)
+		return "", fmt.Errorf("sing-box log dosyası açılamadı: %w", err)
 	}
 	cmd := exec.Command(sbBin, "run", "-c", sbCfgPath)
 	procutil.HideWindow(cmd)
@@ -455,10 +514,7 @@ func (m *Manager) Start(cfg config.Config) ([]string, error) {
 	cmd.Stderr = sbLogFile
 	if err := cmd.Start(); err != nil {
 		_ = sbLogFile.Close()
-		m.stopLocked()
-		m.state = "Disconnected"
-		m.lastErr = "sing-box başlatılamadı: " + err.Error()
-		return logs, errors.New(m.lastErr)
+		return "", fmt.Errorf("sing-box başlatılamadı: %w", err)
 	}
 	m.sbCmd = cmd
 	m.sbLogFile = sbLogFile
@@ -474,39 +530,10 @@ func (m *Manager) Start(cfg config.Config) ([]string, error) {
 	case err := <-doneCh:
 		logOut, _ := os.ReadFile(sbLogPath)
 		m.sbCmd = nil
-		m.stopLocked()
-		m.state = "Disconnected"
-		m.lastErr = fmt.Sprintf("sing-box başlangıçta kapandı (%v): %s", err, RedactSecrets(strings.TrimSpace(string(logOut))))
-		return logs, errors.New(m.lastErr)
+		return "", fmt.Errorf("sing-box başlangıçta kapandı (%v): %s", err, RedactSecrets(strings.TrimSpace(string(logOut))))
 	case <-time.After(1100 * time.Millisecond):
+		return sbCfgPath, nil
 	}
-
-	if !admin {
-		if err := EnableSystemProxy(m.mixedPort); err != nil {
-			addLog("Uyarı: Windows Sistem Proxy ayarlanamadı: " + err.Error())
-		} else {
-			addLog(fmt.Sprintf("Windows Sistem Proxy etkinleştirildi (127.0.0.1:%d).", m.mixedPort))
-		}
-	}
-	FlushDNSCache()
-
-	m.running = true
-	m.state = "Connected"
-	m.activeProf = cfg.EngineProfile
-	m.adBlockActive = cfg.AdBlockSpeed
-	m.warpWG = nativeWG
-	m.warpCLIUsed = warpCLIStarted
-	m.torNeeded = torAvailable
-	m.torBinPath = torBin
-	m.sbBinPath = sbBin
-	m.sbCfgPath = sbCfgPath
-	m.lastNetSig = currentNetSignature()
-	m.startedAt = time.Now()
-	m.stopWatch = make(chan struct{})
-	go m.watchdogLoop(m.stopWatch, sbBin, sbCfgPath)
-
-	addLog("OzeVPN v6 (sing-box + DoH + 4K Hız Bypass + Hız Kalkanı) aktif!")
-	return logs, nil
 }
 
 // OnPowerResume is triggered on Windows WM_POWERBROADCAST wake events to flush stale DNS

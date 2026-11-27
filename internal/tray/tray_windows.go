@@ -42,20 +42,20 @@ type Tray struct {
 }
 
 const (
-	wmDestroy       = 0x0002
-	wmClose         = 0x0010
-	wmNull          = 0x0000
-	wmCommand       = 0x0111
-	wmPowerBroadcast = 0x0218
+	wmDestroy             = 0x0002
+	wmClose               = 0x0010
+	wmNull                = 0x0000
+	wmCommand             = 0x0111
+	wmPowerBroadcast      = 0x0218
 	pbtApmResumeSuspend   = 0x0007
 	pbtApmResumeAutomatic = 0x0012
-	wmLButtonUp     = 0x0202
-	wmLButtonDblClk = 0x0203
-	wmRButtonUp     = 0x0205
-	wmContextMenu   = 0x007B
-	wmApp           = 0x8000
-	wmTrayCallback  = wmApp + 1
-	wmTrayRefresh   = wmApp + 2
+	wmLButtonUp           = 0x0202
+	wmLButtonDblClk       = 0x0203
+	wmRButtonUp           = 0x0205
+	wmContextMenu         = 0x007B
+	wmApp                 = 0x8000
+	wmTrayCallback        = wmApp + 1
+	wmTrayRefresh         = wmApp + 2
 
 	nimAdd    = 0x00000000
 	nimModify = 0x00000001
@@ -70,9 +70,9 @@ const (
 	smCxSmIcon     = 49
 	smCySmIcon     = 50
 
-	mfString      = 0x00000000
-	mfSeparator   = 0x00000800
-	tpmLeftAlign  = 0x0000
+	mfString       = 0x00000000
+	mfSeparator    = 0x00000800
+	tpmLeftAlign   = 0x0000
 	tpmBottomAlign = 0x0020
 	tpmRightButton = 0x0002
 
@@ -134,29 +134,29 @@ var (
 	user32   = syscall.NewLazyDLL("user32.dll")
 	shell32  = syscall.NewLazyDLL("shell32.dll")
 
-	procGetModuleHandleW        = kernel32.NewProc("GetModuleHandleW")
-	procRegisterClassExW        = user32.NewProc("RegisterClassExW")
-	procCreateWindowExW         = user32.NewProc("CreateWindowExW")
-	procDefWindowProcW          = user32.NewProc("DefWindowProcW")
-	procGetMessageW             = user32.NewProc("GetMessageW")
-	procTranslateMessage        = user32.NewProc("TranslateMessage")
-	procDispatchMessageW        = user32.NewProc("DispatchMessageW")
-	procPostMessageW            = user32.NewProc("PostMessageW")
-	procPostQuitMessage         = user32.NewProc("PostQuitMessage")
-	procDestroyWindow           = user32.NewProc("DestroyWindow")
-	procLoadImageW              = user32.NewProc("LoadImageW")
-	procCreateIconFromResEx     = user32.NewProc("CreateIconFromResourceEx")
-	procDestroyIcon             = user32.NewProc("DestroyIcon")
-	procGetSystemMetrics        = user32.NewProc("GetSystemMetrics")
-	procCreatePopupMenu         = user32.NewProc("CreatePopupMenu")
-	procAppendMenuW             = user32.NewProc("AppendMenuW")
-	procSetMenuDefaultItem      = user32.NewProc("SetMenuDefaultItem")
-	procTrackPopupMenu          = user32.NewProc("TrackPopupMenu")
-	procDestroyMenu             = user32.NewProc("DestroyMenu")
-	procSetForegroundWindow     = user32.NewProc("SetForegroundWindow")
-	procGetCursorPos            = user32.NewProc("GetCursorPos")
-	procRegisterWindowMessageW  = user32.NewProc("RegisterWindowMessageW")
-	procShellNotifyIconW        = shell32.NewProc("Shell_NotifyIconW")
+	procGetModuleHandleW       = kernel32.NewProc("GetModuleHandleW")
+	procRegisterClassExW       = user32.NewProc("RegisterClassExW")
+	procCreateWindowExW        = user32.NewProc("CreateWindowExW")
+	procDefWindowProcW         = user32.NewProc("DefWindowProcW")
+	procGetMessageW            = user32.NewProc("GetMessageW")
+	procTranslateMessage       = user32.NewProc("TranslateMessage")
+	procDispatchMessageW       = user32.NewProc("DispatchMessageW")
+	procPostMessageW           = user32.NewProc("PostMessageW")
+	procPostQuitMessage        = user32.NewProc("PostQuitMessage")
+	procDestroyWindow          = user32.NewProc("DestroyWindow")
+	procLoadImageW             = user32.NewProc("LoadImageW")
+	procCreateIconFromResEx    = user32.NewProc("CreateIconFromResourceEx")
+	procDestroyIcon            = user32.NewProc("DestroyIcon")
+	procGetSystemMetrics       = user32.NewProc("GetSystemMetrics")
+	procCreatePopupMenu        = user32.NewProc("CreatePopupMenu")
+	procAppendMenuW            = user32.NewProc("AppendMenuW")
+	procSetMenuDefaultItem     = user32.NewProc("SetMenuDefaultItem")
+	procTrackPopupMenu         = user32.NewProc("TrackPopupMenu")
+	procDestroyMenu            = user32.NewProc("DestroyMenu")
+	procSetForegroundWindow    = user32.NewProc("SetForegroundWindow")
+	procGetCursorPos           = user32.NewProc("GetCursorPos")
+	procRegisterWindowMessageW = user32.NewProc("RegisterWindowMessageW")
+	procShellNotifyIconW       = shell32.NewProc("Shell_NotifyIconW")
 
 	activeMu   sync.RWMutex
 	activeTray *Tray

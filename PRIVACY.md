@@ -9,10 +9,10 @@
 | Bileşen / Özellik | Kime Bağlanır? | Ne Zaman Çalışır? | Kapatılabilir mi? |
 | :--- | :--- | :--- | :--- |
 | **Başlangıç Ağ/Ülke Tespiti** | `https://cloudflare.com/cdn-cgi/trace` | Uygulama açılışında 1 kez (60 sn önbellekli) | **Evet** — *Gelişmiş Ağ Ayarları → Başlangıçta Otomatik Harici Ülke Sorgusunu Kapat* (`disable_startup_net_probe: true`) |
-| **Cloudflare WARP Çıkışı** | Cloudflare Edge (MASQUE HTTP/3 / WireGuard) | Yalnız kullanıcı `Bağlan` dediğinde (`hybrid_eu` veya `warp_fast`) | **Evet** — `tor_eu` veya `custom` profili seçilebilir |
+| **Cloudflare WARP Çıkışı** | Cloudflare Edge (Yerleşik WireGuard UDP / yedek `warp-cli`) | Yalnız kullanıcı `Bağlan` dediğinde (`hybrid_eu` veya `warp_fast`) | **Evet** — `tor_eu` veya `custom` profili seçilebilir |
 | **Tor Avrupa Çıkışı** | Tor ağı (+ isteğe bağlı Snowflake WebRTC köprüsü) | Yalnız kullanıcı `Bağlan` dediğinde (`hybrid_eu` veya `tor_eu`) | **Evet** — `warp_fast` veya `custom` profili seçilebilir |
 | **Şifreli DNS (DoH)** | `https://1.1.1.1` (aktif tünel outbound `detour` üzerinden) | Yalnız tünel aktifken | Özel sunucu/router yapılandırmasıyla değiştirilebilir |
-| **Canlı Test & Hız Ölçümü** | Discord, Roblox, Pastebin, Google, e-Devlet, Cloudflare Speed | Yalnız kullanıcı `Test Et` / `⚡ Hız Ölç` butonuna bastığında | Manuel tetiklenir |
+| **Canlı Test & Hız Ölçümü** | Discord, Roblox, Pastebin, Google, e-Devlet, Cloudflare Speed | Yalnız kullanıcı `Test Et` / `Hız Ölç` butonuna bastığında (ve bağlanınca tek seferlik `/api/trace` çıkış konumu kontrolü) | Manuel tetiklenir (`disable_startup_net_probe` ile otomatik trace de kapatılır) |
 
 ## 3. Anonimlik ve Sızıntı Sınırları (Dürüst Beyan)
 - OzeVPN bir **sansür aşma ve trafik şifreleme aracıdır**; devlet düzeyi küresel trafik korelasyonuna karşı mutlak anonimlik garantisi vermez.

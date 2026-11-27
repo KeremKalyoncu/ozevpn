@@ -120,15 +120,15 @@ func TestParseCustomOutboundSOCKS5AndDowngradeGuards(t *testing.T) {
 	if out["type"] != "socks" || out["username"] != "user" || out["password"] != "pass" {
 		t.Fatalf("unexpected socks5 outbound: %#v", out)
 	}
-	// Remote plaintext SOCKS5 must be rejected (VPN-02-07)
+	// Remote plaintext SOCKS5 must be rejected
 	if _, err := ParseCustomOutbound("socks5://user:pass@1.2.3.4:1080"); err == nil {
 		t.Fatal("expected error rejecting remote plaintext socks5")
 	}
-	// Plaintext VLESS without security=tls|reality must be rejected (VPN-02-07)
+	// Plaintext VLESS without security=tls|reality must be rejected
 	if _, err := ParseCustomOutbound("vless://11111111-2222-3333-4444-555555555555@eu.example.com:443"); err == nil {
 		t.Fatal("expected error rejecting plaintext VLESS without TLS/Reality")
 	}
-	// VLESS with allowInsecure=1 must be rejected (VPN-03-06)
+	// VLESS with allowInsecure=1 must be rejected
 	if _, err := ParseCustomOutbound("vless://11111111-2222-3333-4444-555555555555@eu.example.com:443?security=tls&allowInsecure=1"); err == nil {
 		t.Fatal("expected error rejecting allowInsecure=1 in VLESS")
 	}
@@ -157,7 +157,7 @@ func TestRedactSecretsAndNegativeTLSCertVerification(t *testing.T) {
 		t.Fatalf("RedactSecrets leaked sensitive values: %s", red)
 	}
 
-	// Verify Go default TLS client strictly rejects both self-signed/untrusted and expired certificates (VPN-03-06 / VPN-03-07)
+	// Verify Go default TLS client strictly rejects both self-signed/untrusted and expired certificates
 	priv, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
 		t.Fatal(err)

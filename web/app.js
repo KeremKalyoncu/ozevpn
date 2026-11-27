@@ -424,7 +424,7 @@ document.addEventListener('keydown', (e) => {
     }
     return;
   }
-  // Global keyboard shortcuts (FE-15-03) — ignored while typing in an input/select
+  // Global keyboard shortcuts — ignored while typing in an input/select
   const tag = (document.activeElement && document.activeElement.tagName || '').toLowerCase();
   const isTyping = tag === 'input' || tag === 'textarea' || tag === 'select';
   if (e.altKey && !e.ctrlKey && !e.metaKey && e.key.toLowerCase() === 'c') {

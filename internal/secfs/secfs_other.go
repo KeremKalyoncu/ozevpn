@@ -7,9 +7,9 @@ import (
 	"path/filepath"
 )
 
-func ProtectSecret(plain string) (string, error)   { return plain, nil }
+func ProtectSecret(plain string) (string, error)    { return plain, nil }
 func UnprotectSecret(stored string) (string, error) { return stored, nil }
-func IsProtected(stored string) bool               { return false }
+func IsProtected(stored string) bool                { return false }
 
 func RestrictFileOwnerOnly(path string) error {
 	return os.Chmod(path, 0600)

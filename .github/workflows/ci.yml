@@ -21,6 +21,15 @@ jobs:
         with:
           go-version: '^1.26.11'
 
+      - name: Formatting check (gofmt)
+        shell: pwsh
+        run: |
+          $unfmt = gofmt -l .
+          if ($unfmt) {
+            Write-Error "Unformatted Go files:`n$unfmt"
+            exit 1
+          }
+
       - name: Static analysis (go vet)
         run: go vet ./...
 

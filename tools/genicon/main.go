@@ -63,12 +63,12 @@ func writeICO(path string, sizes []int, connected bool) error {
 		if sz >= 256 {
 			dim = 0 // 0 means 256 in ICO format
 		}
-		out.WriteByte(dim)                                              // width
-		out.WriteByte(dim)                                              // height
-		out.WriteByte(0)                                                // color palette
-		out.WriteByte(0)                                                // reserved
-		_ = binary.Write(&out, binary.LittleEndian, uint16(1))          // color planes
-		_ = binary.Write(&out, binary.LittleEndian, uint16(32))         // bits per pixel
+		out.WriteByte(dim)                                      // width
+		out.WriteByte(dim)                                      // height
+		out.WriteByte(0)                                        // color palette
+		out.WriteByte(0)                                        // reserved
+		_ = binary.Write(&out, binary.LittleEndian, uint16(1))  // color planes
+		_ = binary.Write(&out, binary.LittleEndian, uint16(32)) // bits per pixel
 		_ = binary.Write(&out, binary.LittleEndian, uint32(len(pngs[i])))
 		_ = binary.Write(&out, binary.LittleEndian, offset)
 		offset += uint32(len(pngs[i]))

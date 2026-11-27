@@ -33,15 +33,15 @@ func genLocalTLSCert(t *testing.T, cn string) (tls.Certificate, *x509.CertPool) 
 		t.Fatal(err)
 	}
 	tmpl := &x509.Certificate{
-		SerialNumber: big.NewInt(42),
-		Subject:      pkix.Name{CommonName: cn},
-		IPAddresses:  []net.IP{net.ParseIP("127.0.0.1")},
-		DNSNames:     []string{"localhost"},
-		NotBefore:    time.Now().Add(-time.Hour),
-		NotAfter:     time.Now().Add(24 * time.Hour),
-		KeyUsage:     x509.KeyUsageDigitalSignature | x509.KeyUsageCertSign,
-		ExtKeyUsage:  []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth, x509.ExtKeyUsageClientAuth},
-		IsCA:         true,
+		SerialNumber:          big.NewInt(42),
+		Subject:               pkix.Name{CommonName: cn},
+		IPAddresses:           []net.IP{net.ParseIP("127.0.0.1")},
+		DNSNames:              []string{"localhost"},
+		NotBefore:             time.Now().Add(-time.Hour),
+		NotAfter:              time.Now().Add(24 * time.Hour),
+		KeyUsage:              x509.KeyUsageDigitalSignature | x509.KeyUsageCertSign,
+		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth, x509.ExtKeyUsageClientAuth},
+		IsCA:                  true,
 		BasicConstraintsValid: true,
 	}
 	der, err := x509.CreateCertificate(rand.Reader, tmpl, tmpl, &priv.PublicKey, priv)
@@ -58,15 +58,15 @@ func genLocalTLSCert(t *testing.T, cn string) (tls.Certificate, *x509.CertPool) 
 }
 
 // TestLabCryptoHandshakeReplayAndCorruption verifies:
-// - VPN-02-04: Mutual/peer TLS 1.3 handshake strictly rejects an invalid/untrusted peer certificate.
-// - VPN-02-06: Replayed encrypted TLS 1.3 application records are rejected (zero duplicate delivery).
-// - VPN-02-10: Bit-flipped ciphertext records are rejected with crypto error (zero corrupted bytes delivered).
+// - Mutual/peer TLS 1.3 handshake strictly rejects an invalid/untrusted peer certificate.
+// - Replayed encrypted TLS 1.3 application records are rejected (zero duplicate delivery).
+// - Bit-flipped ciphertext records are rejected with crypto error (zero corrupted bytes delivered).
 func TestLabCryptoHandshakeReplayAndCorruption(t *testing.T) {
 	serverCert, serverPool := genLocalTLSCert(t, "ozevpn-server")
 	goodClientCert, goodClientPool := genLocalTLSCert(t, "ozevpn-client")
 	evilClientCert, _ := genLocalTLSCert(t, "evil-peer")
 
-	// --- 1. VPN-02-04: Invalid peer rejected on mTLS TLS 1.3 handshake ---
+	// 1. Invalid peer rejected on mTLS TLS 1.3 handshake
 	srvTLS := &tls.Config{
 		MinVersion:   tls.VersionTLS13,
 		Certificates: []tls.Certificate{serverCert},
@@ -104,7 +104,7 @@ func TestLabCryptoHandshakeReplayAndCorruption(t *testing.T) {
 		_, readErr := badCli.Read(buf)
 		_ = badCli.Close()
 		if readErr == nil {
-			t.Fatal("VPN-02-04 FAIL: untrusted peer certificate was accepted without alert")
+			t.Fatal("untrusted peer certificate was accepted without alert")
 		}
 	}
 
@@ -119,7 +119,7 @@ func TestLabCryptoHandshakeReplayAndCorruption(t *testing.T) {
 	}
 	_ = goodCli.Close()
 
-	// --- 2. VPN-02-06 (Replay) & VPN-02-10 (Bit-Flip Corruption) over TLS 1.3 AEAD ---
+	// 2. Replay & bit-flip corruption over TLS 1.3 AEAD
 	runTamperScenario := func(mode string) {
 		rawLn, err := net.Listen("tcp", "127.0.0.1:0")
 		if err != nil {
@@ -218,18 +218,18 @@ func TestLabCryptoHandshakeReplayAndCorruption(t *testing.T) {
 		srvErr := <-serverErrCh
 		if mode == "replay" {
 			if strings.Count(delivered.String(), "SECRET_VPN_PAYLOAD_12345") > 1 {
-				t.Fatalf("VPN-02-06 FAIL: replayed AEAD record was delivered twice! got=%q", delivered.String())
+				t.Fatalf("replayed AEAD record was delivered twice: got=%q", delivered.String())
 			}
 			if srvErr == nil || srvErr == io.EOF {
-				t.Fatalf("VPN-02-06 FAIL: expected crypto/bad_record_mac error on replay, got %v", srvErr)
+				t.Fatalf("expected crypto/bad_record_mac error on replay, got %v", srvErr)
 			}
 		}
 		if mode == "corrupt" {
 			if delivered.Len() != 0 {
-				t.Fatalf("VPN-02-10 FAIL: corrupted ciphertext delivered %d unauthenticated bytes: %q", delivered.Len(), delivered.String())
+				t.Fatalf("corrupted ciphertext delivered %d unauthenticated bytes: %q", delivered.Len(), delivered.String())
 			}
 			if srvErr == nil || srvErr == io.EOF {
-				t.Fatalf("VPN-02-10 FAIL: expected AEAD authentication error on corrupted record, got %v", srvErr)
+				t.Fatalf("expected AEAD authentication error on corrupted record, got %v", srvErr)
 			}
 		}
 	}
@@ -238,9 +238,8 @@ func TestLabCryptoHandshakeReplayAndCorruption(t *testing.T) {
 	runTamperScenario("corrupt")
 }
 
-// TestLabSingBoxDNSOutageFailClosed verifies VPN-07-06 & VPN-14-07:
-// Running a real isolated sing-box 1.14.4 instance with an unreachable DNS server must NOT
-// silently fall back to ISP/OS DNS and must return a clean failure.
+// TestLabSingBoxDNSOutageFailClosed verifies that running a real isolated sing-box instance
+// with an unreachable DNS server does NOT silently fall back to ISP/OS DNS and fails cleanly.
 func TestLabSingBoxDNSOutageFailClosed(t *testing.T) {
 	sbBin := filepath.Join("..", "..", "bin", "sing-box.exe")
 	if _, err := os.Stat(sbBin); err != nil {
@@ -297,7 +296,7 @@ func TestLabSingBoxDNSOutageFailClosed(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 12*time.Second)
 	defer cancel()
 	cmd := exec.CommandContext(ctx, sbBin, "run", "-c", cfgPath)
 	if err := cmd.Start(); err != nil {
@@ -310,9 +309,9 @@ func TestLabSingBoxDNSOutageFailClosed(t *testing.T) {
 		}
 	}()
 
-	// Wait for mixed-in to listen
+	// Wait for mixed-in to listen (up to 5s to remain stable under parallel -race compilation)
 	ready := false
-	for i := 0; i < 20; i++ {
+	for i := 0; i < 50; i++ {
 		if c, dErr := net.DialTimeout("tcp", net.JoinHostPort("127.0.0.1", itoa(mixPort)), 150*time.Millisecond); dErr == nil {
 			_ = c.Close()
 			ready = true
@@ -333,13 +332,13 @@ func TestLabSingBoxDNSOutageFailClosed(t *testing.T) {
 	if reqErr == nil {
 		_ = resp.Body.Close()
 		if resp.StatusCode == http.StatusOK {
-			t.Fatal("VPN-07-06 FAIL: sing-box resolved example.com despite dead DNS server (unexpected ISP fallback!)")
+			t.Fatal("sing-box resolved example.com despite dead DNS server (unexpected ISP fallback)")
 		}
 	}
 }
 
-// TestLabDegradedNetworkFaultInjection verifies VPN-14-08:
-// Under artificial latency + forced TCP drop, OzeVPN probe & error simplification fail gracefully without panic/leak.
+// TestLabDegradedNetworkFaultInjection verifies that under artificial latency and forced TCP drop,
+// OzeVPN probe & error simplification fail gracefully without panic or goroutine leak.
 func TestLabDegradedNetworkFaultInjection(t *testing.T) {
 	// Start a fault-injecting HTTP proxy that introduces 180ms latency and drops connections
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
@@ -370,7 +369,7 @@ func TestLabDegradedNetworkFaultInjection(t *testing.T) {
 	}
 	for _, tgt := range rep.Targets {
 		if tgt.Reachable {
-			t.Fatalf("VPN-14-08 FAIL: target %s unexpectedly succeeded despite 100%% drop fault-injected proxy", tgt.Name)
+			t.Fatalf("target %s unexpectedly succeeded despite 100%% drop fault-injected proxy", tgt.Name)
 		}
 		if tgt.Error == "" {
 			t.Fatalf("expected user-friendly error message on degraded link for %s", tgt.Name)

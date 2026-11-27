@@ -3,7 +3,6 @@ package warp
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net"
@@ -323,11 +322,6 @@ func (c *Client) Disconnect() error {
 	defer c.mu.Unlock()
 	_, err := c.run(8*time.Second, "disconnect")
 	return err
-}
-
-func (c *Client) ExportJSONStatus() string {
-	b, _ := json.MarshalIndent(c.Status(), "", "  ")
-	return string(b)
 }
 
 func (c *Client) BinaryDir() string {

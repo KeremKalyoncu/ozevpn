@@ -13,12 +13,12 @@ flowchart LR
         API["OzeVPN Go HTTP API\n(Host/Origin/Sec-Fetch-Site +\nX-OzeVPN-Token + Rate Limit)"]
     end
     subgraph TB3["Güven Sınırı 3: Veri Düzlemi & OS Ağ Yığını"]
-        TUN["sing-box ozevpn0 TUN\n(IPv4+IPv6, MTU 1400, strict_route)"]
+        TUN["sing-box ozevpn0 TUN\n(IPv4+IPv6, MTU 1280/1400, strict_route)"]
         KS["Windows Firewall Kill Switch\n(blockoutbound + allowlist)"]
         DNS["DoH 1.1.1.1 (Tünel Detour)"]
     end
     subgraph TB4["Güven Sınırı 4: Harici Ağ / ISP / Çıkış"]
-        WARP["Cloudflare WARP (MASQUE/WG)"]
+        WARP["Cloudflare WARP (Native WG UDP)"]
         TOR["Tor 0.4.9.17 + Snowflake"]
         CUSTOM["Özel Sunucu (VLESS+TLS/Reality | WG+PSK)"]
     end

@@ -22,7 +22,7 @@
    - VPS üzerinde eski peer'ı hemen iptal et: `wg set wg0 peer <ESKI_PUBKEY> remove`.
    - Yeni anahtar çifti (`wg genkey` + `wg genpsk`) üretip yeniden kaydet.
 2. **Kill Switch Kilitli Kalırsa (Uygulama Çökmesi Sonrası Acil İnternet Kurtarma):**
-   - Uygulamayı açıp **🧯 Proxy Sıfırla** butonuna tıkla (veya `OzeVPN.exe -uninstall`).
+   - Uygulamayı açıp **Araçlar → Proxy Sıfırla** seçeneğine tıkla (veya `OzeVPN.exe -uninstall`).
    - Uygulama hiç açılmıyorsa Yönetici PowerShell'de şu iki komutu çalıştır:
      ```powershell
      netsh advfirewall set allprofiles firewallpolicy blockinbound,allowoutbound
