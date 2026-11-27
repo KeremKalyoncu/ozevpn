@@ -435,10 +435,10 @@ document.addEventListener('keydown', (e) => {
   const isTyping = tag === 'input' || tag === 'textarea' || tag === 'select';
   if (e.altKey && !e.ctrlKey && !e.metaKey && e.key.toLowerCase() === 'c') {
     e.preventDefault();
-    togglePower();
+    void togglePower();
   } else if (e.altKey && !e.ctrlKey && !e.metaKey && e.key.toLowerCase() === 't') {
     e.preventDefault();
-    runProbe();
+    void runProbe();
   } else if (!isTyping && !e.ctrlKey && !e.altKey && !e.metaKey && e.key === '/' && els.rescueInput) {
     e.preventDefault();
     els.rescueInput.focus();
@@ -802,11 +802,11 @@ async function refreshStatus(force) {
 function startPolling() {
   if (pollTimer) clearInterval(pollTimer);
   pollTimer = setInterval(() => {
-    if (!document.hidden) refreshStatus(false);
+    if (!document.hidden) void refreshStatus(false);
   }, 5000);
 }
 document.addEventListener('visibilitychange', () => {
-  if (!document.hidden) refreshStatus(true);
+  if (!document.hidden) void refreshStatus(true);
 });
 async function refreshNetInfo() {
   try {
@@ -860,7 +860,7 @@ async function togglePower() {
     busy = false;
     els.powerBtn.disabled = false;
     await refreshStatus(true);
-    if (connectedNow) refreshExitTrace();
+    if (connectedNow) void refreshExitTrace();
   }
 }
 async function runProbe() {
@@ -1071,7 +1071,7 @@ async function saveCustomServer() {
   }
 }
 els.saveServerBtn.addEventListener('click', saveCustomServer);
-els.customServerInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') saveCustomServer(); });
+els.customServerInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') void saveCustomServer(); });
 if (els.adBlockToggle) {
   els.adBlockToggle.addEventListener('change', async () => {
     const nextVal = els.adBlockToggle.checked;
@@ -1299,7 +1299,7 @@ async function runRescueAdd() {
 if (els.rescueTestBtn) els.rescueTestBtn.addEventListener('click', runRescueTest);
 if (els.rescueAddBtn) els.rescueAddBtn.addEventListener('click', runRescueAdd);
 if (els.rescueInput) {
-  els.rescueInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') runRescueTest(); });
+  els.rescueInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') void runRescueTest(); });
 }
 if (els.emergencyResetBtn) {
   els.emergencyResetBtn.addEventListener('click', async () => {
@@ -1457,8 +1457,8 @@ async function addCustomDomain(kind) {
 }
 els.addBypassBtn.addEventListener('click', () => addCustomDomain('bypass'));
 els.addTunnelBtn.addEventListener('click', () => addCustomDomain('tunnel'));
-els.customBypassInput.addEventListener('keydown', e => { if (e.key === 'Enter') addCustomDomain('bypass'); });
-els.customTunnelInput.addEventListener('keydown', e => { if (e.key === 'Enter') addCustomDomain('tunnel'); });
+els.customBypassInput.addEventListener('keydown', e => { if (e.key === 'Enter') void addCustomDomain('bypass'); });
+els.customTunnelInput.addEventListener('keydown', e => { if (e.key === 'Enter') void addCustomDomain('tunnel'); });
 els.customBypassInput.addEventListener('input', () => showInlineError(els.bypassErr, els.customBypassInput, ''));
 els.customTunnelInput.addEventListener('input', () => showInlineError(els.tunnelErr, els.customTunnelInput, ''));
 els.customServerInput.addEventListener('input', () => showInlineError(els.customServerErr, els.customServerInput, ''));
@@ -1478,12 +1478,12 @@ async function initApp() {
     if (!appConfig.setup_completed && !activeModal) {
       openWizard(null);
     }
-    refreshNetInfo();
+    void refreshNetInfo();
     await refreshStatus(true);
   } catch (err) {
     setOfflineState(true);
     addLog('Başlatma hatası: ' + err.message);
   }
 }
-initApp();
+void initApp();
 startPolling();

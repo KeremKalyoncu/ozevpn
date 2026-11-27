@@ -80,7 +80,7 @@ Remove-ItemProperty -Path $path -Name AutoConfigURL -ErrorAction SilentlyContinu
 }
 
 func runPS(script string) error {
-	cmd := exec.Command("powershell", "-NoProfile", "-NonInteractive", "-Command", script)
+	cmd := exec.Command(procutil.PowerShell(), "-NoProfile", "-NonInteractive", "-Command", script)
 	procutil.HideWindow(cmd)
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr

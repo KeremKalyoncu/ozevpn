@@ -38,7 +38,7 @@ func GetStatus() Status {
 	if runtime.GOOS != "windows" {
 		return st
 	}
-	cmd := exec.Command("reg", "query", `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`, "/v", "OzeVPN")
+	cmd := exec.Command(procutil.System32("reg.exe"), "query", `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`, "/v", "OzeVPN")
 	procutil.HideWindow(cmd)
 	out, err := cmd.Output()
 	if err == nil {
@@ -80,7 +80,7 @@ func EnableResident() (Status, error) {
 
 	startupCmd := fmt.Sprintf(`"%s" -silent -autoconnect`, dstExe)
 	regKey := `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`
-	regAdd := exec.Command("reg", "add", regKey, "/v", "OzeVPN", "/t", "REG_SZ", "/d", startupCmd, "/f")
+	regAdd := exec.Command(procutil.System32("reg.exe"), "add", regKey, "/v", "OzeVPN", "/t", "REG_SZ", "/d", startupCmd, "/f")
 	procutil.HideWindow(regAdd)
 	if err := regAdd.Run(); err != nil {
 		return GetStatus(), fmt.Errorf("başlangıç kaydı eklenemedi: %w", err)
@@ -106,7 +106,7 @@ func DisableResident() (Status, error) {
 		return GetStatus(), nil
 	}
 	regKey := `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`
-	regDel := exec.Command("reg", "delete", regKey, "/v", "OzeVPN", "/f")
+	regDel := exec.Command(procutil.System32("reg.exe"), "delete", regKey, "/v", "OzeVPN", "/f")
 	procutil.HideWindow(regDel)
 	_ = regDel.Run()
 	return GetStatus(), nil
@@ -161,7 +161,7 @@ func escapePS(s string) string {
 }
 
 func runPS(script string) (string, error) {
-	cmd := exec.Command("powershell", "-NoProfile", "-NonInteractive", "-Command", script)
+	cmd := exec.Command(procutil.PowerShell(), "-NoProfile", "-NonInteractive", "-Command", script)
 	procutil.HideWindow(cmd)
 	var out, stderr bytes.Buffer
 	cmd.Stdout = &out

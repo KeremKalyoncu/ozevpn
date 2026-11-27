@@ -154,7 +154,7 @@ func IsActive() bool {
 }
 
 func hasStaleRulesLocked() bool {
-	cmd := exec.Command("powershell", "-NoProfile", "-NonInteractive", "-Command",
+	cmd := exec.Command(procutil.PowerShell(), "-NoProfile", "-NonInteractive", "-Command",
 		`@(Get-NetFirewallRule -DisplayName 'OzeVPN-KS-*' -ErrorAction SilentlyContinue).Count`)
 	procutil.HideWindow(cmd)
 	out, err := cmd.Output()
@@ -165,14 +165,14 @@ func hasStaleRulesLocked() bool {
 }
 
 func cleanupRulesLocked() {
-	cmd := exec.Command("powershell", "-NoProfile", "-NonInteractive", "-Command",
+	cmd := exec.Command(procutil.PowerShell(), "-NoProfile", "-NonInteractive", "-Command",
 		`Get-NetFirewallRule -DisplayName 'OzeVPN-KS-*' -ErrorAction SilentlyContinue | Remove-NetFirewallRule -ErrorAction SilentlyContinue`)
 	procutil.HideWindow(cmd)
 	_ = cmd.Run()
 }
 
 func runNetsh(args ...string) error {
-	cmd := exec.Command("netsh", args...)
+	cmd := exec.Command(procutil.System32("netsh.exe"), args...)
 	procutil.HideWindow(cmd)
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr

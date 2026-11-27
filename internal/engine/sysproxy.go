@@ -64,13 +64,21 @@ func IsAdmin() bool {
 	if runtime.GOOS != "windows" {
 		return false
 	}
-	cmd := exec.Command("net", "session")
+	cmd := exec.Command(procutil.System32("net.exe"), "session")
 	procutil.HideWindow(cmd)
 	return cmd.Run() == nil
 }
 
 func runHidden(name string, args ...string) *exec.Cmd {
-	cmd := exec.Command(name, args...)
+	bin := name
+	if runtime.GOOS == "windows" && !strings.ContainsAny(name, `\/`) {
+		if !strings.HasSuffix(strings.ToLower(name), ".exe") {
+			bin = procutil.System32(name + ".exe")
+		} else {
+			bin = procutil.System32(name)
+		}
+	}
+	cmd := exec.Command(bin, args...)
 	procutil.HideWindow(cmd)
 	return cmd
 }
@@ -180,7 +188,7 @@ func KillOzeVPNRuntimeChildren(runtimeRoot string) {
 }
 
 func runPS(script string) error {
-	cmd := exec.Command("powershell", "-NoProfile", "-NonInteractive", "-Command", script)
+	cmd := exec.Command(procutil.PowerShell(), "-NoProfile", "-NonInteractive", "-Command", script)
 	procutil.HideWindow(cmd)
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr

@@ -105,7 +105,7 @@ if ($cfg) {
   } | ConvertTo-Json -Compress
 }
 `
-	cmd := exec.Command("powershell", "-NoProfile", "-NonInteractive", "-Command", ps)
+	cmd := exec.Command(procutil.PowerShell(), "-NoProfile", "-NonInteractive", "-Command", ps)
 	procutil.HideWindow(cmd)
 	var out bytes.Buffer
 	cmd.Stdout = &out

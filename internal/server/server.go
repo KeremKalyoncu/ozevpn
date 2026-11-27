@@ -108,7 +108,7 @@ func (s *apiServer) handleAuth(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte(`<!DOCTYPE html><html lang="tr"><body><h1>401 — Yetkisiz Erişim</h1><p>OzeVPN kontrol panelini açmak için masaüstü kısayolunu veya Sistem Tepsisi (Tray) ikonunu kullanın.</p></body></html>`))
 		return
 	}
-	http.SetCookie(w, &http.Cookie{
+	http.SetCookie(w, &http.Cookie{ // NOSONAR: loopback-only local HTTP control panel
 		Name:     "ozevpn_session",
 		Value:    s.sessionToken,
 		Path:     "/",

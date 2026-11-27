@@ -141,7 +141,7 @@ func RestrictFileOwnerOnly(path string) error {
 	if principal != "" {
 		args = append(args, "/grant:r", principal+":(F)")
 	}
-	cmd := exec.Command("icacls", args...)
+	cmd := exec.Command(procutil.System32("icacls.exe"), args...)
 	procutil.HideWindow(cmd)
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
@@ -166,7 +166,7 @@ func RestrictDirOwnerOnly(dir string) error {
 	if principal != "" {
 		args = append(args, "/grant:r", principal+":(OI)(CI)(F)")
 	}
-	cmd := exec.Command("icacls", args...)
+	cmd := exec.Command(procutil.System32("icacls.exe"), args...)
 	procutil.HideWindow(cmd)
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr

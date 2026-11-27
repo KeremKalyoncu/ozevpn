@@ -74,7 +74,7 @@ func (t *trafficTracker) streamLoop(ctx context.Context, addr, secret string) {
 			DialContext: (&net.Dialer{Timeout: 2 * time.Second}).DialContext,
 		},
 	}
-	endpoint := "http://" + addr + "/traffic"
+	endpoint := "http://" + addr + "/traffic" // NOSONAR: loopback-only sing-box Clash API stream
 
 	for {
 		if ctx.Err() != nil {

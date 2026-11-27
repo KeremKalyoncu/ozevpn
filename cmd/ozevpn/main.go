@@ -22,6 +22,7 @@ import (
 	"ozevpn/internal/engine"
 	"ozevpn/internal/installer"
 	"ozevpn/internal/netinfo"
+	"ozevpn/internal/procutil"
 	"ozevpn/internal/server"
 	"ozevpn/internal/tray"
 	"ozevpn/internal/warp"
@@ -152,7 +153,7 @@ func main() {
 		listenAddr = *addrFlag
 	}
 
-	baseURL := "http://" + listenAddr
+	baseURL := "http://" + listenAddr // NOSONAR: loopback-only local control panel
 	tokenPath := filepath.Join(filepath.Dir(cfgPath), ".ozevpn_token")
 	if handleSingleInstance(listenAddr, baseURL, tokenPath, *takeover, *noBrowser, *silent) {
 		return
@@ -272,12 +273,12 @@ func openBrowser(targetURL string) {
 				}
 			}
 		}
-		_ = exec.Command("rundll32", "url.dll,FileProtocolHandler", targetURL).Start()
+		_ = exec.Command(procutil.System32("rundll32.exe"), "url.dll,FileProtocolHandler", targetURL).Start()
 		return
 	}
 	if runtime.GOOS == "darwin" {
-		_ = exec.Command("open", targetURL).Start()
+		_ = exec.Command("/usr/bin/open", targetURL).Start()
 		return
 	}
-	_ = exec.Command("xdg-open", targetURL).Start()
+	_ = exec.Command("/usr/bin/xdg-open", targetURL).Start()
 }
