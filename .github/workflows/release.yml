@@ -1,0 +1,57 @@
+name: Signed Release Provenance (SLSA)
+
+on:
+  push:
+    tags: [ 'v*.*.*' ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-provenance:
+    runs-on: windows-latest
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - name: Setup Go
+        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
+        with:
+          go-version: '^1.26.11'
+
+      - name: Verify full test suite
+        run: |
+          go vet ./...
+          go test -race ./...
+
+      - name: Build slim OzeVPN Windows binary with provenance
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path dist | Out-Null
+          $sha = git rev-parse --short HEAD
+          $dt = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
+          go build -trimpath -ldflags="-H=windowsgui -s -w -X main.buildCommit=$sha -X main.buildDate=$dt" -o dist\OzeVPN-core.exe ./cmd/ozevpn
+          $hash = (Get-FileHash dist\OzeVPN-core.exe -Algorithm SHA256).Hash.ToUpper()
+          Set-Content -Path dist\OzeVPN-core.exe.sha256 -Value "$hash  OzeVPN-core.exe  # commit=$sha date=$dt"
+
+      - name: Attest SLSA Build Provenance (Sigstore)
+        if: github.event.repository.private == false
+        uses: actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be # v2
+        with:
+          subject-path: 'dist/OzeVPN-core.exe'
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: ozevpn-core-windows-amd64
+          path: |
+            dist/OzeVPN-core.exe
+            dist/OzeVPN-core.exe.sha256
+          retention-days: 14

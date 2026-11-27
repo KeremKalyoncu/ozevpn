@@ -1,0 +1,19 @@
+name: Özellik İsteği (Feature Request)
+description: Yeni bir özellik, protokol veya arayüz iyileştirmesi öner.
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Hangi Sorunu Çözüyor?
+      placeholder: Yaşadığın gerçek senaryoyu veya ihtiyacı anlat.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Önerilen Çözüm
+      placeholder: Sıfır bağımlılık ve sadelik ilkelerine uygun nasıl çalışmalı?
+    validations:
+      required: true

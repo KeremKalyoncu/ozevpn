@@ -64,7 +64,7 @@ func (c *Client) run(timeout time.Duration, args ...string) (string, error) {
 		c.binPath = findWarpCLI()
 	}
 	if c.binPath == "" {
-		return "", errors.New("warp-cli bulunamadı. Lütfen Cloudflare WARP kurun (winget install Cloudflare.Warp).")
+		return "", errors.New("warp-cli bulunamadı (Cloudflare WARP kurun: winget install Cloudflare.Warp)")
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()

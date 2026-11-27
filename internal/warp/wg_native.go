@@ -188,7 +188,7 @@ func RegisterNativeWG() (*NativeWGProfile, error) {
 			continue
 		}
 		if len(parsed.Config.Peers) == 0 || parsed.Config.Interface.Addresses.V4 == "" || parsed.Config.Peers[0].PublicKey == "" {
-			lastErr = errors.New("Cloudflare kayıt yanıtı eksik alan içeriyor")
+			lastErr = errors.New("cloudflare kayıt yanıtı eksik alan içeriyor")
 			continue
 		}
 

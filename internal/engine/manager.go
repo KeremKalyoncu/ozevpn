@@ -713,7 +713,7 @@ func (m *Manager) startTorLocked(torBin string, useBridge bool, warpReadyCh <-ch
 		select {
 		case exitErr := <-exitedCh:
 			m.torCmd = nil
-			return fmt.Errorf("Tor erken kapandı (%v)", exitErr)
+			return fmt.Errorf("tor erken kapandı (%v)", exitErr)
 		case warpOK := <-warpReadyCh:
 			warpReadyCh = nil
 			// When fast WARP WireGuard is already ready in hybrid_eu mode, cap remaining Tor wait to 4s
@@ -730,7 +730,7 @@ func (m *Manager) startTorLocked(torBin string, useBridge bool, warpReadyCh <-ch
 			}
 			if time.Now().After(deadline) {
 				killStalledTor()
-				return errors.New("Tor zaman aşımına uğradı (hızlı WARP WireGuard ile devam ediliyor; Tor için Köprü Modu açılabilir)")
+				return errors.New("tor zaman aşımına uğradı (hızlı WARP WireGuard ile devam ediliyor; Tor için Köprü Modu açılabilir)")
 			}
 		}
 	}
@@ -750,7 +750,7 @@ func (m *Manager) RotateTorIdentity() (string, error) {
 	defer m.mu.Unlock()
 
 	if !m.running {
-		return "", errors.New("Yeni Avrupa IP almak için önce güç düğmesine basıp bağlanmalısın.")
+		return "", errors.New("yeni Avrupa IP almak için önce güç düğmesine basıp bağlanmalısın")
 	}
 	torBin := m.findBin(filepath.Join("tor", "tor", "tor.exe"))
 	if torBin == "" {

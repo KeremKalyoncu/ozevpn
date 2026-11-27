@@ -1,0 +1,41 @@
+name: Hata Bildirimi (Bug Report)
+description: Beklenmeyen bir davranış, bağlantı sorunu veya arayüz hatası bildir.
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: "Lütfen loglarda kişisel IP veya özel sunucu anahtarlarını paylaşmadan önce maskelediğinden emin ol."
+  - type: textarea
+    id: summary
+    attributes:
+      label: Sorun Özeti
+      placeholder: Ne olmasını bekliyordun, ne oldu?
+    validations:
+      required: true
+  - type: dropdown
+    id: mode
+    attributes:
+      label: Çalışma Modu
+      options:
+        - Standart Proxy Modu (127.0.0.1:10808)
+        - Yönetici Modu (Oyun TUN — ozevpn0)
+        - OpenWrt Router / VPS
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: OzeVPN Sürümü & Windows Sürümü
+      placeholder: "Örn: v6.1.0 · Windows 11 24H2"
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Tekrar Etme Adımları
+      placeholder: |
+        1. OzeVPN.exe çalıştırıldı
+        2. ...
+    validations:
+      required: true
