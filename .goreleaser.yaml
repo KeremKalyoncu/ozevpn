@@ -1,0 +1,40 @@
+version: 2
+
+project_name: OzeVPN
+
+before:
+  hooks:
+    - go vet ./...
+
+builds:
+  - id: ozevpn-core
+    main: ./cmd/ozevpn
+    binary: OzeVPN-core
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - windows
+    goarch:
+      - amd64
+    flags:
+      - -trimpath
+    ldflags:
+      - -H=windowsgui -s -w -X main.buildCommit={{.ShortCommit}} -X main.buildDate={{.Date}}
+
+archives:
+  - id: raw-binary
+    formats:
+      - binary
+    name_template: "OzeVPN-core-{{ .Version }}-{{ .Os }}-{{ .Arch }}"
+
+checksum:
+  name_template: "OzeVPN-core-checksums.txt"
+  algorithm: sha256
+
+release:
+  github:
+    owner: KeremKalyoncu
+    name: ozevpn
+  draft: false
+  prerelease: auto
+  mode: append

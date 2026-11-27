@@ -391,8 +391,8 @@ func TestSessionTokenBlocksUnauthenticatedLocalCallsAndBootstrapsUI(t *testing.T
 		t.Fatalf("expected 302 -> / on valid /auth, got %d loc=%q", recAuth.Code, recAuth.Header().Get("Location"))
 	}
 	cookies := recAuth.Result().Cookies()
-	if len(cookies) == 0 || cookies[0].Name != "ozevpn_session" || !cookies[0].HttpOnly {
-		t.Fatalf("expected HttpOnly ozevpn_session cookie, got %#v", cookies)
+	if len(cookies) == 0 || cookies[0].Name != "ozevpn_session" || !cookies[0].HttpOnly || !cookies[0].Secure {
+		t.Fatalf("expected HttpOnly+Secure ozevpn_session cookie, got %#v", cookies)
 	}
 
 	// 4. GET / with valid cookie injects meta token; POST with only cookie (no X-OzeVPN-Token) is still blocked (401)
