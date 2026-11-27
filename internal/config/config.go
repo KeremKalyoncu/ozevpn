@@ -12,7 +12,10 @@ import (
 	"ozevpn/internal/secfs"
 )
 
-var validDomainRe = regexp.MustCompile(`^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)+$`)
+var (
+	validDomainRe   = regexp.MustCompile(`^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)+$`)
+	protectSecretFn = secfs.ProtectSecret
+)
 
 type Mode string
 
@@ -271,9 +274,11 @@ func (s *Store) Save() error {
 	toSave.ClearCustomServer = false
 	toSave.CustomServerSet = false
 	if strings.TrimSpace(toSave.CustomServer) != "" {
-		if enc, err := secfs.ProtectSecret(toSave.CustomServer); err == nil {
-			toSave.CustomServer = enc
+		enc, err := protectSecretFn(toSave.CustomServer)
+		if err != nil {
+			return fmt.Errorf("özel sunucu kimlik bilgisi şifrelenemedi (DPAPI): %w", err)
 		}
+		toSave.CustomServer = enc
 	}
 	data, err := json.MarshalIndent(toSave, "", "  ")
 	if err != nil {

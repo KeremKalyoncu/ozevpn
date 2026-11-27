@@ -4,6 +4,7 @@ package killswitch
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -13,6 +14,7 @@ import (
 	"sync"
 
 	"ozevpn/internal/procutil"
+	"ozevpn/internal/secfs"
 )
 
 const rulePrefix = "OzeVPN-KS-"
@@ -32,10 +34,25 @@ type RuleSpec struct {
 	LocalPort string
 }
 
+// ProfilePolicy captures a single Windows Firewall profile's default inbound/outbound actions.
+type ProfilePolicy struct {
+	Name     string `json:"name"`     // Domain, Private, Public
+	Inbound  string `json:"inbound"`  // blockinbound | allowinbound
+	Outbound string `json:"outbound"` // blockoutbound | allowoutbound
+}
+
 var (
 	mu     sync.Mutex
 	active bool
 )
+
+func backupPath() string {
+	base := os.Getenv("LOCALAPPDATA")
+	if strings.TrimSpace(base) == "" {
+		base = os.TempDir()
+	}
+	return filepath.Join(base, "OzeVPN", "ks-firewall-backup.json")
+}
 
 // BuildRules deterministically constructs the Windows Firewall allowlist used while
 // the outbound default policy is set to blockoutbound (fail-closed WFP backing).
@@ -86,8 +103,143 @@ func BuildRules(opts Options) []RuleSpec {
 	return rules
 }
 
-// Enable installs the allowlist FIRST and then flips Windows Firewall outbound policy
-// to blockoutbound so zero cleartext traffic leaks if the tunnel drops or crashes.
+// ParseProfilePolicies normalizes PowerShell Get-NetFirewallProfile JSON into netsh policy tokens.
+func ParseProfilePolicies(rawJSON []byte) ([]ProfilePolicy, error) {
+	trimmed := bytes.TrimSpace(rawJSON)
+	if len(trimmed) == 0 {
+		return nil, errors.New("boş güvenlik duvarı profili yanıtı")
+	}
+	type psProfile struct {
+		Name                  string `json:"Name"`
+		DefaultInboundAction  any    `json:"DefaultInboundAction"`
+		DefaultOutboundAction any    `json:"DefaultOutboundAction"`
+	}
+	var items []psProfile
+	if trimmed[0] == '[' {
+		if err := json.Unmarshal(trimmed, &items); err != nil {
+			return nil, err
+		}
+	} else {
+		var single psProfile
+		if err := json.Unmarshal(trimmed, &single); err != nil {
+			return nil, err
+		}
+		items = []psProfile{single}
+	}
+	var out []ProfilePolicy
+	for _, it := range items {
+		name := strings.TrimSpace(it.Name)
+		if !isKnownProfile(name) {
+			continue
+		}
+		out = append(out, ProfilePolicy{
+			Name:     name,
+			Inbound:  normalizeAction(it.DefaultInboundAction, "blockinbound", "allowinbound"),
+			Outbound: normalizeAction(it.DefaultOutboundAction, "blockoutbound", "allowoutbound"),
+		})
+	}
+	if len(out) == 0 {
+		return nil, errors.New("geçerli Windows güvenlik duvarı profili bulunamadı")
+	}
+	return out, nil
+}
+
+func isKnownProfile(name string) bool {
+	switch strings.ToLower(name) {
+	case "domain", "private", "public":
+		return true
+	default:
+		return false
+	}
+}
+
+func normalizeAction(raw any, blockTok, allowTok string) string {
+	switch v := raw.(type) {
+	case string:
+		low := strings.ToLower(strings.TrimSpace(v))
+		if low == "block" || low == blockTok {
+			return blockTok
+		}
+		if low == "allow" || low == allowTok {
+			return allowTok
+		}
+	case float64:
+		// PowerShell NetSecurity enum: 0=NotConfigured, 2=Allow, 4=Block
+		if int(v) == 4 {
+			return blockTok
+		}
+		if int(v) == 2 {
+			return allowTok
+		}
+	}
+	// Windows defaults when NotConfigured: Inbound=Block, Outbound=Allow
+	if strings.Contains(blockTok, "inbound") {
+		return blockTok
+	}
+	return allowTok
+}
+
+// BuildRestoreArgs returns per-profile netsh advfirewall commands to restore a saved snapshot.
+func BuildRestoreArgs(policies []ProfilePolicy) [][]string {
+	if len(policies) == 0 {
+		return [][]string{
+			{"advfirewall", "set", "allprofiles", "firewallpolicy", "blockinbound,allowoutbound"},
+		}
+	}
+	var cmds [][]string
+	for _, p := range policies {
+		profArg := strings.ToLower(p.Name) + "profile"
+		inAct := p.Inbound
+		if inAct != "blockinbound" && inAct != "allowinbound" {
+			inAct = "blockinbound"
+		}
+		outAct := p.Outbound
+		if outAct != "blockoutbound" && outAct != "allowoutbound" {
+			outAct = "allowoutbound"
+		}
+		cmds = append(cmds, []string{"advfirewall", "set", profArg, "firewallpolicy", inAct + "," + outAct})
+	}
+	return cmds
+}
+
+func captureAndSaveBackupLocked() {
+	bp := backupPath()
+	// Never overwrite an existing backup created before Kill Switch engaged (protects across crashes/re-enables).
+	if _, err := os.Stat(bp); err == nil {
+		return
+	}
+	cmd := exec.Command(procutil.PowerShell(), "-NoProfile", "-NonInteractive", "-Command",
+		`Get-NetFirewallProfile | Select-Object Name, DefaultInboundAction, DefaultOutboundAction | ConvertTo-Json -Compress`)
+	procutil.HideWindow(cmd)
+	out, err := cmd.Output()
+	if err != nil {
+		return
+	}
+	policies, err := ParseProfilePolicies(out)
+	if err != nil {
+		return
+	}
+	data, err := json.MarshalIndent(policies, "", "  ")
+	if err != nil {
+		return
+	}
+	_ = secfs.WritePrivateFile(bp, data)
+}
+
+func loadSavedBackupLocked() []ProfilePolicy {
+	raw, err := os.ReadFile(backupPath())
+	if err != nil || len(raw) == 0 {
+		return nil
+	}
+	var policies []ProfilePolicy
+	if err := json.Unmarshal(raw, &policies); err != nil {
+		return nil
+	}
+	return policies
+}
+
+// Enable snapshots existing per-profile firewall policies, installs the allowlist FIRST,
+// and then flips Windows Firewall outbound policy to blockoutbound (fail-closed WFP backing).
 func Enable(opts Options) error {
 	mu.Lock()
 	defer mu.Unlock()
@@ -95,6 +247,7 @@ func Enable(opts Options) error {
 	if len(opts.AllowedPrograms) == 0 {
 		return errors.New("kill switch için en az bir izinli tünel ikilisi gerekli")
 	}
+	captureAndSaveBackupLocked()
 	// Clean any stale OzeVPN-KS-* rules before recreating atomically
 	cleanupRulesLocked()
 
@@ -131,14 +284,21 @@ func Enable(opts Options) error {
 	return nil
 }
 
-// Disable restores normal Windows Firewall outbound policy (allowoutbound) and deletes all OzeVPN-KS-* rules.
+// Disable restores each Windows Firewall profile's previously saved policy (or Windows default
+// blockinbound,allowoutbound if no backup exists) and deletes all OzeVPN-KS-* rules.
 func Disable() error {
 	mu.Lock()
 	defer mu.Unlock()
 	var firstErr error
 	if active || hasStaleRulesLocked() {
-		if err := runNetsh("advfirewall", "set", "allprofiles", "firewallpolicy", "blockinbound,allowoutbound"); err != nil {
-			firstErr = err
+		saved := loadSavedBackupLocked()
+		for _, args := range BuildRestoreArgs(saved) {
+			if err := runNetsh(args...); err != nil && firstErr == nil {
+				firstErr = err
+			}
+		}
+		if firstErr == nil {
+			_ = os.Remove(backupPath())
 		}
 	}
 	cleanupRulesLocked()
@@ -188,9 +348,9 @@ func DefaultWarpServiceExe() string {
 		`C:\Program Files\Cloudflare\Cloudflare WARP\warp-svc.exe`,
 		`C:\Program Files (x86)\Cloudflare\Cloudflare WARP\warp-svc.exe`,
 	}
-	for _, c := range candidates {
-		if _, err := os.Stat(c); err == nil {
-			return c
+	for _, p := range candidates {
+		if _, err := os.Stat(p); err == nil {
+			return p
 		}
 	}
 	return ""

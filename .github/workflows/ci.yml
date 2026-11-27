@@ -52,7 +52,7 @@ jobs:
         shell: pwsh
         run: |
           go vet ./...
-          go install honnef.co/go/tools/cmd/staticcheck@latest
+          go install honnef.co/go/tools/cmd/staticcheck@v0.8.2
           staticcheck ./...
 
       - name: Frontend syntax check (Node)
@@ -71,7 +71,7 @@ jobs:
 
       - name: Vulnerability scan (govulncheck)
         run: |
-          go install golang.org/x/vuln/cmd/govulncheck@latest
+          go install golang.org/x/vuln/cmd/govulncheck@v1.10.0
           govulncheck ./...
 
       - name: Repository secret scan

@@ -256,7 +256,9 @@ func buildInbounds(cfg config.Config, opts BuildOptions, hasWireGuard bool) []ma
 		"mtu":            tunMTU,
 		"auto_route":     true,
 		"strict_route":   true,
-		"stack":          "gvisor",
+		// "mixed" uses the native Windows kernel TCP stack for 2-4x faster TCP throughput
+		// while keeping gVisor for UDP/WireGuard compatibility.
+		"stack": "mixed",
 	})
 }
 

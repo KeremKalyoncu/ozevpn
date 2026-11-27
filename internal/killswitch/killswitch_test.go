@@ -42,3 +42,39 @@ func TestBuildRulesLANAllowedAndLANBlocked(t *testing.T) {
 		}
 	}
 }
+
+func TestFirewallPolicySnapshotParseAndRestore(t *testing.T) {
+	if runtime.GOOS != "windows" {
+		t.Skip("Windows-only firewall snapshot restore test")
+	}
+	// PowerShell Get-NetFirewallProfile returns enum integers: 0=NotConfigured, 2=Allow, 4=Block
+	sample := []byte(`[
+		{"Name":"Domain","DefaultInboundAction":4,"DefaultOutboundAction":2},
+		{"Name":"Private","DefaultInboundAction":2,"DefaultOutboundAction":4},
+		{"Name":"Public","DefaultInboundAction":0,"DefaultOutboundAction":0}
+	]`)
+	policies, err := ParseProfilePolicies(sample)
+	if err != nil {
+		t.Fatalf("ParseProfilePolicies failed: %v", err)
+	}
+	if len(policies) != 3 {
+		t.Fatalf("expected 3 profiles, got %d", len(policies))
+	}
+	cmds := BuildRestoreArgs(policies)
+	want := []string{
+		"advfirewall set domainprofile firewallpolicy blockinbound,allowoutbound",
+		"advfirewall set privateprofile firewallpolicy allowinbound,blockoutbound",
+		"advfirewall set publicprofile firewallpolicy blockinbound,allowoutbound",
+	}
+	for i, w := range want {
+		got := strings.Join(cmds[i], " ")
+		if got != w {
+			t.Fatalf("profile %d restore mismatch: got %q want %q", i, got, w)
+		}
+	}
+	// Fallback when no snapshot exists
+	fb := BuildRestoreArgs(nil)
+	if len(fb) != 1 || strings.Join(fb[0], " ") != "advfirewall set allprofiles firewallpolicy blockinbound,allowoutbound" {
+		t.Fatalf("unexpected fallback restore command: %+v", fb)
+	}
+}

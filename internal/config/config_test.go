@@ -105,3 +105,30 @@ func TestConfigCorruptBackupAndVersionRollbackCompatibility(t *testing.T) {
 		t.Fatalf("expected legacy plaintext custom_server to be DPAPI-encrypted on disk")
 	}
 }
+
+func TestSaveFailClosedWhenSecretProtectFails(t *testing.T) {
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "ozevpn.json")
+	st, err := NewStore(cfgPath)
+	if err != nil {
+		t.Fatalf("NewStore failed: %v", err)
+	}
+
+	orig := protectSecretFn
+	protectSecretFn = func(string) (string, error) {
+		return "", os.ErrPermission
+	}
+	defer func() { protectSecretFn = orig }()
+
+	secret := "vless://aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee@eu.example.com:443?security=tls"
+	err = st.Update(func(c *Config) {
+		c.CustomServer = secret
+	})
+	if err == nil {
+		t.Fatalf("expected Save() to fail closed when DPAPI protection fails")
+	}
+	raw, _ := os.ReadFile(cfgPath)
+	if strings.Contains(string(raw), secret) {
+		t.Fatalf("plaintext secret must never be written to disk when ProtectSecret fails")
+	}
+}
