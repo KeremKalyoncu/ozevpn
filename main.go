@@ -600,6 +600,17 @@ func buildHandlerWithAuth(store *config.Store, eng *engine.Manager, sessionToken
 		writeJSON(w, http.StatusOK, probe.Run(ctx, proxyPort))
 	}))
 
+	mux.HandleFunc("/api/trace", withConcurrencyLimit(2, func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(r.Context(), 8*time.Second)
+		defer cancel()
+		st := eng.Status()
+		proxyPort := 0
+		if st.Running && st.ProxyPort > 0 {
+			proxyPort = st.ProxyPort
+		}
+		writeJSON(w, http.StatusOK, probe.FetchTraceOnly(ctx, proxyPort))
+	}))
+
 	mux.HandleFunc("/api/speedtest", withConcurrencyLimit(1, func(w http.ResponseWriter, r *http.Request) {
 		ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
 		defer cancel()

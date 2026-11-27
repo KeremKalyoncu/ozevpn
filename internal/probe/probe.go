@@ -102,6 +102,24 @@ func Run(ctx context.Context, proxyPort int) Report {
 	return report
 }
 
+// FetchTraceOnly performs a single lightweight Cloudflare trace lookup (~250 bytes)
+// through proxyPort (when > 0) so the UI exit node badge updates immediately on connect
+// without running a full 6-target reachability sweep.
+func FetchTraceOnly(ctx context.Context, proxyPort int) TraceInfo {
+	tr := &http.Transport{
+		DialContext:         (&net.Dialer{Timeout: 5 * time.Second}).DialContext,
+		TLSHandshakeTimeout: 5 * time.Second,
+		DisableKeepAlives:   true,
+	}
+	if proxyPort > 0 {
+		if u, err := url.Parse(fmt.Sprintf("http://127.0.0.1:%d", proxyPort)); err == nil {
+			tr.Proxy = http.ProxyURL(u)
+		}
+	}
+	client := &http.Client{Timeout: 7 * time.Second, Transport: tr}
+	return fetchTrace(ctx, client)
+}
+
 func fetchTrace(ctx context.Context, client *http.Client) TraceInfo {
 	var info TraceInfo
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "https://cloudflare.com/cdn-cgi/trace", nil)

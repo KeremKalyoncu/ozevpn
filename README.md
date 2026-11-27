@@ -1,27 +1,38 @@
-# OzeVPN v6
+# OzeVPN v6.1
 
-> **Sıfır üçüncü parti Go/npm bağımlılıklı, tek-dosya (`.exe`), hibrit yönlendirmeli ve sızıntı-korumalı yerel Windows masaüstü VPN & sansür aşma motoru.**
+> **Sıfır üçüncü parti Go/npm bağımlılıklı, tek-dosya (`.exe`), yerleşik Cloudflare WARP WireGuard (TCP+UDP) + Avrupa Tor hibrit motorlu, Canlı Sinyal Kokpiti arayüzlü yerel Windows masaüstü VPN uygulaması.**
 
 [![Platform](https://img.shields.io/badge/Platform-Windows%2010%2F11%20x64-0078D6)](#kurulum--hızlı-başlangıç)
-[![Core](https://img.shields.io/badge/Core-sing--box%201.14%2B%20%7C%20Tor%20%7C%20WARP-10B981)](#mimari)
+[![Core](https://img.shields.io/badge/Core-sing--box%201.14%2B%20%7C%20WARP%20WG%20UDP%20%7C%20Tor-0EA5E9)](#mimari)
 [![Dependencies](https://img.shields.io/badge/Go%20%2F%20NPM%20Deps-0%20External-6366F1)](#mimari)
 [![Security](https://img.shields.io/badge/Master%20VPN%20Audit-88.7%2F100%20(0%20FAIL)-22C55E)](#güvenlik-ve-gizlilik-mimarisi)
+[![UI Craft](https://img.shields.io/badge/Frontend%20Craft%20v4-85.4%2F100%20(Craft%2095.7)-0EA5E9)](docs/frontend-craft/DESIGN.md)
+
+---
+
+## Canlı Sinyal Kokpiti (Signal Cockpit UI)
+
+| Koyu Tema (Obsidian Cockpit) | Açık Tema (Cool Porcelain) |
+| :---: | :---: |
+| ![OzeVPN v6.1 Koyu Tema](docs/screenshots/signal-cockpit-dark.png) | ![OzeVPN v6.1 Açık Tema](docs/screenshots/signal-cockpit-light.png) |
 
 ---
 
 ## Öne Çıkan Özellikler
 
 - **Tek Dosya Masaüstü Uygulaması (`dist/OzeVPN.exe`):** `sing-box 1.14.4`, `Tor 0.4.9.17`, `lyrebird` (Snowflake WebRTC PT) ve GeoIP veritabanlarını 5/5 SHA256 doğrulamayla tek ikilide toplar. Electron/Chromium şişkinliği olmadan yerel Edge/Chrome `--app` penceresi ve Win32 System Tray (özel kalkan ikonu) ile çalışır.
+- **Yerleşik Cloudflare WARP WireGuard (Tam Layer-3 TCP + UDP — Harici Kurulumsuz):**
+  - `sing-box 1.14+` içinde doğrudan çalışan yerel WireGuard uç noktası (`warp-fast`) otomatik X25519 anahtar çiftiyle kaydolur ve özel anahtarı Windows **DPAPI + NTFS DACL** ile saklar.
+  - **Roblox (RakNet UDP / Error 279 koruması)**, **Discord Ses (UDP)** ve online oyunlar için tam UDP tüneli, `MTU 1280` eşitlemesi ve `25 sn` CGNAT keepalive ile çalışır; WireGuard UDP engellenen ağlarda otomatik `warp-cli` / Tor yedeğine geçer.
 - **Paralel Hibrit Çıkış Motoru (4 Profil):**
-  - **⚡ Hibrit (`hybrid_eu`, Varsayılan):** TR resmi (`.gov.tr`, `.edu.tr`), bankalar ve 4K/oyun indirme CDN'leri direkt tam hızda; TR çıkışında engellenen servisler (`roblox.com`, `wattpad.com` ve kullanıcı listesi) Avrupa Tor (`DE/NL/BG/RO/AT`) üzerinden; geri kalan tüm dünya düşük gecikmeli WARP (otomatik `MASQUE ↔ WireGuard`) üzerinden akar. WARP yanıt vermezse gerçek TCP port kontrolüyle kesintisiz Avrupa Tor'a devreder.
-  - **🌍 Saf Avrupa Tor (`tor_eu`):** Harici kurulum gerektirmeden tüm trafiği Avrupa Tor (+ isteğe bağlı Snowflake köprü) üzerinden çıkarır.
-  - **🚀 Sadece Hızlı WARP (`warp_fast`):** En düşük gecikmeli DPI aşma katmanı.
-  - **🔑 Özel Sunucu (`custom`):** `VLESS+TLS/Reality`, **WireGuard `.conf` (Post-Quantum `PresharedKey` destekli)** veya izinli `sing-box` JSON.
-- **Standart Proxy + Yönetici (`🎮 Oyun TUN`) Akıllı Geçişi:**
+  - **Hibrit (`hybrid_eu`, Varsayılan):** TR resmi (`.gov.tr`, `.edu.tr`), bankalar ve 4K/oyun indirme CDN'leri direkt tam hızda; Roblox, Discord ve genel internet yerleşik WARP WireGuard (TCP+UDP) üzerinden; AB konumu gerektiren siteler (`paypal.com`, `booking.com`, `wattpad.com` ve kullanıcı listesi) yalnızca TCP olarak Avrupa Tor üzerinden akar.
+  - **Saf Avrupa Tor (`tor_eu`):** Harici kurulum gerektirmeden tüm TCP trafiğini Avrupa Tor (+ isteğe bağlı Snowflake köprü) üzerinden çıkarır.
+  - **Sadece Hızlı WARP (`warp_fast`):** En düşük gecikmeli tam TCP+UDP tüneli.
+  - **Özel Sunucu (`custom`):** `VLESS+TLS/Reality`, **WireGuard `.conf` (Post-Quantum `PresharedKey` destekli)** veya izinli `sing-box` JSON.
+- **Standart Proxy + Yönetici (`Oyun TUN`) Akıllı Geçişi:**
   - **Standart Mod:** UAC izni istemeden Windows WinINET proxy (`127.0.0.1:10808`) üzerinden tarayıcı ve proxy uyumlu uygulamaları korur.
-  - **Yönetici Modu (`🎮 Oyun TUN`):** `-no-browser -takeover` ile mevcut pencereyi kapatmadan devralır; çift yığınlı (`IPv4 + IPv6`, `MTU 1400`) `ozevpn0` TUN arayüzü açar, oyun UDP trafiğini yakalar ve isteğe bağlı **Windows Firewall Fail-Closed Kill Switch**'i etkinleştirir.
-- **Kesintisiz Hot-Reload & Site Kurtarıcı:** Kural, mod veya reklam kalkanı değişiklikleri `<1 sn` içinde canlı uygulanır. Açılmayan bir siteyi tek tıkla 3 yoldan test edip (`Direkt / Aktif Tünel / Avrupa Tor`) Avrupa çıkışına ekleyebilirsiniz.
-- **Modern, Erişilebilir Arayüz:** Açık / Koyu tema (`prefers-color-scheme`), WCAG 2.2 AA kontrast, WAI-ARIA klavye erişimi, ekran paylaşımı için tek tık IP/MAC maskeleme ve `<120 KB` toplam web bütçesi.
+  - **Yönetici Modu (`Oyun TUN`):** `-no-browser -takeover` ile mevcut pencereyi kapatmadan devralır; çift yığınlı (`IPv4 + IPv6`, WireGuard ile uyumlu `MTU 1280`) `ozevpn0` TUN arayüzü açar, oyun UDP trafiğini yakalar ve isteğe bağlı **Windows Firewall Fail-Closed Kill Switch**'i etkinleştirir.
+- **Canlı Sinyal Kokpiti Arayüzü ([DESIGN.md](docs/frontend-craft/DESIGN.md)):** Tek satır `47px` üst çubuk + erişilebilir `Araçlar` menüsü, gerçek verili **Canlı Tünel Rota Şeması** (`Cihaz → Katman → Tünel → Çıkış`), bağlanınca otomatik çıkış konumu tespiti, 27 adet tutarlı `1.75px` inline SVG ikon (`0` OS emojisi), erişilebilir CSS Switch'ler, 3'lü `aria-live` Toast yığını, hız/gecikme telemetri şeridi, klavye kısayolları (`Alt+C`, `Alt+T`, `/`) ve `<120 KB` toplam web bütçesi.
 
 ---
 

@@ -782,15 +782,27 @@ async function refreshNetInfo() {
     }
   }
 }
+async function refreshExitTrace() {
+  if (appConfig && appConfig.disable_startup_net_probe) return;
+  try {
+    const t = await api('/api/trace', {}, 9000);
+    if (t && t.ip) {
+      lastProbeReport = { timestamp: nowStamp(), via_proxy: !!(engineStatus && engineStatus.running), trace: t };
+      renderProbeSummary();
+    }
+  } catch {}
+}
 async function togglePower() {
   if (busy) return;
   busy = true;
   els.powerBtn.disabled = true;
+  let connectedNow = false;
   try {
     const isRunning = engineStatus && engineStatus.running;
     if (isRunning) {
       addLog('OzeVPN motoru durduruluyor...');
       await api('/api/disconnect', { method: 'POST' }, 20000);
+      if (els.coloBadge) els.coloBadge.textContent = '—';
       addLog('Bağlantı kesildi, sistem normal hatta döndü.');
       showToast('Bağlantı kesildi — normal internete dönüldü.', 'info', 'power');
     } else {
@@ -801,6 +813,7 @@ async function togglePower() {
       addLog('OzeVPN v6 (sing-box Hibrit Motor) başlatılıyor...');
       const res = await api('/api/connect', { method: 'POST' }, 60000);
       (res.logs || []).forEach(addLog);
+      connectedNow = true;
       showToast('OzeVPN bağlandı — şifreli tünel aktif.', 'ok', 'power');
     }
   } catch (err) {
@@ -810,6 +823,7 @@ async function togglePower() {
     busy = false;
     els.powerBtn.disabled = false;
     await refreshStatus(true);
+    if (connectedNow) refreshExitTrace();
   }
 }
 async function runProbe() {
