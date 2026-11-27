@@ -29,7 +29,7 @@ OzeVPN yalnızca yerel cihazda (`127.0.0.1:7777`) çalışan, bulut sunucusu ve 
 1. Yeni resmi sürümleri yalnızca `SagerNet/sing-box` veya `dist.torproject.org` üzerinden GPG/SHA256 doğrulayarak indir.
 2. Tüm 5 dosya (`sing-box.exe`, `tor.exe`, `lyrebird.exe`, `geoip`, `geoip6`) için `Get-FileHash -Algorithm SHA256` özetlerini `BINARY_CHECKSUMS.txt` ve `THIRD_PARTY_LICENSES.md` dosyalarına işle.
 3. Bilinen kritik zafiyet içeren eski sürümlere geri dönüş (rollback) yasaktır; her yayın öncesi `gofmt -l .`, `go vet ./...`, `go test -race ./...`, `govulncheck ./...` ve `.\scripts\build-single-exe.ps1` zorunlu yayın kapısıdır.
-4. Dağıtılan `dist\OzeVPN.exe` dosyası `dist\OzeVPN.exe.sha256` ve `dist\sbom.cdx.json` ile yayımlanır (sertifika mevcutsa `$env:OZEVPN_SIGN_THUMBPRINT` ile Authenticode imzalanır).
+4. Dağıtılan `dist\OzeVPN.exe` dosyası `dist\OzeVPN.exe.sha256`, `dist\sbom.cdx.json` ve Sigstore SLSA Build Provenance ile yayımlanır; kod imzalama politikası için bkz. [CODE_SIGNING_POLICY.md](CODE_SIGNING_POLICY.md).
 
 ## 4. Güvenlik Bildirimi & Koordineli Açıklama Politikası (Reporting & Disclosure Policy)
 
