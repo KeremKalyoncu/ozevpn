@@ -53,6 +53,11 @@ const els = {
   emergencyResetBtn: $('emergencyResetBtn'),
   adBlockToggle: $('adBlockToggle'),
   killSwitchToggle: $('killSwitchToggle'),
+  shareLanToggle: $('shareLanToggle'),
+  lanShareBar: $('lanShareBar'),
+  lanShareAddr: $('lanShareAddr'),
+  copyLanBtn: $('copyLanBtn'),
+  liveTrafficVal: $('liveTrafficVal'),
   blockLanToggle: $('blockLanToggle'),
   disableNetProbeToggle: $('disableNetProbeToggle'),
   torBridgeToggle: $('torBridgeToggle'),
@@ -557,6 +562,17 @@ function renderInstall() {
     els.toggleResidentBtn.textContent = 'Yerleşik Yap';
   }
 }
+function formatBytes(n) {
+  const b = Number(n) || 0;
+  if (b < 1024) return `${b} B`;
+  if (b < 1048576) return `${(b / 1024).toFixed(1)} KB`;
+  if (b < 1073741824) return `${(b / 1048576).toFixed(1)} MB`;
+  return `${(b / 1073741824).toFixed(2)} GB`;
+}
+function maskLanAddr(addr) {
+  if (!addr || !maskSensitiveIP) return addr;
+  return addr.replace(/^(\d+\.\d+)\.\d+\.\d+/, '$1.•••.•••');
+}
 function renderStatus() {
   if (!engineStatus) return;
   const st = (engineStatus.state || 'Disconnected').toLowerCase();
@@ -596,6 +612,25 @@ function renderStatus() {
       els.uptimeBadge.classList.remove('hidden');
     } else {
       els.uptimeBadge.classList.add('hidden');
+    }
+  }
+  if (els.liveTrafficVal) {
+    if (isConn) {
+      const tot = (engineStatus.total_down_bytes || 0) + (engineStatus.total_up_bytes || 0);
+      els.liveTrafficVal.textContent = `↓ ${formatBytes(engineStatus.down_bps)}/s · ↑ ${formatBytes(engineStatus.up_bps)}/s · ${formatBytes(tot)}`;
+    } else {
+      els.liveTrafficVal.textContent = '—';
+    }
+  }
+  if (els.lanShareBar && els.lanShareAddr) {
+    const wantShare = !!(appConfig && appConfig.share_lan_proxy) || !!engineStatus.lan_share_active;
+    els.lanShareBar.classList.toggle('hidden', !wantShare);
+    if (wantShare) {
+      const addr = engineStatus.lan_share_addr;
+      els.lanShareAddr.textContent = (isConn && addr)
+        ? `Wi-Fi Proxy: ${maskLanAddr(addr)}`
+        : 'Bağlanınca telefon/TV proxy adresi burada görünür';
+      if (els.copyLanBtn) els.copyLanBtn.disabled = !(isConn && addr);
     }
   }
   if (isConn) {
@@ -643,6 +678,7 @@ function renderConfig() {
   els.customServerBox.classList.toggle('hidden', els.engineProfileSelect.value !== 'custom');
   if (els.adBlockToggle) els.adBlockToggle.checked = !!appConfig.ad_block_speed;
   if (els.killSwitchToggle) els.killSwitchToggle.checked = !!appConfig.kill_switch;
+  if (els.shareLanToggle) els.shareLanToggle.checked = !!appConfig.share_lan_proxy;
   if (els.blockLanToggle) els.blockLanToggle.checked = !!appConfig.block_lan;
   if (els.disableNetProbeToggle) els.disableNetProbeToggle.checked = !!appConfig.disable_startup_net_probe;
   if (els.clearServerBtn) els.clearServerBtn.classList.toggle('hidden', !appConfig.custom_server_set);
@@ -1057,6 +1093,30 @@ if (els.killSwitchToggle) {
     els.killSwitchToggle.disabled = true;
     await commitConfig((cfg) => { cfg.kill_switch = nextVal; }, `Kill Switch: ${nextVal ? 'Açık (Oyun TUN bağlantısında aktif)' : 'Kapalı'}`);
     els.killSwitchToggle.disabled = false;
+  });
+}
+if (els.shareLanToggle) {
+  els.shareLanToggle.addEventListener('change', async () => {
+    const nextVal = els.shareLanToggle.checked;
+    els.shareLanToggle.disabled = true;
+    await commitConfig((cfg) => {
+      cfg.share_lan_proxy = nextVal;
+      if (nextVal) cfg.block_lan = false;
+    }, `Ev Ağı Paylaşımı (LAN Proxy): ${nextVal ? 'Açık' : 'Kapalı'}`, true);
+    els.shareLanToggle.disabled = false;
+    renderStatus();
+  });
+}
+if (els.copyLanBtn) {
+  els.copyLanBtn.addEventListener('click', async () => {
+    const addr = engineStatus && engineStatus.lan_share_addr;
+    if (!addr) return;
+    try {
+      await navigator.clipboard.writeText(addr);
+      showToast(`Proxy adresi kopyalandı: ${maskLanAddr(addr)}`, 'ok', 'lan-copy');
+    } catch {
+      showToast('Kopyalanamadı — adresi elle seçebilirsin.', 'info', 'lan-copy');
+    }
   });
 }
 if (els.blockLanToggle) {

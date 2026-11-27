@@ -9,6 +9,8 @@
 <br/>
 <br/>
 
+**Türkçe · [English](README.en.md)**
+
 [![CI](https://github.com/KeremKalyoncu/ozevpn/actions/workflows/ci.yml/badge.svg)](https://github.com/KeremKalyoncu/ozevpn/actions/workflows/ci.yml)
 [![CodeQL](https://github.com/KeremKalyoncu/ozevpn/actions/workflows/codeql.yml/badge.svg)](https://github.com/KeremKalyoncu/ozevpn/actions/workflows/codeql.yml)
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/KeremKalyoncu/ozevpn/badge)](https://scorecard.dev/viewer/?uri=github.com/KeremKalyoncu/ozevpn)
@@ -40,6 +42,10 @@ Türkçe **"Öz"** *(çekirdek, saf, aracısız)* ve el değmemiş doğal geçit
 ---
 
 ## Arayüz (Signal Cockpit UI)
+
+<div align="center">
+  <img src="docs/screenshots/demo.gif" alt="OzeVPN Canlı Arayüz Demosu" width="90%" />
+</div>
 
 | Koyu Tema (Obsidian Cockpit) | Açık Tema (Cool Porcelain) |
 | :---: | :---: |
@@ -135,11 +141,17 @@ Her sürüm ve commit şu otomatik güvenlik kapılarından geçer:
 
 ## Kurulum & Hızlı Başlangıç
 
-### Son Kullanıcı (Tek Dosya `.exe`)
+### Son Kullanıcı — Tek Satır Kurulum (SHA-256 Doğrulamalı)
+```powershell
+irm https://raw.githubusercontent.com/KeremKalyoncu/ozevpn/main/scripts/install.ps1 | iex
+```
+
+### Veya Taşınabilir Tek Dosya (`.exe`)
 1. [Releases](https://github.com/KeremKalyoncu/ozevpn/releases) sayfasından `OzeVPN.exe` dosyasını indirin ve isteğe bağlı olarak `OzeVPN.exe.sha256` ile özetini doğrulayın.
 2. Çift tıklayın — kontrol paneli otomatik olarak güvenli oturumla açılır ve Sistem Tepsisine (Tray) yerleşir.
 3. Tam sistem / oyun UDP / Kill Switch koruması için üst çubuktan **Oyun TUN** butonuna tıklayın.
-4. **Tam Temiz Kaldırma:**
+4. Aynı Wi-Fi'deki telefon/TV'leri paylaşmak için **Ev Ağıyla Paylaş (Telefon / TV)** anahtarını açın.
+5. **Tam Temiz Kaldırma:**
    ```powershell
    .\dist\OzeVPN.exe -uninstall
    ```

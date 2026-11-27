@@ -1,0 +1,22 @@
+# yaml-language-server: $schema=https://aka.ms/winget-manifest.defaultLocale.1.6.0.schema.json
+PackageIdentifier: KeremKalyoncu.OzeVPN
+PackageVersion: 6.1.0
+PackageLocale: en-US
+Publisher: Kerem Kalyoncu
+PublisherUrl: https://github.com/KeremKalyoncu
+PublisherSupportUrl: https://github.com/KeremKalyoncu/ozevpn/issues
+PackageName: OzeVPN
+PackageUrl: https://github.com/KeremKalyoncu/ozevpn
+License: GPL-3.0
+LicenseUrl: https://github.com/KeremKalyoncu/ozevpn/blob/main/LICENSE
+ShortDescription: Zero-dependency single-EXE Windows hybrid VPN powered by sing-box, native Cloudflare WARP WireGuard (TCP+UDP), and EU Tor.
+Tags:
+  - vpn
+  - wireguard
+  - sing-box
+  - tor
+  - privacy
+  - split-tunneling
+  - kill-switch
+ManifestType: defaultLocale
+ManifestVersion: 1.6.0

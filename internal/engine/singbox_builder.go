@@ -64,13 +64,15 @@ func pickSafeTUNv4Subnet() string {
 }
 
 type BuildOptions struct {
-	WarpAvailable bool
-	WarpWG        *warp.NativeWGProfile
-	TorAvailable  bool
-	IsAdmin       bool
-	MixedPort     int
-	WarpPort      int
-	TorPort       int
+	WarpAvailable   bool
+	WarpWG          *warp.NativeWGProfile
+	TorAvailable    bool
+	IsAdmin         bool
+	MixedPort       int
+	WarpPort        int
+	TorPort         int
+	TelemetryAddr   string
+	TelemetrySecret string
 }
 
 type exitConfig struct {
@@ -90,9 +92,9 @@ func BuildSingBoxConfig(cfg config.Config, opts BuildOptions) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	inbounds := buildInbounds(opts, len(exits.endpoints) > 0)
+	inbounds := buildInbounds(cfg, opts, len(exits.endpoints) > 0)
 	rules, dnsRules, finalOut := buildRouteAndDNSRules(cfg, opts, exits)
-	sbConfig := assembleSingBoxConfig(inbounds, exits, rules, dnsRules, finalOut)
+	sbConfig := assembleSingBoxConfig(inbounds, exits, rules, dnsRules, finalOut, opts)
 
 	b, err := json.MarshalIndent(sbConfig, "", "  ")
 	if err != nil {
@@ -225,12 +227,16 @@ func socksOutbound(tag string, port int) map[string]any {
 	}
 }
 
-func buildInbounds(opts BuildOptions, hasWireGuard bool) []map[string]any {
+func buildInbounds(cfg config.Config, opts BuildOptions, hasWireGuard bool) []map[string]any {
+	mixedListen := "127.0.0.1"
+	if cfg.ShareLANProxy && !cfg.BlockLAN {
+		mixedListen = "0.0.0.0"
+	}
 	inbounds := []map[string]any{
 		{
 			"type":        "mixed",
 			"tag":         "mixed-in",
-			"listen":      "127.0.0.1",
+			"listen":      mixedListen,
 			"listen_port": opts.MixedPort,
 		},
 	}
@@ -325,7 +331,7 @@ func buildRouteAndDNSRules(cfg config.Config, opts BuildOptions, exits exitConfi
 	return rules, dnsRules, finalOut
 }
 
-func assembleSingBoxConfig(inbounds []map[string]any, exits exitConfig, rules, dnsRules []map[string]any, finalOut string) map[string]any {
+func assembleSingBoxConfig(inbounds []map[string]any, exits exitConfig, rules, dnsRules []map[string]any, finalOut string, opts BuildOptions) map[string]any {
 	sbConfig := map[string]any{
 		"log": map[string]any{
 			"level":     "warn",
@@ -361,6 +367,14 @@ func assembleSingBoxConfig(inbounds []map[string]any, exits exitConfig, rules, d
 	}
 	if len(exits.endpoints) > 0 {
 		sbConfig["endpoints"] = exits.endpoints
+	}
+	if opts.TelemetryAddr != "" {
+		sbConfig["experimental"] = map[string]any{
+			"clash_api": map[string]any{
+				"external_controller": opts.TelemetryAddr,
+				"secret":              opts.TelemetrySecret,
+			},
+		}
 	}
 	return sbConfig
 }

@@ -343,6 +343,7 @@ func applyIncomingConfig(c *config.Config, incoming config.Config) {
 	c.TorBridge = incoming.TorBridge
 	c.KillSwitch = incoming.KillSwitch
 	c.BlockLAN = incoming.BlockLAN
+	c.ShareLANProxy = incoming.ShareLANProxy
 	c.DisableStartupNetProbe = incoming.DisableStartupNetProbe
 	if incoming.InstallStyle != "" {
 		c.InstallStyle = incoming.InstallStyle

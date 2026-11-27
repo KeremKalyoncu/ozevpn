@@ -67,8 +67,14 @@ type EngineState struct {
 	WarpNativeWG     bool   `json:"warp_native_wg"`
 	AdBlockActive    bool   `json:"ad_block_active"`
 	DNSProtected     bool   `json:"dns_protected"`
+	LANShareActive   bool   `json:"lan_share_active"`
+	LANShareAddr     string `json:"lan_share_addr,omitempty"`
 	ProxyPort        int    `json:"proxy_port"`
 	UptimeSec        int64  `json:"uptime_sec"`
+	DownBytesPerSec  int64  `json:"down_bps"`
+	UpBytesPerSec    int64  `json:"up_bps"`
+	TotalDownBytes   int64  `json:"total_down_bytes"`
+	TotalUpBytes     int64  `json:"total_up_bytes"`
 	WatchdogRestarts int64  `json:"watchdog_restarts"`
 	TorRestarts      int64  `json:"tor_restarts"`
 	LastError        string `json:"last_error,omitempty"`
@@ -100,6 +106,11 @@ type Manager struct {
 	activeProf       string
 	captureLayer     string
 	adBlockActive    bool
+	lanShareActive   bool
+	lanShareAddr     string
+	telemetryAddr    string
+	telemetrySecret  string
+	traffic          *trafficTracker
 	torBridge        bool
 	startedAt        time.Time
 	lastErr          string
@@ -118,6 +129,7 @@ func NewManager(baseDir string, wc *warp.Client) *Manager {
 		mixedPort:  defaultMixedPort,
 		torPort:    defaultTorPort,
 		warpPort:   defaultWarpPort,
+		traffic:    newTrafficTracker(),
 	}
 	m.CleanupStaleOnBoot()
 	return m
@@ -182,6 +194,10 @@ func (m *Manager) Status() EngineState {
 	if m.running && !m.startedAt.IsZero() {
 		up = int64(time.Since(m.startedAt).Seconds())
 	}
+	var downBps, upBps, totalDown, totalUp int64
+	if m.running && m.traffic != nil {
+		downBps, upBps, totalDown, totalUp = m.traffic.Snapshot()
+	}
 	st := EngineState{
 		Running:          m.running,
 		State:            m.state,
@@ -198,8 +214,14 @@ func (m *Manager) Status() EngineState {
 		WarpNativeWG:     m.warpWG != nil,
 		AdBlockActive:    m.running && m.adBlockActive,
 		DNSProtected:     m.running,
+		LANShareActive:   m.running && m.lanShareActive,
+		LANShareAddr:     m.lanShareAddr,
 		ProxyPort:        m.mixedPort,
 		UptimeSec:        up,
+		DownBytesPerSec:  downBps,
+		UpBytesPerSec:    upBps,
+		TotalDownBytes:   totalDown,
+		TotalUpBytes:     totalUp,
 		WatchdogRestarts: m.watchdogRestarts,
 		TorRestarts:      m.torRestarts,
 		LastError:        m.lastErr,
@@ -259,14 +281,18 @@ func (m *Manager) Start(cfg config.Config) ([]string, error) {
 	m.enableKillSwitchIfNeeded(cfg, admin, sbBin, torBin, addLog)
 	prep := m.prepareExitsLocked(cfg, sbBin, torBin, addLog, appendLogs)
 
+	telemetryAddr := pickLoopbackTelemetryAddr()
+	telemetrySecret := generateTelemetrySecret()
 	cfgBytes, err := BuildSingBoxConfig(cfg, BuildOptions{
-		WarpAvailable: prep.warpAvailable,
-		WarpWG:        prep.nativeWG,
-		TorAvailable:  prep.torAvailable,
-		IsAdmin:       admin,
-		MixedPort:     m.mixedPort,
-		WarpPort:      m.warpPort,
-		TorPort:       m.torPort,
+		WarpAvailable:   prep.warpAvailable,
+		WarpWG:          prep.nativeWG,
+		TorAvailable:    prep.torAvailable,
+		IsAdmin:         admin,
+		MixedPort:       m.mixedPort,
+		WarpPort:        m.warpPort,
+		TorPort:         m.torPort,
+		TelemetryAddr:   telemetryAddr,
+		TelemetrySecret: telemetrySecret,
 	})
 	if err != nil {
 		return logs, m.failStartLocked(err.Error())
@@ -298,6 +324,23 @@ func (m *Manager) Start(cfg config.Config) ([]string, error) {
 	m.state = "Connected"
 	m.activeProf = cfg.EngineProfile
 	m.adBlockActive = cfg.AdBlockSpeed
+	m.lanShareActive = cfg.ShareLANProxy && !cfg.BlockLAN
+	if m.lanShareActive {
+		if lanIP := detectPrimaryLANIPv4(); lanIP != "" {
+			m.lanShareAddr = fmt.Sprintf("%s:%d", lanIP, m.mixedPort)
+			addLog(fmt.Sprintf("Ev ağı paylaşımı (LAN Proxy) aktif → %s (Telefon/TV Wi-Fi Proxy)", m.lanShareAddr))
+		} else {
+			m.lanShareAddr = fmt.Sprintf("0.0.0.0:%d", m.mixedPort)
+		}
+	} else {
+		m.lanShareAddr = ""
+	}
+	m.telemetryAddr = telemetryAddr
+	m.telemetrySecret = telemetrySecret
+	if m.traffic != nil && telemetryAddr != "" {
+		m.traffic.Reset()
+		m.traffic.Start(telemetryAddr, telemetrySecret)
+	}
 	m.warpWG = prep.nativeWG
 	m.warpCLIUsed = prep.warpCLIStarted
 	m.torNeeded = prep.torAvailable
@@ -779,14 +822,22 @@ func (m *Manager) ReloadRouting(cfg config.Config) (string, error) {
 		return "", errors.New("bin/sing-box.exe bulunamadı")
 	}
 
+	telemetryAddr := m.telemetryAddr
+	telemetrySecret := m.telemetrySecret
+	if telemetryAddr == "" {
+		telemetryAddr = pickLoopbackTelemetryAddr()
+		telemetrySecret = generateTelemetrySecret()
+	}
 	cfgBytes, err := BuildSingBoxConfig(cfg, BuildOptions{
-		WarpAvailable: m.warpWG != nil || m.warpClient.Status().State == "Connected",
-		WarpWG:        m.warpWG,
-		TorAvailable:  procAlive(m.torCmd),
-		IsAdmin:       IsAdmin(),
-		MixedPort:     m.mixedPort,
-		WarpPort:      m.warpPort,
-		TorPort:       m.torPort,
+		WarpAvailable:   m.warpWG != nil || m.warpClient.Status().State == "Connected",
+		WarpWG:          m.warpWG,
+		TorAvailable:    procAlive(m.torCmd),
+		IsAdmin:         IsAdmin(),
+		MixedPort:       m.mixedPort,
+		WarpPort:        m.warpPort,
+		TorPort:         m.torPort,
+		TelemetryAddr:   telemetryAddr,
+		TelemetrySecret: telemetrySecret,
 	})
 	if err != nil {
 		return "", err
@@ -823,6 +874,19 @@ func (m *Manager) ReloadRouting(cfg config.Config) (string, error) {
 	m.sbCmd = cmd
 	m.sbLogFile = sbLogFile
 	m.adBlockActive = cfg.AdBlockSpeed
+	m.lanShareActive = cfg.ShareLANProxy && !cfg.BlockLAN
+	if m.lanShareActive {
+		if lanIP := detectPrimaryLANIPv4(); lanIP != "" {
+			m.lanShareAddr = fmt.Sprintf("%s:%d", lanIP, m.mixedPort)
+		}
+	} else {
+		m.lanShareAddr = ""
+	}
+	m.telemetryAddr = telemetryAddr
+	m.telemetrySecret = telemetrySecret
+	if m.traffic != nil && telemetryAddr != "" {
+		m.traffic.Start(telemetryAddr, telemetrySecret)
+	}
 	FlushDNSCache()
 	go func(c *exec.Cmd, f *cappedFileWriter) {
 		_ = c.Wait()
@@ -845,6 +909,9 @@ func (m *Manager) EmergencyReset() {
 }
 
 func (m *Manager) stopLocked() {
+	if m.traffic != nil {
+		m.traffic.Reset()
+	}
 	if m.stopWatch != nil {
 		close(m.stopWatch)
 		m.stopWatch = nil
@@ -881,5 +948,9 @@ func (m *Manager) stopLocked() {
 	m.warpWG = nil
 	m.captureLayer = ""
 	m.adBlockActive = false
+	m.lanShareActive = false
+	m.lanShareAddr = ""
+	m.telemetryAddr = ""
+	m.telemetrySecret = ""
 	m.startedAt = time.Time{}
 }

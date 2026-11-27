@@ -155,6 +155,10 @@
 <span class="tele-label">IPv6</span>
 <span class="tele-val mono" id="ipv6Info">—</span>
 </div>
+<div class="tele-item">
+<span class="tele-label">Canlı Trafik</span>
+<span class="tele-val mono" id="liveTrafficVal">—</span>
+</div>
 </div>
 <button id="maskIpBtn" type="button" class="btn ghost sm" aria-pressed="false" title="Ekran paylaşımı için IP ve modem bilgilerini gizle">
 <svg class="ico" id="maskIpIcon" aria-hidden="true"><use href="#ico-eye"/></svg>
@@ -216,6 +220,17 @@
 </span>
 <input type="checkbox" class="switch-input" role="switch" id="killSwitchToggle" />
 </label>
+<label class="switch-row">
+<span class="switch-copy">
+<span class="switch-title">Ev Ağıyla Paylaş (Telefon / TV)</span>
+<span class="switch-desc">Aynı Wi-Fi'deki telefon/TV'yi bu PC üzerinden engelsiz çıkarır.</span>
+</span>
+<input type="checkbox" class="switch-input" role="switch" id="shareLanToggle" />
+</label>
+<div id="lanShareBar" class="lan-share-bar hidden">
+<span class="mono" id="lanShareAddr">—</span>
+<button id="copyLanBtn" type="button" class="btn secondary sm nowrap">Kopyala</button>
+</div>
 <div class="switch-row">
 <span class="switch-copy">
 <span class="switch-title" id="residentTitle">Yerleşik Başlangıç: Kapalı</span>

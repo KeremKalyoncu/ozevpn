@@ -48,6 +48,7 @@ type Config struct {
 	TorBridge              bool          `json:"tor_bridge"`                // Use Snowflake pluggable transport if direct Tor is blocked
 	KillSwitch             bool          `json:"kill_switch"`               // Admin TUN Windows Firewall fail-closed Kill Switch
 	BlockLAN               bool          `json:"block_lan"`                 // Block RFC1918 LAN access while Kill Switch / TUN is active
+	ShareLANProxy          bool          `json:"share_lan_proxy"`           // Allow devices on local Wi-Fi/LAN to use OzeVPN mixed proxy (default false)
 	DisableStartupNetProbe bool          `json:"disable_startup_net_probe"` // Opt-out of automatic startup external IP/country trace
 	ProxyPort              int           `json:"proxy_port"`
 	ListenAddr             string        `json:"listen_addr"`
