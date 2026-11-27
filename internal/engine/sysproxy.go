@@ -168,6 +168,17 @@ func KillProcessByExactPath(exactExePath string) {
 	_ = runPS(ps)
 }
 
+// KillOzeVPNRuntimeChildren terminates stale sing-box.exe or tor.exe processes left over
+// under OzeVPN's runtime directory (including across EXE version hash upgrades).
+func KillOzeVPNRuntimeChildren(runtimeRoot string) {
+	if runtime.GOOS != "windows" || strings.TrimSpace(runtimeRoot) == "" {
+		return
+	}
+	esc := strings.ReplaceAll(runtimeRoot, "'", "''")
+	ps := fmt.Sprintf(`Get-CimInstance Win32_Process | Where-Object { $_.ExecutablePath -and $_.ExecutablePath.StartsWith('%s', [System.StringComparison]::OrdinalIgnoreCase) -and ($_.Name -ieq 'sing-box.exe' -or $_.Name -ieq 'tor.exe') } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }`, esc)
+	_ = runPS(ps)
+}
+
 func runPS(script string) error {
 	cmd := exec.Command("powershell", "-NoProfile", "-NonInteractive", "-Command", script)
 	procutil.HideWindow(cmd)

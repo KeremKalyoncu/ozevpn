@@ -135,7 +135,16 @@ func RegisterNativeWG() (*NativeWGProfile, error) {
 		"https://api.cloudflareclient.com/v0a2158/reg",
 		"https://api.cloudflareclient.com/v0a2483/reg",
 	}
-	client := &http.Client{Timeout: 8 * time.Second}
+	// Force IPv4 dial so misconfigured ISP IPv6 gateways never cause 8s connection stalls.
+	dialer := &net.Dialer{Timeout: 4 * time.Second}
+	client := &http.Client{
+		Timeout: 6 * time.Second,
+		Transport: &http.Transport{
+			DialContext: func(ctx context.Context, _, addr string) (net.Conn, error) {
+				return dialer.DialContext(ctx, "tcp4", addr)
+			},
+		},
+	}
 
 	var lastErr error
 	for _, u := range regURLs {
@@ -257,13 +266,37 @@ func ProbeNativeWG(sbBin string, prof *NativeWGProfile) (string, int, error) {
 	}
 	defer os.RemoveAll(tmpDir)
 
+	// Fast path: try primary/cached endpoint first (~0.5s on healthy networks).
+	first := candidates[0]
+	if err := probeSingleWGEndpoint(context.Background(), sbBin, tmpDir, prof, first.addr, first.port); err == nil {
+		return first.addr, first.port, nil
+	} else if len(candidates) == 1 {
+		return "", 0, err
+	}
+
+	// Fallback: probe remaining candidate ports in parallel so worst-case failure stays under ~4s.
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	type probeRes struct {
+		cand wgEndpointCandidate
+		err  error
+	}
+	rest := candidates[1:]
+	ch := make(chan probeRes, len(rest))
+	for _, c := range rest {
+		cand := c
+		go func() {
+			ch <- probeRes{cand: cand, err: probeSingleWGEndpoint(ctx, sbBin, tmpDir, prof, cand.addr, cand.port)}
+		}()
+	}
 	var lastErr error
-	for _, cand := range candidates {
-		if err := probeSingleWGEndpoint(sbBin, tmpDir, prof, cand.addr, cand.port); err == nil {
-			return cand.addr, cand.port, nil
-		} else {
-			lastErr = err
+	for range rest {
+		res := <-ch
+		if res.err == nil {
+			cancel()
+			return res.cand.addr, res.cand.port, nil
 		}
+		lastErr = res.err
 	}
 	if lastErr == nil {
 		lastErr = errors.New("hiçbir WireGuard UDP kapısı yanıt vermedi")
@@ -271,7 +304,7 @@ func ProbeNativeWG(sbBin string, prof *NativeWGProfile) (string, int, error) {
 	return "", 0, lastErr
 }
 
-func probeSingleWGEndpoint(sbBin, tmpDir string, prof *NativeWGProfile, addr string, port int) error {
+func probeSingleWGEndpoint(parentCtx context.Context, sbBin, tmpDir string, prof *NativeWGProfile, addr string, port int) error {
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		return err
@@ -330,7 +363,7 @@ func probeSingleWGEndpoint(sbBin, tmpDir string, prof *NativeWGProfile, addr str
 	}
 	defer os.Remove(cfgPath)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(parentCtx, 4*time.Second)
 	defer cancel()
 	cmd := exec.CommandContext(ctx, sbBin, "run", "-c", cfgPath)
 	procutil.HideWindow(cmd)
@@ -350,10 +383,14 @@ func probeSingleWGEndpoint(sbBin, tmpDir string, prof *NativeWGProfile, addr str
 
 	proxyU, _ := url.Parse(fmt.Sprintf("http://127.0.0.1:%d", mixPort))
 	hc := &http.Client{
-		Timeout:   3500 * time.Millisecond,
+		Timeout:   2800 * time.Millisecond,
 		Transport: &http.Transport{Proxy: http.ProxyURL(proxyU)},
 	}
-	resp, err := hc.Get("https://1.1.1.1/cdn-cgi/trace")
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "https://1.1.1.1/cdn-cgi/trace", nil)
+	if err != nil {
+		return err
+	}
+	resp, err := hc.Do(req)
 	if err != nil {
 		return err
 	}

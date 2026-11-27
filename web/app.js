@@ -661,9 +661,9 @@ async function togglePower() {
     } else {
       els.powerBtn.className = 'power-btn connecting';
       els.statusText.textContent = 'Bağlanıyor...';
-      els.statusSub.textContent = 'sing-box + Avrupa çıkış motoru başlatılıyor (~10 sn)...';
+      els.statusSub.textContent = 'sing-box + WARP WireGuard (TCP+UDP) başlatılıyor (~5 sn)...';
       addLog('OzeVPN v6 (sing-box Hibrit Motor) başlatılıyor...');
-      const res = await api('/api/connect', { method: 'POST' }, 45000);
+      const res = await api('/api/connect', { method: 'POST' }, 60000);
       (res.logs || []).forEach(addLog);
     }
   } catch (err) {

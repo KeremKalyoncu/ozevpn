@@ -129,6 +129,9 @@ func (m *Manager) CleanupStaleOnBoot() {
 	if IsSystemProxyPointingTo(m.mixedPort) {
 		_ = DisableSystemProxy()
 	}
+	if localApp := strings.TrimSpace(os.Getenv("LOCALAPPDATA")); localApp != "" {
+		KillOzeVPNRuntimeChildren(filepath.Join(localApp, "OzeVPN", "runtime"))
+	}
 	if sb := m.findBin("sing-box.exe"); sb != "" {
 		KillProcessByExactPath(sb)
 	}
@@ -246,10 +249,12 @@ func (m *Manager) Start(cfg config.Config) ([]string, error) {
 	warpAvailable := false
 	var nativeWG *warp.NativeWGProfile
 	torAvailable := false
+	torAttempted := false
 
 	var wg sync.WaitGroup
 	needWarp := (cfg.EngineProfile == "hybrid_eu" || useWarpOnly) && !useCustom && !useTorOnly
 	needTor := !useCustom && (useTorOnly || cfg.EngineProfile == "hybrid_eu")
+	warpDoneCh := make(chan bool, 1)
 
 	admin := IsAdmin()
 	if cfg.KillSwitch {
@@ -285,6 +290,7 @@ func (m *Manager) Start(cfg config.Config) ([]string, error) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
+			defer func() { warpDoneCh <- warpAvailable }()
 			// 1. Prefer native Cloudflare WARP WireGuard inside sing-box (full Layer-3 TCP + UDP
 			//    for Roblox RakNet UDP, Discord Voice UDP, QUIC, and online gaming; zero external warp-cli needed).
 			if cfg.Protocol != "MASQUE" {
@@ -341,6 +347,7 @@ func (m *Manager) Start(cfg config.Config) ([]string, error) {
 	}
 
 	if needTor && torBin != "" {
+		torAttempted = true
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
@@ -349,7 +356,11 @@ func (m *Manager) Start(cfg config.Config) ([]string, error) {
 			} else {
 				addLog("Avrupa Çıkış Motoru (Tor DE/NL/BG/RO/AT) paralel başlatılıyor...")
 			}
-			if err := m.startTorLocked(torBin, cfg.TorBridge); err != nil {
+			var fastCutoff <-chan bool
+			if needWarp {
+				fastCutoff = warpDoneCh
+			}
+			if err := m.startTorLocked(torBin, cfg.TorBridge, fastCutoff); err != nil {
 				addLog("Tor uyarısı: " + err.Error())
 			} else {
 				torAvailable = true
@@ -360,9 +371,9 @@ func (m *Manager) Start(cfg config.Config) ([]string, error) {
 
 	wg.Wait()
 
-	if !useCustom && !warpAvailable && !torAvailable && torBin != "" {
+	if !useCustom && !warpAvailable && !torAvailable && !torAttempted && torBin != "" {
 		addLog("Yedek Avrupa Çıkış Motoru (Tor) devreye alınıyor...")
-		if err := m.startTorLocked(torBin, cfg.TorBridge); err == nil {
+		if err := m.startTorLocked(torBin, cfg.TorBridge, nil); err == nil {
 			torAvailable = true
 			addLog(fmt.Sprintf("Yedek Avrupa Çıkış Motoru hazır (127.0.0.1:%d).", m.torPort))
 		}
@@ -523,7 +534,7 @@ func (m *Manager) recoverProcessesLocked() {
 			_ = m.torLogFile.Close()
 			m.torLogFile = nil
 		}
-		if err := m.startTorLocked(m.torBinPath, m.torBridge); err == nil {
+		if err := m.startTorLocked(m.torBinPath, m.torBridge, nil); err == nil {
 			m.torRestarts++
 		}
 	}
@@ -590,7 +601,7 @@ func (m *Manager) watchdogLoop(stopCh chan struct{}, sbBin, sbCfgPath string) {
 	}
 }
 
-func (m *Manager) startTorLocked(torBin string, useBridge bool) error {
+func (m *Manager) startTorLocked(torBin string, useBridge bool, warpReadyCh <-chan bool) error {
 	torDir := filepath.Dir(torBin)
 	torRoot := filepath.Dir(torDir)
 	dataDir := filepath.Join(m.baseDir, "bin", "tor_data")
@@ -636,20 +647,48 @@ func (m *Manager) startTorLocked(torBin string, useBridge bool) error {
 	}
 	m.torCmd = cmd
 	m.torLogFile = logFile
+	exitedCh := make(chan error, 1)
 	go func(c *exec.Cmd, f *cappedFileWriter) {
-		_ = c.Wait()
+		err := c.Wait()
 		_ = f.Close()
+		exitedCh <- err
 	}(cmd, logFile)
 
-	deadline := time.Now().Add(25 * time.Second)
-	for time.Now().Before(deadline) {
-		time.Sleep(1 * time.Second)
-		data, err := os.ReadFile(logPath)
-		if err == nil && strings.Contains(string(data), "Bootstrapped 100%") {
-			return nil
+	killStalledTor := func() {
+		if m.torCmd == cmd && cmd.Process != nil {
+			_ = cmd.Process.Kill()
+			m.torCmd = nil
 		}
 	}
-	return errors.New("Tor 25 saniyede bootstrap tamamlayamadı")
+
+	deadline := time.Now().Add(25 * time.Second)
+	ticker := time.NewTicker(250 * time.Millisecond)
+	defer ticker.Stop()
+	for {
+		select {
+		case exitErr := <-exitedCh:
+			m.torCmd = nil
+			return fmt.Errorf("Tor erken kapandı (%v)", exitErr)
+		case warpOK := <-warpReadyCh:
+			warpReadyCh = nil
+			// When fast WARP WireGuard is already ready in hybrid_eu mode, cap remaining Tor wait to 4s
+			// so Connect finishes in ~2-5s instead of hanging 25s when direct Tor is ISP-throttled.
+			if warpOK {
+				shortDeadline := time.Now().Add(4 * time.Second)
+				if shortDeadline.Before(deadline) {
+					deadline = shortDeadline
+				}
+			}
+		case <-ticker.C:
+			if data, err := os.ReadFile(logPath); err == nil && strings.Contains(string(data), "Bootstrapped 100%") {
+				return nil
+			}
+			if time.Now().After(deadline) {
+				killStalledTor()
+				return errors.New("Tor zaman aşımına uğradı (hızlı WARP WireGuard ile devam ediliyor; Tor için Köprü Modu açılabilir)")
+			}
+		}
+	}
 }
 
 func (m *Manager) TorPort() int {
@@ -677,7 +716,7 @@ func (m *Manager) RotateTorIdentity() (string, error) {
 		m.torCmd = nil
 		time.Sleep(400 * time.Millisecond)
 	}
-	if err := m.startTorLocked(torBin, m.torBridge); err != nil {
+	if err := m.startTorLocked(torBin, m.torBridge, nil); err != nil {
 		return "", err
 	}
 	return "Yeni Avrupa çıkış IP'si alındı (Tor EU yenilendi).", nil
