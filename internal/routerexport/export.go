@@ -65,10 +65,9 @@ func GenerateOpenWrtSingBox(cfg config.Config) string {
 					"server": "1.1.1.1",
 				},
 			},
-			"rules":             dnsRules,
-			"final":             "dns-doh",
-			"strategy":          "prefer_ipv4",
-			"independent_cache": true,
+			"rules":    dnsRules,
+			"final":    "dns-doh",
+			"strategy": "prefer_ipv4",
 		},
 		"inbounds": []map[string]any{
 			{

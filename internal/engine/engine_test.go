@@ -41,8 +41,11 @@ func TestBuildSingBoxConfigAndOfficialSchemaCheck(t *testing.T) {
 		t.Fatalf("invalid JSON: %v", err)
 	}
 	dnsObj, _ := parsed["dns"].(map[string]any)
-	if dnsObj["independent_cache"] != true {
-		t.Fatal("expected dns.independent_cache to be true")
+	if dnsObj["strategy"] != "prefer_ipv4" {
+		t.Fatalf("expected dns.strategy=prefer_ipv4, got %v", dnsObj["strategy"])
+	}
+	if _, deprecated := dnsObj["independent_cache"]; deprecated {
+		t.Fatal("dns.independent_cache is deprecated in sing-box 1.14+ and must not be emitted")
 	}
 
 	// If bin/sing-box.exe is present in workspace, run official `sing-box check` validator!

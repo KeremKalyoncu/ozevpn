@@ -47,6 +47,7 @@ const els = {
   confirmCancelBtn: $('confirmCancelBtn'),
   confirmOkBtn: $('confirmOkBtn'),
   openWizardBtn: $('openWizardBtn'),
+  copyDiagBtn: $('copyDiagBtn'),
   quitAppBtn: $('quitAppBtn'),
   newIpBtn: $('newIpBtn'),
   relaunchAdminBtn: $('relaunchAdminBtn'),
@@ -1116,6 +1117,35 @@ if (els.copyLanBtn) {
       showToast(`Proxy adresi kopyalandı: ${maskLanAddr(addr)}`, 'ok', 'lan-copy');
     } catch {
       showToast('Kopyalanamadı — adresi elle seçebilirsin.', 'info', 'lan-copy');
+    }
+  });
+}
+if (els.copyDiagBtn) {
+  els.copyDiagBtn.addEventListener('click', async () => {
+    setToolsMenuOpen(false, false);
+    let hz = {};
+    try { hz = await api('/api/healthz', {}, 4000); } catch {}
+    const scrub = (s) => String(s || '')
+      .replace(/\b(?:\d{1,3}\.){3}\d{1,3}\b/g, '[IP]')
+      .replace(/(?:[0-9a-f]{2}[:-]){5}[0-9a-f]{2}/gi, '[MAC]')
+      .replace(/[A-Za-z0-9+/]{38,}={0,2}/g, '[KEY]');
+    const rawLogs = (els.logBox ? els.logBox.textContent : '').trim().split('\n').slice(-15).map(scrub).join('\n');
+    const st = engineStatus || {};
+    const cfg = appConfig || {};
+    const report = [
+      '```text',
+      `OzeVPN Diagnostic · commit=${hz.build_commit || 'dev'} date=${hz.build_date || 'unknown'}`,
+      `State=${st.state || 'unknown'} AdminTUN=${!!st.is_admin} NativeWG=${!!st.warp_native_wg} SingBox=${!!st.singbox_alive} Tor=${!!st.tor_alive}`,
+      `Profile=${cfg.engine_profile || '-'} Mode=${cfg.mode || '-'} AdBlock=${!!cfg.ad_block_speed} KillSwitch=${!!cfg.kill_switch} LANShare=${!!st.lan_share_active}`,
+      '--- Last Logs (Redacted) ---',
+      rawLogs || '(empty)',
+      '```'
+    ].join('\n');
+    try {
+      await navigator.clipboard.writeText(report);
+      showToast('Maskeli tanılama raporu panoya kopyalandı.', 'ok', 'diag');
+    } catch {
+      showToast('Panoya kopyalanamadı.', 'error', 'diag');
     }
   });
 }

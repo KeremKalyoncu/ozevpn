@@ -1,4 +1,4 @@
-﻿# OzeVPN Tek Satır Kurulum Betiği (SHA-256 Doğrulamalı)
+# OzeVPN Tek Satır Kurulum Betiği (SHA-256 Doğrulamalı)
 # Kullanım:
 #   irm https://raw.githubusercontent.com/KeremKalyoncu/ozevpn/main/scripts/install.ps1 | iex
 $ErrorActionPreference = 'Stop'

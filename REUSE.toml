@@ -1,0 +1,10 @@
+version = 1
+SPDX-PackageName = "OzeVPN"
+SPDX-PackageSupplier = "Kerem Kalyoncu <https://github.com/KeremKalyoncu/ozevpn>"
+SPDX-PackageDownloadLocation = "https://github.com/KeremKalyoncu/ozevpn"
+
+[[annotations]]
+path = "**"
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2026 Kerem Kalyoncu"
+SPDX-License-Identifier = "GPL-3.0-or-later"
