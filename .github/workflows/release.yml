@@ -59,27 +59,22 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/v')
         shell: pwsh
         run: |
-          $lines = @()
-          Get-ChildItem -Path dist -File | Where-Object { $_.Name -match '\.(exe|txt)$' } | ForEach-Object {
-            $h = (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLower()
-            $lines += "$h  $($_.Name)"
-          }
-          $text = ($lines -join "`n") + "`n"
-          $b64 = [Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes($text))
+          $raw = (Get-Content -Raw -Path dist\OzeVPN-core-checksums.txt) -replace "`r`n", "`n"
+          $b64 = [Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes($raw))
           "hashes=$b64" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
 
       - name: Attest SLSA Build Provenance (GitHub Attestations)
         if: github.event.repository.private == false
         uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
-          subject-path: 'dist/*.exe'
+          subject-path: 'dist/**/*.exe'
 
       - name: Upload build artifact
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: ozevpn-core-windows-amd64
           path: |
-            dist/*.exe
+            dist/**/*.exe
             dist/*.txt
             dist/*.sha256
           retention-days: 14
