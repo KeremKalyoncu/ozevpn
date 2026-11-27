@@ -31,5 +31,16 @@ OzeVPN yalnızca yerel cihazda (`127.0.0.1:7777`) çalışan, bulut sunucusu ve 
 3. Bilinen kritik zafiyet içeren eski sürümlere geri dönüş (rollback) yasaktır; her yayın öncesi `gofmt -l .`, `go vet ./...`, `go test -race ./...`, `govulncheck ./...` ve `.\scripts\build-single-exe.ps1` zorunlu yayın kapısıdır.
 4. Dağıtılan `dist\OzeVPN.exe` dosyası `dist\OzeVPN.exe.sha256` ve `dist\sbom.cdx.json` ile yayımlanır (sertifika mevcutsa `$env:OZEVPN_SIGN_THUMBPRINT` ile Authenticode imzalanır).
 
-## 4. Güvenlik Bildirimi
-Güvenlik açığı tespit ederseniz proje sahibine tekrar adımlarıyla bildirebilirsiniz; P0/P1 proxy, sızıntı, Kill Switch ve IPC açıkları öncelikli yamanır.
+## 4. Güvenlik Bildirimi & Koordineli Açıklama Politikası (Reporting & Disclosure Policy)
+
+### Desteklenen Sürümler (Supported Versions)
+| Sürüm | Güvenlik Güncellemesi |
+| :--- | :--- |
+| `6.1.x` | Aktif olarak desteklenir |
+| `< 6.1` | Desteklenmez (güncelleyin) |
+
+### Güvenlik Açığı Bildirimi (Vulnerability Reporting)
+Güvenlik açıklarını herkese açık Issue olarak açmayın. Lütfen GitHub'ın şifreli **Private Vulnerability Reporting** kanalını kullanın:
+- **Bildirim Kanalı:** https://github.com/KeremKalyoncu/ozevpn/security/advisories/new
+- **İlk Yanıt Süresi:** En geç **48 saat** içinde bildirim teyidi yapılır.
+- **Koordineli Açıklama (Coordinated Disclosure):** Kritik (P0/P1) sızıntı, Kill Switch, IPC ve kriptografi açıkları öncelikli yamanır; yama yayımlanana kadar (en fazla **90 gün**) sorumlu gizlilik uygulanır.

@@ -1,12 +1,12 @@
 # yaml-language-server: $schema=https://aka.ms/winget-manifest.installer.1.6.0.schema.json
 PackageIdentifier: KeremKalyoncu.OzeVPN
-PackageVersion: 6.1.0
+PackageVersion: 6.1.1
 InstallerType: portable
 Commands:
   - ozevpn
 Installers:
   - Architecture: x64
-    InstallerUrl: https://github.com/KeremKalyoncu/ozevpn/releases/download/v6.1.0/OzeVPN.exe
-    InstallerSha256: A329B076AB67192B7AB11ACDA792CA3B0CB34074CD3EEEA44524EF11ABB0A224
+    InstallerUrl: https://github.com/KeremKalyoncu/ozevpn/releases/download/v6.1.1/OzeVPN.exe
+    InstallerSha256: 37EA85B678E37BFA02958FDD16D4513026E585351A9530D2899CFA287D931558
 ManifestType: installer
 ManifestVersion: 1.6.0
