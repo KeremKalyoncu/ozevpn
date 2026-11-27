@@ -1,4 +1,4 @@
-package main
+package server
 
 import (
 	"encoding/json"
@@ -11,16 +11,27 @@ import (
 	"ozevpn/internal/config"
 	"ozevpn/internal/engine"
 	"ozevpn/internal/warp"
+	"ozevpn/web"
 )
 
+func testHandler(store *config.Store, eng *engine.Manager) http.Handler {
+	return NewHandler(Options{Store: store, Engine: eng})
+}
+
+func testAuthedHandler(store *config.Store, eng *engine.Manager, tok string) http.Handler {
+	return NewHandler(Options{
+		Store:        store,
+		Engine:       eng,
+		SessionToken: tok,
+		ListenAddr:   "127.0.0.1:7777",
+	})
+}
+
 func localReq(method, path string, body string) *http.Request {
-	var r *http.Request
 	if body != "" {
-		r = httptest.NewRequest(method, "http://127.0.0.1:7777"+path, strings.NewReader(body))
-	} else {
-		r = httptest.NewRequest(method, "http://127.0.0.1:7777"+path, nil)
+		return httptest.NewRequest(method, "http://127.0.0.1:7777"+path, strings.NewReader(body))
 	}
-	return r
+	return httptest.NewRequest(method, "http://127.0.0.1:7777"+path, nil)
 }
 
 func TestSecurityMiddlewareBlocksCrossOriginCSRFAndDNSRebinding(t *testing.T) {
@@ -30,7 +41,7 @@ func TestSecurityMiddlewareBlocksCrossOriginCSRFAndDNSRebinding(t *testing.T) {
 		t.Fatal(err)
 	}
 	eng := engine.NewManager(tmp, warp.NewClient())
-	h := buildHandler(store, eng)
+	h := testHandler(store, eng)
 
 	// 1. Malicious external Origin must be rejected with 403
 	req := localReq(http.MethodPost, "/api/disconnect", "")
@@ -73,7 +84,7 @@ func TestSecurityHeadersCSPAndOpenWrtExport(t *testing.T) {
 	tmp := t.TempDir()
 	store, _ := config.NewStore(filepath.Join(tmp, "ozevpn.json"))
 	eng := engine.NewManager(tmp, warp.NewClient())
-	h := buildHandler(store, eng)
+	h := testHandler(store, eng)
 
 	rec := httptest.NewRecorder()
 	h.ServeHTTP(rec, localReq(http.MethodGet, "/favicon.ico", ""))
@@ -91,6 +102,13 @@ func TestSecurityHeadersCSPAndOpenWrtExport(t *testing.T) {
 	}
 	if rec.Header().Get("Cross-Origin-Resource-Policy") != "same-origin" {
 		t.Fatal("missing CORP: same-origin header")
+	}
+
+	// Ensure Go embed source file is never exposed over HTTP
+	recGo := httptest.NewRecorder()
+	h.ServeHTTP(recGo, localReq(http.MethodGet, "/embed.go", ""))
+	if recGo.Code != http.StatusNotFound {
+		t.Fatalf("expected 404 for /embed.go, got %d", recGo.Code)
 	}
 
 	rec2 := httptest.NewRecorder()
@@ -123,7 +141,7 @@ func TestStrictSchemaValidationAndSSRFGuard(t *testing.T) {
 	tmp := t.TempDir()
 	store, _ := config.NewStore(filepath.Join(tmp, "ozevpn.json"))
 	eng := engine.NewManager(tmp, warp.NewClient())
-	h := buildHandler(store, eng)
+	h := testHandler(store, eng)
 
 	// 1. Unknown JSON field rejected
 	rec := httptest.NewRecorder()
@@ -153,7 +171,7 @@ func TestConfigMasksCustomServerSecrets(t *testing.T) {
 	tmp := t.TempDir()
 	store, _ := config.NewStore(filepath.Join(tmp, "ozevpn.json"))
 	eng := engine.NewManager(tmp, warp.NewClient())
-	h := buildHandler(store, eng)
+	h := testHandler(store, eng)
 
 	secret := "vless://SUPER-SECRET-UUID@eu.example.com:443?security=tls"
 	rec := httptest.NewRecorder()
@@ -220,7 +238,7 @@ func TestConcurrencyLimitReturns429AndStaticCacheHeaders(t *testing.T) {
 	tmp := t.TempDir()
 	store, _ := config.NewStore(filepath.Join(tmp, "ozevpn.json"))
 	eng := engine.NewManager(tmp, warp.NewClient())
-	h := buildHandler(store, eng)
+	h := testHandler(store, eng)
 	recCSS := httptest.NewRecorder()
 	h.ServeHTTP(recCSS, localReq(http.MethodGet, "/style.css", ""))
 	if recCSS.Code != http.StatusOK || !strings.Contains(recCSS.Header().Get("Cache-Control"), "max-age=3600") {
@@ -240,7 +258,7 @@ func TestBrandedHTML404AndAPIJSON404AndDefaultFullMode(t *testing.T) {
 	tmp := t.TempDir()
 	store, _ := config.NewStore(filepath.Join(tmp, "ozevpn.json"))
 	eng := engine.NewManager(tmp, warp.NewClient())
-	h := buildHandler(store, eng)
+	h := testHandler(store, eng)
 
 	recHTML := httptest.NewRecorder()
 	h.ServeHTTP(recHTML, localReq(http.MethodGet, "/nonexistent-ui-route", ""))
@@ -261,8 +279,8 @@ func TestBrandedHTML404AndAPIJSON404AndDefaultFullMode(t *testing.T) {
 func TestWebUIBudgetAndAccessibilityContract(t *testing.T) {
 	// 1. Performance budget: total embedded static assets must stay <= 120 KB
 	var totalBytes int
-	for _, name := range []string{"web/index.html", "web/style.css", "web/app.js", "web/theme.js", "web/favicon.svg", "web/404.html"} {
-		b, err := webFS.ReadFile(name)
+	for _, name := range []string{"index.html", "style.css", "app.js", "theme.js", "favicon.svg", "404.html"} {
+		b, err := web.FS.ReadFile(name)
 		if err != nil {
 			t.Fatalf("missing embedded web asset %s: %v", name, err)
 		}
@@ -273,7 +291,7 @@ func TestWebUIBudgetAndAccessibilityContract(t *testing.T) {
 	}
 
 	// 2. HTML accessibility & UX contract checks
-	htmlBytes, _ := webFS.ReadFile("web/index.html")
+	htmlBytes, _ := web.FS.ReadFile("index.html")
 	html := string(htmlBytes)
 	for _, req := range []string{
 		`class="skip-link"`,
@@ -298,7 +316,7 @@ func TestWebUIBudgetAndAccessibilityContract(t *testing.T) {
 	}
 
 	// 3. CSS accessibility, theme, print & reduced-motion contract checks
-	cssBytes, _ := webFS.ReadFile("web/style.css")
+	cssBytes, _ := web.FS.ReadFile("style.css")
 	css := string(cssBytes)
 	for _, req := range []string{
 		`color-scheme: dark`,
@@ -318,7 +336,7 @@ func TestInvalidCustomServerAndNewIdentityGuards(t *testing.T) {
 	tmp := t.TempDir()
 	store, _ := config.NewStore(filepath.Join(tmp, "ozevpn.json"))
 	eng := engine.NewManager(tmp, warp.NewClient())
-	h := buildHandler(store, eng)
+	h := testHandler(store, eng)
 
 	// 1. Invalid custom server must be rejected immediately with 400
 	recBad := httptest.NewRecorder()
@@ -339,8 +357,8 @@ func TestSessionTokenBlocksUnauthenticatedLocalCallsAndBootstrapsUI(t *testing.T
 	tmp := t.TempDir()
 	store, _ := config.NewStore(filepath.Join(tmp, "ozevpn.json"))
 	eng := engine.NewManager(tmp, warp.NewClient())
-	tok := generateSessionToken()
-	h := buildHandlerWithAuth(store, eng, tok, "127.0.0.1:7777", nil)
+	tok := GenerateSessionToken()
+	h := testAuthedHandler(store, eng, tok)
 
 	// 1. Unauthenticated GET / and POST /api/config must return 401
 	recRoot := httptest.NewRecorder()
@@ -426,8 +444,8 @@ func TestMetricsHealthzAndBuildProvenance(t *testing.T) {
 	tmp := t.TempDir()
 	store, _ := config.NewStore(filepath.Join(tmp, "ozevpn.json"))
 	eng := engine.NewManager(tmp, warp.NewClient())
-	tok := generateSessionToken()
-	h := buildHandlerWithAuth(store, eng, tok, "127.0.0.1:7777", nil)
+	tok := GenerateSessionToken()
+	h := testAuthedHandler(store, eng, tok)
 
 	recHz := httptest.NewRecorder()
 	h.ServeHTTP(recHz, localReq(http.MethodGet, "/api/healthz", ""))

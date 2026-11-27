@@ -25,19 +25,6 @@ func main() {
 	if err := writeICO(filepath.Join("assets", "ozevpn-connected.ico"), sizes, true); err != nil {
 		log.Fatal(err)
 	}
-	// Also place copies in internal/tray for //go:embed fallback (used in `go run .`)
-	if err := os.MkdirAll(filepath.Join("internal", "tray"), 0755); err != nil {
-		log.Fatal(err)
-	}
-	for _, name := range []string{"ozevpn.ico", "ozevpn-connected.ico"} {
-		b, err := os.ReadFile(filepath.Join("assets", name))
-		if err != nil {
-			log.Fatal(err)
-		}
-		if err := os.WriteFile(filepath.Join("internal", "tray", name), b, 0644); err != nil {
-			log.Fatal(err)
-		}
-	}
 }
 
 func writeICO(path string, sizes []int, connected bool) error {

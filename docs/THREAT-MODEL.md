@@ -43,7 +43,7 @@ flowchart LR
 
 | STRIDE | Hedef Varlık | Tehdit Senaryosu | Uygulanan Kontrol | Kalan Risk |
 | :--- | :--- | :--- | :--- | :--- |
-| **S — Spoofing** | `127.0.0.1:7777` API | Yetkisiz yerel süreç veya harici site isteği | 256-bit `X-OzeVPN-Token` + `HttpOnly; SameSite=Strict` + `Host`/`Origin`/`Sec-Fetch-Site` (`main.go`) | Aynı Windows kullanıcısı yetkisindeki kötü amaçlı yazılım `.ozevpn_token` okuyabilir |
+| **S — Spoofing** | `127.0.0.1:7777` API | Yetkisiz yerel süreç veya harici site isteği | 256-bit `X-OzeVPN-Token` + `HttpOnly; SameSite=Strict` + `Host`/`Origin`/`Sec-Fetch-Site` (`internal/server`) | Aynı Windows kullanıcısı yetkisindeki kötü amaçlı yazılım `.ozevpn_token` okuyabilir |
 | **T — Tampering** | `ozevpn.json`, `sing-box-active.json`, ikililer | Config manipülasyonu veya ikili değiştirme | NTFS DACL (`secfs`), `sing-box check` ön doğrulaması, 5 dosyalı `BINARY_CHECKSUMS.txt`, CI `govulncheck` | Yönetici hesabının kendisi ele geçirilirse tüm sistem etkilenir |
 | **R — Repudiation** | Kritik API işlemleri | Config/bağlantı/reset izinin kaybolması | Yapılandırılmış `slog` audit logları (`audit_action`, `security_blocked_*`) + `/api/metrics` | Yerel loglar cihaz sahibi tarafından silinebilir |
 | **I — Info Disclosure** | Özel sunucu anahtarları, IP/DNS/IPv6 | Anahtar okuma, IPv6 bypass, DNS/WebRTC sızıntısı | Windows DPAPI + NTFS DACL, dual-stack IPv6 TUN, DoH detour, `ipconfig /flushdns`, WebRTC politikası, `RedactSecrets` | Standart (non-admin) proxy modunda proxy-dışı/UDP uygulamalar kapsam dışıdır |

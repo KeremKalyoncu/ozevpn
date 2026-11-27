@@ -1,10 +1,9 @@
-package main
+package server
 
 import (
 	"context"
 	"fmt"
 	"io/fs"
-	"log"
 	"log/slog"
 	"net/http"
 	"os"
@@ -18,7 +17,24 @@ import (
 	"ozevpn/internal/pac"
 	"ozevpn/internal/probe"
 	"ozevpn/internal/routerexport"
+	"ozevpn/web"
 )
+
+// BuildInfo carries release provenance injected via -ldflags in cmd/ozevpn.
+type BuildInfo struct {
+	Commit string
+	Date   string
+}
+
+// Options configures the local HTTP control-plane handler.
+type Options struct {
+	Store        *config.Store
+	Engine       *engine.Manager
+	SessionToken string
+	ListenAddr   string
+	OnExit       func()
+	Build        BuildInfo
+}
 
 type apiServer struct {
 	store        *config.Store
@@ -26,27 +42,28 @@ type apiServer struct {
 	sessionToken string
 	listenAddr   string
 	onExit       func()
-	subWeb       fs.FS
+	build        BuildInfo
+	webFS        fs.ReadFileFS
 	fileSrv      http.Handler
 }
 
-func buildHandler(store *config.Store, eng *engine.Manager) http.Handler {
-	return buildHandlerWithAuth(store, eng, "", "", nil)
-}
-
-func buildHandlerWithAuth(store *config.Store, eng *engine.Manager, sessionToken, listenAddr string, onExit func()) http.Handler {
-	subWeb, err := fs.Sub(webFS, "web")
-	if err != nil {
-		log.Fatalf("Web dosyaları okunamadı: %v", err)
+// NewHandler creates the HTTP control-plane handler with security middleware applied.
+func NewHandler(opts Options) http.Handler {
+	if opts.Build.Commit == "" {
+		opts.Build.Commit = "dev"
+	}
+	if opts.Build.Date == "" {
+		opts.Build.Date = "unknown"
 	}
 	srv := &apiServer{
-		store:        store,
-		eng:          eng,
-		sessionToken: sessionToken,
-		listenAddr:   listenAddr,
-		onExit:       onExit,
-		subWeb:       subWeb,
-		fileSrv:      http.FileServer(http.FS(subWeb)),
+		store:        opts.Store,
+		eng:          opts.Engine,
+		sessionToken: opts.SessionToken,
+		listenAddr:   opts.ListenAddr,
+		onExit:       opts.OnExit,
+		build:        opts.Build,
+		webFS:        web.FS,
+		fileSrv:      http.FileServer(http.FS(web.FS)),
 	}
 
 	mux := http.NewServeMux()
@@ -74,10 +91,9 @@ func buildHandlerWithAuth(store *config.Store, eng *engine.Manager, sessionToken
 	mux.HandleFunc("/api/shutdown", srv.handleShutdown)
 	mux.HandleFunc("/api/export/openwrt", srv.handleExportOpenWrt)
 
-	return securityMiddlewareWithToken(sessionToken, mux)
+	return securityMiddlewareWithToken(opts.SessionToken, mux)
 }
 
-// handleAuth validates the 256-bit bootstrap token, sets an HttpOnly SameSite=Strict cookie, and redirects to /.
 func (s *apiServer) handleAuth(w http.ResponseWriter, r *http.Request) {
 	if s.sessionToken == "" {
 		http.Redirect(w, r, "/", http.StatusFound)
@@ -108,7 +124,7 @@ func (s *apiServer) handleStaticOrIndex(w http.ResponseWriter, r *http.Request) 
 		s.serveIndexHTML(w, r)
 		return
 	}
-	if _, err := fs.Stat(s.subWeb, cleanPath); err != nil {
+	if _, err := fs.Stat(s.webFS, cleanPath); err != nil {
 		s.serveNotFound(w, r)
 		return
 	}
@@ -126,7 +142,7 @@ func (s *apiServer) serveIndexHTML(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte(`<!DOCTYPE html><html lang="tr"><body><h1>401 — Oturum Doğrulaması Gerekli</h1><p>Bu yerel kontrol paneli oturum anahtarıyla korunmaktadır. Lütfen OzeVPN'i Sistem Tepsisinden (Tray) veya uygulama kısayolundan açın.</p></body></html>`))
 		return
 	}
-	data, readErr := webFS.ReadFile("web/index.html")
+	data, readErr := s.webFS.ReadFile("index.html")
 	if readErr != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
@@ -149,7 +165,7 @@ func (s *apiServer) serveNotFound(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Header().Set("Cache-Control", "no-store")
 	w.WriteHeader(http.StatusNotFound)
-	if data, readErr := webFS.ReadFile("web/404.html"); readErr == nil {
+	if data, readErr := s.webFS.ReadFile("404.html"); readErr == nil {
 		_, _ = w.Write(data)
 		return
 	}
@@ -157,7 +173,7 @@ func (s *apiServer) serveNotFound(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *apiServer) handleFavicon(w http.ResponseWriter, r *http.Request) {
-	data, err := webFS.ReadFile("web/favicon.svg")
+	data, err := s.webFS.ReadFile("favicon.svg")
 	if err != nil {
 		w.WriteHeader(http.StatusNoContent)
 		return
@@ -181,16 +197,16 @@ func (s *apiServer) handleHealthz(w http.ResponseWriter, r *http.Request) {
 		"running":       st.Running,
 		"singbox_alive": st.SingBoxAlive,
 		"tor_alive":     st.TorAlive,
-		"build_commit":  buildCommit,
-		"build_date":    buildDate,
+		"build_commit":  s.build.Commit,
+		"build_date":    s.build.Date,
 	})
 }
 
 func (s *apiServer) handleMetrics(w http.ResponseWriter, r *http.Request) {
 	st := s.eng.Status()
 	writeJSON(w, http.StatusOK, map[string]any{
-		"build_commit":      buildCommit,
-		"build_date":        buildDate,
+		"build_commit":      s.build.Commit,
+		"build_date":        s.build.Date,
 		"uptime_sec":        st.UptimeSec,
 		"connects":          metricConnects.Load(),
 		"disconnects":       metricDisconnects.Load(),

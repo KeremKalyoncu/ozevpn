@@ -130,10 +130,10 @@ go test -race -cover ./...
 go run ./tools/bench -samples 10 -bytes 3000000
 
 # 5/5 SHA256 doğrulamalı tek-dosya EXE + CycloneDX SBOM derlemesi
-.\build-single-exe.ps1
+.\scripts\build-single-exe.ps1
 ```
 
-> **Üretilmiş kaynak notu:** Kök dizindeki `rsrc_windows_amd64.syso` dosyası Windows EXE ikonu ve sürüm kaynağı için `assets/ozevpn.rc` dosyasından (`windres`) üretilir; elle düzenlenmez. İkonlar `go run ./tools/genicon` ile yenilenebilir.
+> **Üretilmiş kaynak notu:** `cmd/ozevpn/rsrc_windows_amd64.syso` dosyası Windows EXE ikonu ve sürüm kaynağı için `assets/ozevpn.rc` dosyasından (`windres`) üretilir; elle düzenlenmez. İkonlar `go run ./tools/genicon` ile tek kaynak olan `assets/` içine yenilenebilir.
 
 ### Yerel Kontrol API Özeti (`127.0.0.1:7777`)
 - `GET /api/healthz` — Kimlik gerektirmeyen liveness/readiness yanıtı (`ok`, `ready`, `running`, `build_commit`).

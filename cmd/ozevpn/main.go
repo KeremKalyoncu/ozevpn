@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"embed"
 	"flag"
 	"fmt"
 	"log"
@@ -15,7 +14,6 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
-	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -24,22 +22,14 @@ import (
 	"ozevpn/internal/engine"
 	"ozevpn/internal/installer"
 	"ozevpn/internal/netinfo"
+	"ozevpn/internal/server"
 	"ozevpn/internal/tray"
 	"ozevpn/internal/warp"
 )
 
-//go:embed web/*
-var webFS embed.FS
-
 var (
 	buildCommit = "dev"
 	buildDate   = "unknown"
-
-	metricConnects       atomic.Int64
-	metricDisconnects    atomic.Int64
-	metricReloads        atomic.Int64
-	metricConfigUpdates  atomic.Int64
-	metricSecurityBlocks atomic.Int64
 )
 
 func resolveAppPaths() (baseDir, cfgPath string) {
@@ -115,7 +105,7 @@ func startSystemTray(store *config.Store, eng *engine.Manager, authURL string, g
 		},
 		OnToggleConnect: func() {
 			if eng.Status().Running {
-				metricDisconnects.Add(1)
+				server.RecordDisconnect()
 				slog.Info("audit_action", "action", "disconnect")
 				eng.Stop()
 			} else {
@@ -168,7 +158,7 @@ func main() {
 		return
 	}
 
-	sessionToken := loadOrCreateSessionToken(tokenPath, *takeover)
+	sessionToken := server.LoadOrCreateSessionToken(tokenPath, *takeover)
 	authURL := baseURL + "/auth?t=" + sessionToken
 
 	// In standalone single-EXE builds, extract embedded sing-box + Tor runtime once into %LOCALAPPDATA%\OzeVPN\runtime
@@ -196,12 +186,19 @@ func main() {
 			trayHandle.Stop()
 		}
 		_ = srv.Close()
-		metricDisconnects.Add(1)
+		server.RecordDisconnect()
 		slog.Info("audit_action", "action", "disconnect")
 		eng.Stop()
 		os.Exit(0)
 	}
-	srv.Handler = buildHandlerWithAuth(store, eng, sessionToken, listenAddr, gracefulExit)
+	srv.Handler = server.NewHandler(server.Options{
+		Store:        store,
+		Engine:       eng,
+		SessionToken: sessionToken,
+		ListenAddr:   listenAddr,
+		OnExit:       gracefulExit,
+		Build:        server.BuildInfo{Commit: buildCommit, Date: buildDate},
+	})
 
 	if !*noTray {
 		trayHandle = startSystemTray(store, eng, authURL, gracefulExit)
@@ -234,7 +231,7 @@ func main() {
 		if trayHandle != nil {
 			trayHandle.Stop()
 		}
-		metricDisconnects.Add(1)
+		server.RecordDisconnect()
 		slog.Info("audit_action", "action", "disconnect")
 		eng.Stop()
 		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)

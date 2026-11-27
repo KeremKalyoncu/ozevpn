@@ -1,4 +1,4 @@
-package main
+package server
 
 import (
 	"crypto/rand"
@@ -14,12 +14,26 @@ import (
 	"os"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"ozevpn/internal/config"
 	"ozevpn/internal/engine"
 	"ozevpn/internal/secfs"
 )
+
+var (
+	metricConnects       atomic.Int64
+	metricDisconnects    atomic.Int64
+	metricReloads        atomic.Int64
+	metricConfigUpdates  atomic.Int64
+	metricSecurityBlocks atomic.Int64
+)
+
+// RecordDisconnect increments the disconnect counter for lifecycle exits outside HTTP handlers.
+func RecordDisconnect() {
+	metricDisconnects.Add(1)
+}
 
 func isLoopbackHost(rawHost string) bool {
 	if rawHost == "" {
@@ -33,7 +47,8 @@ func isLoopbackHost(rawHost string) bool {
 	return h == "127.0.0.1" || h == "localhost" || h == "::1"
 }
 
-func generateSessionToken() string {
+// GenerateSessionToken creates a cryptographically random 256-bit hex token.
+func GenerateSessionToken() string {
 	buf := make([]byte, 32)
 	if _, err := rand.Read(buf); err != nil {
 		log.Fatalf("kriptografik oturum anahtarı üretilemedi: %v", err)
@@ -41,7 +56,8 @@ func generateSessionToken() string {
 	return hex.EncodeToString(buf)
 }
 
-func loadOrCreateSessionToken(tokenPath string, reuseExisting bool) string {
+// LoadOrCreateSessionToken reuses an existing DACL-protected token during -takeover or generates a new one.
+func LoadOrCreateSessionToken(tokenPath string, reuseExisting bool) string {
 	if reuseExisting {
 		if raw, err := os.ReadFile(tokenPath); err == nil {
 			tok := strings.TrimSpace(string(raw))
@@ -52,7 +68,7 @@ func loadOrCreateSessionToken(tokenPath string, reuseExisting bool) string {
 			}
 		}
 	}
-	tok := generateSessionToken()
+	tok := GenerateSessionToken()
 	_ = secfs.WritePrivateFile(tokenPath, []byte(tok))
 	return tok
 }
@@ -122,8 +138,6 @@ func isAuthorizedAPIRequest(r *http.Request, sessionToken string, isMutation boo
 	return !isMutation && tokensEqual(requestCookieToken(r), sessionToken)
 }
 
-// securityMiddleware adds panic recovery, Host header DNS-rebinding defense, strict CSP/Permissions-Policy,
-// cross-origin CSRF defense, per-session IPC token auth, and a 1 MB POST payload cap.
 func securityMiddleware(next http.Handler) http.Handler {
 	return securityMiddlewareWithToken("", next)
 }
@@ -164,7 +178,6 @@ func securityMiddlewareWithToken(sessionToken string, next http.Handler) http.Ha
 	})
 }
 
-// withRateLimit caps requests per sliding window to prevent local control-plane flooding.
 func withRateLimit(maxReq int, window time.Duration, next http.HandlerFunc) http.HandlerFunc {
 	var mu sync.Mutex
 	var stamps []time.Time
@@ -190,8 +203,6 @@ func withRateLimit(maxReq int, window time.Duration, next http.HandlerFunc) http
 	}
 }
 
-// withConcurrencyLimit caps concurrent calls to heavy endpoints (/api/probe, /api/speedtest, /api/rescue)
-// returning 429 Too Many Requests when saturated.
 func withConcurrencyLimit(maxConcurrent int, next http.HandlerFunc) http.HandlerFunc {
 	sem := make(chan struct{}, maxConcurrent)
 	return func(w http.ResponseWriter, r *http.Request) {

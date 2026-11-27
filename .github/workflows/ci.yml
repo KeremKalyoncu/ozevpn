@@ -59,4 +59,4 @@ jobs:
         run: |
           $sha = git rev-parse --short HEAD
           $dt = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
-          go build -trimpath -ldflags="-s -w -X main.buildCommit=$sha -X main.buildDate=$dt" -o ozevpn.exe .
+          go build -trimpath -ldflags="-s -w -X main.buildCommit=$sha -X main.buildDate=$dt" -o ozevpn.exe ./cmd/ozevpn

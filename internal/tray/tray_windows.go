@@ -3,20 +3,20 @@
 package tray
 
 import (
-	_ "embed"
 	"encoding/binary"
 	"runtime"
 	"sync"
 	"syscall"
 	"time"
 	"unsafe"
+
+	"ozevpn/assets"
 )
 
-//go:embed ozevpn.ico
-var idleICO []byte
-
-//go:embed ozevpn-connected.ico
-var connectedICO []byte
+var (
+	idleICO      = assets.IconIdle
+	connectedICO = assets.IconConnected
+)
 
 type Options struct {
 	GetState         func() (connected bool, tooltip string)

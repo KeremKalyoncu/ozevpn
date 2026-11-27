@@ -1,7 +1,7 @@
 # Üçüncü Parti Bileşenler ve Lisans Bildirimi (SBOM)
 
 OzeVPN Go kaynak kodu **sıfır üçüncü parti Go modülü** kullanır (`go.mod` yalnızca Go standart kütüphanesi).
-Tek-dosya masaüstü derlemesi (`build-single-exe.ps1`) tüm gömülü ikilileri `BINARY_CHECKSUMS.txt` üzerinden SHA256 ile doğrular ve makine-okunur CycloneDX 1.5 SBOM (`dist/sbom.cdx.json`) üretir.
+Tek-dosya masaüstü derlemesi (`scripts/build-single-exe.ps1`) tüm gömülü ikilileri `BINARY_CHECKSUMS.txt` üzerinden SHA256 ile doğrular ve makine-okunur CycloneDX 1.5 SBOM (`dist/sbom.cdx.json`) üretir.
 
 | Bileşen | Sürüm | Kaynak | Lisans | Bütünlük |
 | :--- | :--- | :--- | :--- | :--- |
