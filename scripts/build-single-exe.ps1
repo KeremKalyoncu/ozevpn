@@ -1,4 +1,4 @@
-# OzeVPN Tek Dosya (Standalone) Masaüstü Uygulaması Derleyicisi
+﻿# OzeVPN Tek Dosya (Standalone) Masaüstü Uygulaması Derleyicisi
 # - sing-box.exe, Tor, lyrebird.exe ve GeoIP verilerini SHA256 doğrulayarak tek .exe içine gömer
 # - Git commit & tarih provenance bilgilerini -ldflags ile gömer, CycloneDX SBOM üretir
 # - İsteğe bağlı Authenticode kod imzalama ($env:OZEVPN_SIGN_THUMBPRINT) destekler
@@ -71,7 +71,7 @@ try {
         component = @{
           type    = "application"
           name    = "OzeVPN"
-          version = "6.1.0-$commit"
+          version = "6.1.1-$commit"
           hashes  = @(@{ alg = "SHA-256"; content = $hash })
         }
       }

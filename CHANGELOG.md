@@ -2,17 +2,20 @@
 
 Bu proje [Keep a Changelog](https://keepachangelog.com/tr/1.1.0/) ve [Semantic Versioning](https://semver.org/) ilkelerini izler.
 
-## [Unreleased]
+## [6.1.1] - 2026-11-27
 
 ### Added
-- **Marka & Vitrin:** Koyu/açık tema duyarlı README Hero bannerları (`assets/banner-dark.svg`, `assets/banner-light.svg`), `assets/logo.svg` ve `1280×640` sosyal önizleme kartı (`assets/social-preview.png`).
-- **Tedarik Zinciri & Güvenlik Otomasyonu:** Tam 40-karakter SHA-pinli GitHub Actions, `staticcheck`, canlı Windows `ozevpn.exe` HTTP/güvenlik duman testi, `CodeQL` SAST, Linux Foundation **OpenSSF Scorecard**, Sigstore **SLSA Build Provenance** (`release.yml`) ve `Dependabot`.
-- **Açık Kaynak Standartları:** Resmi `GPL-3.0` `LICENSE`, `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`, `.gitattributes` ve GitHub Issue form şablonları.
+- **Ev Ağıyla Paylaşım (`LAN Proxy`) & Canlı Trafik Sayacı:** Tek tıkla yerel Wi-Fi'deki telefon/TV'leri tünele çıkarma (`share_lan_proxy`, varsayılan kapalı) ve `sing-box` yerel akışından canlı hız/oturum veri sayacı (`internal/engine/traffic.go`).
+- **Tek Satır Kurulum & Paketleme:** SHA-256 doğrulamalı `scripts/install.ps1` ve WinGet v1.6 manifestleri (`packaging/winget/`).
+- **Araçlar → Tanılama Kopyala:** IP/MAC/anahtarları otomatik maskelenmiş tek tıkla bug raporu çıktısı.
+- **Marka & Global Vitrin:** Koyu/açık tema duyarlı Hero bannerlar (`assets/banner-*.svg`), `assets/logo.svg`, `assets/social-preview.png`, `README.en.md` ve canlı arayüz `docs/screenshots/demo.gif`.
+- **Tedarik Zinciri & Güvenlik Otomasyonu:** Tam SHA-pinli GitHub Actions, `staticcheck`, canlı Windows `ozevpn.exe` HTTP/güvenlik duman testi, **FSFE REUSE 3.3**, **CodeQL SAST**, Linux Foundation **OpenSSF Scorecard**, Sigstore **SLSA Build Provenance** (`release.yml`), **SonarCloud** ve **Dependabot**.
+- **Açık Kaynak Standartları:** Resmi `GPL-3.0` `LICENSE`, `REUSE.toml`, `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`, `.gitattributes` ve GitHub Issue form şablonları.
 
 ### Changed
 - **Standart Go Proje Düzeni:** `cmd/ozevpn`, `internal/server`, `assets/embed.go`, `web/embed.go` ve `scripts/build-single-exe.ps1` yapısına geçildi; çift ikon kopyaları tek kaynağa (`assets/`) indirildi.
-- **Clean Code Refaktörü:** `buildHandlerWithAuth`, `Manager.Start` ve `BuildSingBoxConfig` davranış korunarak modüler parçalara ayrıldı (tepe cyclomatic complexity `76 → 26`).
-- **CI Biçim Kapısı:** `gofmt -l .` ve `staticcheck ./...` (sıfır uyarı) zorunlu CI kapısına eklendi.
+- **Clean Code Refaktörü & `sing-box 1.16` Uyumu:** `buildHandlerWithAuth`, `Manager.Start` ve `BuildSingBoxConfig` modüler parçalara ayrıldı (tepe cyclomatic complexity `76 → 26`); deprecated `dns.independent_cache` kaldırıldı.
+- **CI Biçim & Statik Analiz Kapısı:** `gofmt -l .`, `staticcheck ./...` ve `fsfe/reuse-action` zorunlu CI kapısına eklendi.
 
 ## [6.1.0] - 2026-11-27
 

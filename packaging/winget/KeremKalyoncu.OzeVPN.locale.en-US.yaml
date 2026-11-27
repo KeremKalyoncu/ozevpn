@@ -1,6 +1,6 @@
 # yaml-language-server: $schema=https://aka.ms/winget-manifest.defaultLocale.1.6.0.schema.json
 PackageIdentifier: KeremKalyoncu.OzeVPN
-PackageVersion: 6.1.0
+PackageVersion: 6.1.1
 PackageLocale: en-US
 Publisher: Kerem Kalyoncu
 PublisherUrl: https://github.com/KeremKalyoncu
