@@ -59,7 +59,7 @@ OzeVPN, yalnızca kod yazıp bırakılmış bir araç değil; **Linux Foundation
 | Bağımsız Denetim / Standart | Canlı Sertifika & Rozet | Doğrulanan Kapsam | Denetim Kaydı |
 | :--- | :---: | :--- | :--- |
 | **Linux Foundation OpenSSF Best Practices** | [![OpenSSF Best Practices](https://www.bestpractices.dev/projects/17200/badge)](https://www.bestpractices.dev/en/projects/17200) | **%115 Passing** (`67/67` güvenlik, kriptografi, test ve sürüm kriteri) | [Proje #17200](https://www.bestpractices.dev/en/projects/17200) |
-| **OpenSSF Scorecard** | [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/KeremKalyoncu/ozevpn/badge)](https://scorecard.dev/viewer/?uri=github.com/KeremKalyoncu/ozevpn) | **`7.2 / 10`** — **10 kategoride tam `10/10`** + `License 9/10` | [Canlı Rapor](https://scorecard.dev/viewer/?uri=github.com/KeremKalyoncu/ozevpn) |
+| **OpenSSF Scorecard** | [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/KeremKalyoncu/ozevpn/badge)](https://scorecard.dev/viewer/?uri=github.com/KeremKalyoncu/ozevpn) | **`8.2 / 10` (Grade A)** — **13 kategoride tam `10/10`** | [Canlı Rapor](https://scorecard.dev/viewer/?uri=github.com/KeremKalyoncu/ozevpn) |
 | **SonarCloud Quality & Security** | [![Quality Gate](https://sonarcloud.io/api/project_badges/measure?project=KeremKalyoncu_ozevpn&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=KeremKalyoncu_ozevpn) [![Security](https://sonarcloud.io/api/project_badges/measure?project=KeremKalyoncu_ozevpn&metric=security_rating)](https://sonarcloud.io/summary/new_code?id=KeremKalyoncu_ozevpn) | Sürekli statik kalite kapısı ve **Grade A** güvenlik derecesi | [SonarCloud Paneli](https://sonarcloud.io/summary/new_code?id=KeremKalyoncu_ozevpn) |
 | **GitHub CodeQL SAST** | [![CodeQL](https://github.com/KeremKalyoncu/ozevpn/actions/workflows/codeql.yml/badge.svg)](https://github.com/KeremKalyoncu/ozevpn/actions/workflows/codeql.yml) | Her push, PR ve haftalık planda **Go + JavaScript** güvenlik taraması | [CodeQL Akışı](https://github.com/KeremKalyoncu/ozevpn/actions/workflows/codeql.yml) |
 | **Sigstore SLSA Build Provenance** | [![SLSA](https://github.com/KeremKalyoncu/ozevpn/actions/workflows/release.yml/badge.svg)](https://github.com/KeremKalyoncu/ozevpn/actions/workflows/release.yml) | Kriptografik derleme kanıtı (`gh attestation verify`) + CycloneDX 1.5 SBOM | [Release Akışı](https://github.com/KeremKalyoncu/ozevpn/actions/workflows/release.yml) |
@@ -71,15 +71,18 @@ OzeVPN, yalnızca kod yazıp bırakılmış bir araç değil; **Linux Foundation
 > **Denetim Kapsamı Şeffaflığı:** **OpenSSF Best Practices** gönüllü proje öz-değerlendirme programıdır; **CodeQL**, **SonarCloud**, **OpenSSF Scorecard** ve **Sigstore SLSA** otomatik statik/tedarik zinciri doğrulaması sağlar. Bu araçlar bağımsız üçüncü parti sızma testi (pentest) yerine geçmez. Windows Authenticode kod imzası için [SignPath Foundation](CODE_SIGNING_POLICY.md) başvurusu inceleme aşamasındadır; sürümler şu anda `SHA-256` ve **SLSA Build Level 3 (`*.intoto.jsonl`)** ile doğrulanır.
 
 <details>
-<summary><b>📊 OpenSSF Scorecard Detay Dökümü — 10 Kategoride Tam <code>10/10</code></b></summary>
+<summary><b>📊 OpenSSF Scorecard Detay Dökümü — 13 Kategoride Tam <code>10/10</code> (<code>8.2 / 10</code> · Grade A)</b></summary>
 
 <br/>
 
 | Scorecard Kontrolü | Puan | Kanıt / Uygulama |
 | :--- | :---: | :--- |
-| **SAST** | `10 / 10` | CodeQL (Go + JS) + `staticcheck` + `go vet` + SonarCloud her commit'te zorunlu |
+| **Signed-Releases** | `10 / 10` | SLSA Build Level 3 `*.intoto.jsonl` + Sigstore Cosign imzalı sürüm |
+| **Packaging** | `10 / 10` | Otomatik GoReleaser v2 paketleme ve sürüm yayımlama hattı |
+| **License** | `10 / 10` | Tam kanonik 674 satırlık FSF GNU [LICENSE](LICENSE) (`GPL-3.0`) + [REUSE.toml](REUSE.toml) |
+| **SAST** | `10 / 10` | CodeQL (Go + JS · `0` uyarı) + `staticcheck@v0.8.2` + `go vet` + SonarCloud (`A/A/A`) |
 | **Fuzzing** | `10 / 10` | Go native fuzzing (`FuzzCleanDomain`, `FuzzParseCustomOutbound`) |
-| **Vulnerabilities** | `10 / 10` | 0 bilinen güvenlik açığı (`govulncheck` + `0` harici bağımlılık) |
+| **Vulnerabilities** | `10 / 10` | 0 bilinen güvenlik açığı (`govulncheck@v1.10.0` + `0` harici bağımlılık) |
 | **Security-Policy** | `10 / 10` | [SECURITY.md](SECURITY.md) — desteklenen sürümler, 48s yanıt, 90g koordineli açıklama |
 | **Pinned-Dependencies** | `10 / 10` | Tüm GitHub Actions adımları tam 40-karakter commit SHA ile sabitli |
 | **Token-Permissions** | `10 / 10` | En az ayrıcalık ilkesi (`permissions: contents: read` üst düzey) |
@@ -87,7 +90,6 @@ OzeVPN, yalnızca kod yazıp bırakılmış bir araç değil; **Linux Foundation
 | **Binary-Artifacts** | `10 / 10` | Git reposunda sıfır ikili dosya (yalnız kaynak kod; runtime'lar `5/5` SHA-256 pinli) |
 | **Dangerous-Workflow** | `10 / 10` | Tehlikeli workflow kalıbı (script injection / `pull_request_target`) yok |
 | **Dependency-Update-Tool** | `10 / 10` | Otomatik haftalık `Dependabot` (`.github/dependabot.yml`) aktif |
-| **License** | `9 / 10` | Kök [LICENSE](LICENSE) (`GPL-3.0`) + [REUSE.toml](REUSE.toml) |
 | **CII-Best-Practices** | `5 / 10` | OpenSSF Best Practices **Passing (%115)** sertifikası doğrulandı |
 
 </details>
@@ -208,7 +210,7 @@ irm https://raw.githubusercontent.com/KeremKalyoncu/ozevpn/main/scripts/install.
 
 ### Seçenek 2 — Taşınabilir Tek Dosya (`.exe`) veya Winget
 
-1. [GitHub Releases (`v6.1.1`)](https://github.com/KeremKalyoncu/ozevpn/releases/tag/v6.1.1) sayfasından `OzeVPN.exe` dosyasını indirip çift tıklayın.
+1. [GitHub Releases (`v6.1.2`)](https://github.com/KeremKalyoncu/ozevpn/releases/tag/v6.1.2) sayfasından `OzeVPN.exe` dosyasını indirip çift tıklayın.
 2. Tam sistem / oyun UDP / Kill Switch koruması için üst çubuktan **Oyun TUN** butonuna tıklayın.
 3. Aynı Wi-Fi'deki telefon/TV'ler için **Ev Ağıyla Paylaş** anahtarını açın.
 4. **Tam Temiz Kaldırma:** `.\OzeVPN.exe -uninstall`
@@ -251,9 +253,9 @@ go run ./tools/bench -samples 10 -bytes 3000000
 İndirdiğiniz her sürümü bağımsız olarak doğrulayabilirsiniz:
 
 ```powershell
-# 1. İndirilen OzeVPN.exe için SHA-256 doğrulaması (v6.1.1 beklenen özet)
+# 1. İndirilen OzeVPN.exe için SHA-256 doğrulaması (v6.1.2 beklenen özet)
 (Get-FileHash .\OzeVPN.exe -Algorithm SHA256).Hash
-# Beklenen: 37EA85B678E37BFA02958FDD16D4513026E585351A9530D2899CFA287D931558
+# Beklenen: 64D4962541966E18F7D935B6D2E97CA8BEBF4CD587B61128E774D4330A1DCB34
 
 # 2. Sigstore SLSA Build Provenance kriptografik doğrulama (GitHub CLI ile)
 gh attestation verify OzeVPN-core.exe -R KeremKalyoncu/ozevpn

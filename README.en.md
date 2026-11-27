@@ -59,7 +59,7 @@ OzeVPN is continuously audited on every commit against **Linux Foundation OpenSS
 | Independent Audit / Standard | Live Certificate & Badge | Verified Scope | Audit Record |
 | :--- | :---: | :--- | :--- |
 | **Linux Foundation OpenSSF Best Practices** | [![OpenSSF Best Practices](https://www.bestpractices.dev/projects/17200/badge)](https://www.bestpractices.dev/en/projects/17200) | **115% Passing** (`67/67` security, crypto, testing & release criteria) | [Project #17200](https://www.bestpractices.dev/en/projects/17200) |
-| **OpenSSF Scorecard** | [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/KeremKalyoncu/ozevpn/badge)](https://scorecard.dev/viewer/?uri=github.com/KeremKalyoncu/ozevpn) | **`7.2 / 10`** — **10 checks at `10/10`** + `License 9/10` | [Live Viewer](https://scorecard.dev/viewer/?uri=github.com/KeremKalyoncu/ozevpn) |
+| **OpenSSF Scorecard** | [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/KeremKalyoncu/ozevpn/badge)](https://scorecard.dev/viewer/?uri=github.com/KeremKalyoncu/ozevpn) | **`8.2 / 10` (Grade A)** — **13 checks at `10/10`** | [Live Viewer](https://scorecard.dev/viewer/?uri=github.com/KeremKalyoncu/ozevpn) |
 | **SonarCloud Quality & Security** | [![Quality Gate](https://sonarcloud.io/api/project_badges/measure?project=KeremKalyoncu_ozevpn&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=KeremKalyoncu_ozevpn) [![Security](https://sonarcloud.io/api/project_badges/measure?project=KeremKalyoncu_ozevpn&metric=security_rating)](https://sonarcloud.io/summary/new_code?id=KeremKalyoncu_ozevpn) | Continuous static quality gate and **Grade A** security rating | [SonarCloud Dashboard](https://sonarcloud.io/summary/new_code?id=KeremKalyoncu_ozevpn) |
 | **GitHub CodeQL SAST** | [![CodeQL](https://github.com/KeremKalyoncu/ozevpn/actions/workflows/codeql.yml/badge.svg)](https://github.com/KeremKalyoncu/ozevpn/actions/workflows/codeql.yml) | Automated **Go + JavaScript** security scanning on every push, PR & schedule | [CodeQL Workflow](https://github.com/KeremKalyoncu/ozevpn/actions/workflows/codeql.yml) |
 | **Sigstore SLSA Build Provenance** | [![SLSA](https://github.com/KeremKalyoncu/ozevpn/actions/workflows/release.yml/badge.svg)](https://github.com/KeremKalyoncu/ozevpn/actions/workflows/release.yml) | Cryptographic build attestation (`gh attestation verify`) + CycloneDX 1.5 SBOM | [Release Workflow](https://github.com/KeremKalyoncu/ozevpn/actions/workflows/release.yml) |
@@ -71,15 +71,18 @@ OzeVPN is continuously audited on every commit against **Linux Foundation OpenSS
 > **Audit Scope Transparency:** **OpenSSF Best Practices** is a voluntary self-certification program; **CodeQL**, **SonarCloud**, **OpenSSF Scorecard**, and **Sigstore SLSA** provide automated static and supply-chain verification—they do not replace an independent third-party penetration test. Windows Authenticode signing via [SignPath Foundation](CODE_SIGNING_POLICY.md) is currently under review; releases are verified via `SHA-256` checksums and **SLSA Build Level 3 (`*.intoto.jsonl`)** provenance.
 
 <details>
-<summary><b>📊 OpenSSF Scorecard Breakdown — 10 Perfect <code>10/10</code> Checks</b></summary>
+<summary><b>📊 OpenSSF Scorecard Breakdown — 13 Perfect <code>10/10</code> Checks (<code>8.2 / 10</code> · Grade A)</b></summary>
 
 <br/>
 
 | Scorecard Check | Score | Evidence |
 | :--- | :---: | :--- |
-| **SAST** | `10 / 10` | CodeQL (Go + JS), `staticcheck`, `go vet`, and SonarCloud on every commit |
+| **Signed-Releases** | `10 / 10` | SLSA Build Level 3 `*.intoto.jsonl` + Sigstore Cosign signed releases |
+| **Packaging** | `10 / 10` | Automated GoReleaser v2 build & release publishing pipeline |
+| **License** | `10 / 10` | Verbatim 674-line FSF GNU [LICENSE](LICENSE) (`GPL-3.0`) + [REUSE.toml](REUSE.toml) |
+| **SAST** | `10 / 10` | CodeQL (Go + JS · `0` alerts), `staticcheck@v0.8.2`, `go vet`, and SonarCloud (`A/A/A`) |
 | **Fuzzing** | `10 / 10` | Native Go fuzz targets (`FuzzCleanDomain`, `FuzzParseCustomOutbound`) |
-| **Vulnerabilities** | `10 / 10` | Zero known CVEs (`govulncheck` + `0` external Go/npm dependencies) |
+| **Vulnerabilities** | `10 / 10` | Zero known CVEs (`govulncheck@v1.10.0` + `0` external Go/npm dependencies) |
 | **Security-Policy** | `10 / 10` | [SECURITY.md](SECURITY.md) — supported versions, 48h ack, 90d coordinated disclosure |
 | **Pinned-Dependencies** | `10 / 10` | Every GitHub Actions step pinned to full 40-char commit SHA |
 | **Token-Permissions** | `10 / 10` | Least-privilege workflow tokens (`permissions: contents: read` top-level) |
@@ -87,7 +90,6 @@ OzeVPN is continuously audited on every commit against **Linux Foundation OpenSS
 | **Binary-Artifacts** | `10 / 10` | Zero binaries checked into Git; embedded runtimes `5/5` SHA-256 pinned |
 | **Dangerous-Workflow** | `10 / 10` | Zero dangerous workflow patterns or script injections |
 | **Dependency-Update-Tool** | `10 / 10` | Automated weekly `Dependabot` (`.github/dependabot.yml`) |
-| **License** | `9 / 10` | Root [LICENSE](LICENSE) (`GPL-3.0`) + [REUSE.toml](REUSE.toml) |
 | **CII-Best-Practices** | `5 / 10` | OpenSSF Best Practices **Passing (115%)** verified |
 
 </details>
@@ -165,7 +167,7 @@ irm https://raw.githubusercontent.com/KeremKalyoncu/ozevpn/main/scripts/install.
 
 ### Option 2 — Portable Single-EXE Download or Winget
 
-1. Download `OzeVPN.exe` from [GitHub Releases (`v6.1.1`)](https://github.com/KeremKalyoncu/ozevpn/releases/tag/v6.1.1) and double-click.
+1. Download `OzeVPN.exe` from [GitHub Releases (`v6.1.2`)](https://github.com/KeremKalyoncu/ozevpn/releases/tag/v6.1.2) and double-click.
 2. Click **Oyun TUN** in the top bar for full-system `IPv4+IPv6+UDP` tunneling and WFP Kill Switch.
 3. Clean uninstall anytime: `.\OzeVPN.exe -uninstall`.
 4. **Winget:** Manifest submitted in [microsoft/winget-pkgs#491333](https://github.com/microsoft/winget-pkgs/pull/491333) (`winget install KeremKalyoncu.OzeVPN`).
@@ -183,9 +185,9 @@ gofmt -l . ; go vet ./... ; go test -race -cover ./...
 ## 🔐 Verification & Supply Chain
 
 ```powershell
-# 1. Verify SHA-256 checksum of downloaded OzeVPN.exe (v6.1.1)
+# 1. Verify SHA-256 checksum of downloaded OzeVPN.exe (v6.1.2)
 (Get-FileHash .\OzeVPN.exe -Algorithm SHA256).Hash
-# Expected: 37EA85B678E37BFA02958FDD16D4513026E585351A9530D2899CFA287D931558
+# Expected: 64D4962541966E18F7D935B6D2E97CA8BEBF4CD587B61128E774D4330A1DCB34
 
 # 2. Verify Sigstore SLSA Build Provenance via GitHub CLI
 gh attestation verify OzeVPN-core.exe -R KeremKalyoncu/ozevpn
