@@ -64,6 +64,7 @@ type EngineState struct {
 	TorAlive         bool   `json:"tor_alive"`
 	TorBridgeReady   bool   `json:"tor_bridge_ready"`
 	WarpInstalled    bool   `json:"warp_installed"`
+	WarpNativeWG     bool   `json:"warp_native_wg"`
 	AdBlockActive    bool   `json:"ad_block_active"`
 	DNSProtected     bool   `json:"dns_protected"`
 	ProxyPort        int    `json:"proxy_port"`
@@ -79,6 +80,7 @@ type Manager struct {
 	lastSnap         EngineState
 	baseDir          string
 	warpClient       *warp.Client
+	warpWG           *warp.NativeWGProfile
 	torCmd           *exec.Cmd
 	torLogFile       *cappedFileWriter
 	sbCmd            *exec.Cmd
@@ -188,7 +190,8 @@ func (m *Manager) Status() EngineState {
 		TorReady:         m.findBin(filepath.Join("tor", "tor", "tor.exe")) != "",
 		TorAlive:         procAlive(m.torCmd),
 		TorBridgeReady:   m.findBin(filepath.Join("tor", "tor", "pluggable_transports", "lyrebird.exe")) != "",
-		WarpInstalled:    m.warpClient.BinaryDir() != "",
+		WarpInstalled:    m.warpClient.BinaryDir() != "" || m.warpWG != nil,
+		WarpNativeWG:     m.warpWG != nil,
 		AdBlockActive:    m.running && m.adBlockActive,
 		DNSProtected:     m.running,
 		ProxyPort:        m.mixedPort,
@@ -241,6 +244,7 @@ func (m *Manager) Start(cfg config.Config) ([]string, error) {
 	useWarpOnly := cfg.EngineProfile == "warp_fast"
 
 	warpAvailable := false
+	var nativeWG *warp.NativeWGProfile
 	torAvailable := false
 
 	var wg sync.WaitGroup
@@ -278,12 +282,36 @@ func (m *Manager) Start(cfg config.Config) ([]string, error) {
 	}
 
 	if needWarp {
-		ws := m.warpClient.Status()
-		if ws.Installed {
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
-				addLog("Hızlı katman (Cloudflare WARP Proxy) paralel başlatılıyor...")
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			// 1. Prefer native Cloudflare WARP WireGuard inside sing-box (full Layer-3 TCP + UDP
+			//    for Roblox RakNet UDP, Discord Voice UDP, QUIC, and online gaming; zero external warp-cli needed).
+			if cfg.Protocol != "MASQUE" {
+				addLog("Yerleşik Cloudflare WARP WireGuard (Tam TCP + UDP Oyun Tüneli) hazırlanıyor...")
+				profPath := warp.DefaultWGProfilePath(m.baseDir)
+				prof, wgErr := warp.EnsureNativeWGProfile(profPath)
+				if wgErr != nil {
+					addLog("Yerleşik WARP WireGuard kaydı alınamadı, yedek katmana geçiliyor: " + wgErr.Error())
+				} else if ep, port, pErr := warp.ProbeNativeWG(sbBin, prof); pErr != nil {
+					addLog("Yerleşik WARP WireGuard UDP bu ağda yanıt vermedi, yedek katmana geçiliyor: " + pErr.Error())
+				} else {
+					if prof.Endpoint != ep || prof.Port != port {
+						prof.Endpoint = ep
+						prof.Port = port
+						_ = warp.SaveNativeWGProfile(profPath, prof)
+					}
+					nativeWG = prof
+					warpAvailable = true
+					addLog(fmt.Sprintf("Hızlı katman hazır: Yerleşik WARP WireGuard (Tam TCP + UDP — %s:%d).", ep, port))
+					return
+				}
+			}
+
+			// 2. Fallback to external warp-cli SOCKS5 proxy (MASQUE/TCP-only) if installed.
+			ws := m.warpClient.Status()
+			if ws.Installed {
+				addLog("Yedek hızlı katman (Cloudflare WARP Proxy) başlatılıyor...")
 				proxyCfg := cfg
 				proxyCfg.Mode = config.ModeProxyPAC
 				proxyCfg.ProxyPort = m.warpPort
@@ -299,18 +327,17 @@ func (m *Manager) Start(cfg config.Config) ([]string, error) {
 					if conn, dErr := net.DialTimeout("tcp", fmt.Sprintf("127.0.0.1:%d", m.warpPort), 800*time.Millisecond); dErr == nil {
 						_ = conn.Close()
 						warpAvailable = true
-						addLog(fmt.Sprintf("WARP Proxy hazır (127.0.0.1:%d).", m.warpPort))
+						addLog(fmt.Sprintf("WARP Proxy hazır (127.0.0.1:%d — TCP yedek modu).", m.warpPort))
 					} else {
 						addLog(fmt.Sprintf("WARP portu (127.0.0.1:%d) dinlemiyor, Avrupa Tor katmanına geçiliyor.", m.warpPort))
 					}
 				} else {
 					addLog("WARP başlatılamadı, Avrupa Tor katmanına geçiliyor: " + wErr.Error())
 				}
-			}()
-		} else {
-			addLog("Cloudflare WARP kurulu değil — bağımsız Avrupa Tor motoru kullanılacak.")
-			needTor = true
-		}
+			} else {
+				addLog("Cloudflare WARP istemcisi kurulu değil — bağımsız Avrupa Tor motoruna geçiliyor.")
+			}
+		}()
 	}
 
 	if needTor && torBin != "" {
@@ -343,6 +370,7 @@ func (m *Manager) Start(cfg config.Config) ([]string, error) {
 
 	cfgBytes, err := BuildSingBoxConfig(cfg, BuildOptions{
 		WarpAvailable: warpAvailable,
+		WarpWG:        nativeWG,
 		TorAvailable:  torAvailable,
 		IsAdmin:       admin,
 		MixedPort:     m.mixedPort,
@@ -357,7 +385,11 @@ func (m *Manager) Start(cfg config.Config) ([]string, error) {
 	}
 
 	if admin {
-		m.captureLayer = fmt.Sprintf("Tam Sistem TUN (IPv4+IPv6+UDP) + Proxy (127.0.0.1:%d)", m.mixedPort)
+		if nativeWG != nil {
+			m.captureLayer = fmt.Sprintf("Tam Sistem TUN (IPv4+IPv6+UDP WireGuard) + Proxy (127.0.0.1:%d)", m.mixedPort)
+		} else {
+			m.captureLayer = fmt.Sprintf("Tam Sistem TUN (IPv4+IPv6+UDP) + Proxy (127.0.0.1:%d)", m.mixedPort)
+		}
 		addLog("Yönetici izni aktif → Çift yığınlı (IPv4+IPv6) TUN sanal ağ kartı açılıyor.")
 	} else {
 		m.captureLayer = fmt.Sprintf("Tarayıcı/Proxy Korumalı (127.0.0.1:%d — UDP için Oyun TUN)", m.mixedPort)
@@ -434,6 +466,7 @@ func (m *Manager) Start(cfg config.Config) ([]string, error) {
 	m.state = "Connected"
 	m.activeProf = cfg.EngineProfile
 	m.adBlockActive = cfg.AdBlockSpeed
+	m.warpWG = nativeWG
 	m.torNeeded = torAvailable
 	m.torBinPath = torBin
 	m.sbBinPath = sbBin
@@ -663,7 +696,8 @@ func (m *Manager) ReloadRouting(cfg config.Config) (string, error) {
 	}
 
 	cfgBytes, err := BuildSingBoxConfig(cfg, BuildOptions{
-		WarpAvailable: m.warpClient.Status().State == "Connected",
+		WarpAvailable: m.warpWG != nil || m.warpClient.Status().State == "Connected",
+		WarpWG:        m.warpWG,
 		TorAvailable:  procAlive(m.torCmd),
 		IsAdmin:       IsAdmin(),
 		MixedPort:     m.mixedPort,
@@ -757,6 +791,7 @@ func (m *Manager) stopLocked() {
 	FlushDNSCache()
 	m.running = false
 	m.state = "Disconnected"
+	m.warpWG = nil
 	m.captureLayer = ""
 	m.adBlockActive = false
 	m.startedAt = time.Time{}

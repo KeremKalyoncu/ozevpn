@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"ozevpn/internal/config"
+	"ozevpn/internal/warp"
 )
 
 func TestBuildSingBoxConfigAndOfficialSchemaCheck(t *testing.T) {
@@ -258,6 +259,87 @@ func TestBuildSingBoxConfigAdminDualStackIPv6DoHDetourAndOfficialCheck(t *testin
 		}
 		if out, err := exec.Command(sbBin, "check", "-c", tmpCfg).CombinedOutput(); err != nil {
 			t.Fatalf("official sing-box check FAILED on dual-stack admin config: %v\n%s", err, string(out))
+		}
+	}
+}
+
+// TestBuildSingBoxConfigNativeWarpWGRobloxUDPAndOfficialCheck verifies the Roblox Error 279 fix:
+// - Native WARP WireGuard endpoint emits a valid sing-box 1.14+ top-level wireguard endpoint ("warp-fast")
+// - RobloxPlayerBeta.exe routes BOTH TCP and UDP through "warp-fast" (never TCP-only "tor-eu")
+// - Every rule targeting "tor-eu" is strictly scoped to "network": "tcp" (zero SOCKS5 code=7 UDP errors)
+// - Passes official `sing-box check` schema validation.
+func TestBuildSingBoxConfigNativeWarpWGRobloxUDPAndOfficialCheck(t *testing.T) {
+	cfg := config.DefaultConfig()
+	cfg.Mode = config.ModeSmartSplit
+	wgProf := &warp.NativeWGProfile{
+		PrivateKey: "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+		AddressV4:  "172.16.0.2/32",
+		AddressV6:  "2606:4700:110:8000::1/128",
+		PeerPubKey: "bmXOC+F1FxEMF9dyiK2H5/1SUtzH0JuVo51h2wPfgyo=",
+		Endpoint:   "162.159.192.1",
+		Port:       2408,
+		Reserved:   []int{10, 20, 30},
+	}
+
+	b, err := BuildSingBoxConfig(cfg, BuildOptions{
+		WarpAvailable: true,
+		WarpWG:        wgProf,
+		TorAvailable:  true,
+		IsAdmin:       true,
+		MixedPort:     10808,
+		TorPort:       9055,
+	})
+	if err != nil {
+		t.Fatalf("BuildSingBoxConfig(native warp-wg) failed: %v", err)
+	}
+
+	var parsed map[string]any
+	if err := json.Unmarshal(b, &parsed); err != nil {
+		t.Fatalf("invalid JSON: %v", err)
+	}
+	eps, ok := parsed["endpoints"].([]any)
+	if !ok || len(eps) != 1 {
+		t.Fatalf("expected 1 top-level wireguard endpoint, got: %#v", parsed["endpoints"])
+	}
+	ep0, _ := eps[0].(map[string]any)
+	if ep0["type"] != "wireguard" || ep0["tag"] != "warp-fast" {
+		t.Fatalf("expected wireguard endpoint tag warp-fast, got: %#v", ep0)
+	}
+
+	routeObj, _ := parsed["route"].(map[string]any)
+	rules, _ := routeObj["rules"].([]any)
+	sawRobloxWarp := false
+	for _, r := range rules {
+		rm, _ := r.(map[string]any)
+		if rm["outbound"] == "tor-eu" && rm["network"] != "tcp" {
+			t.Fatalf("tor-eu rule MUST restrict network=tcp to prevent SOCKS5 code=7 UDP errors: %#v", rm)
+		}
+		if procs, ok := rm["process_name"].([]any); ok {
+			for _, p := range procs {
+				if p == "RobloxPlayerBeta.exe" {
+					if rm["outbound"] != "warp-fast" {
+						t.Fatalf("expected RobloxPlayerBeta.exe to route to UDP-capable warp-fast, got %#v", rm)
+					}
+					sawRobloxWarp = true
+				}
+			}
+		}
+		if rm["network"] == "udp" && rm["action"] == "reject" {
+			t.Fatalf("unexpected udp reject rule when native WARP WireGuard supports full UDP: %#v", rm)
+		}
+	}
+	if !sawRobloxWarp {
+		t.Fatal("missing explicit RobloxPlayerBeta.exe -> warp-fast rule in admin TUN config")
+	}
+
+	sbBin := filepath.Join("..", "..", "bin", "sing-box.exe")
+	if _, err := os.Stat(sbBin); err == nil {
+		tmpCfg := filepath.Join(t.TempDir(), "native-warp-wg-check.json")
+		if err := os.WriteFile(tmpCfg, b, 0600); err != nil {
+			t.Fatal(err)
+		}
+		if out, err := exec.Command(sbBin, "check", "-c", tmpCfg).CombinedOutput(); err != nil {
+			t.Fatalf("official sing-box check FAILED on native WARP WireGuard config: %v\n%s", err, string(out))
 		}
 	}
 }

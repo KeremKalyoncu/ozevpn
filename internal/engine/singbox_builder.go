@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"ozevpn/internal/config"
+	"ozevpn/internal/warp"
 )
 
 // pickSafeTUNv4Subnet returns 172.19.0.1/30 unless a local interface already occupies 172.19.0.0/30,
@@ -28,6 +29,7 @@ func pickSafeTUNv4Subnet() string {
 
 type BuildOptions struct {
 	WarpAvailable bool
+	WarpWG        *warp.NativeWGProfile
 	TorAvailable  bool
 	IsAdmin       bool
 	MixedPort     int
@@ -58,6 +60,7 @@ func BuildSingBoxConfig(cfg config.Config, opts BuildOptions) ([]byte, error) {
 	var endpoints []map[string]any
 
 	defaultOut := "direct"
+	defaultSupportsUDP := false
 	euOut := ""
 
 	if useCustom {
@@ -89,9 +92,40 @@ func BuildSingBoxConfig(cfg config.Config, opts BuildOptions) ([]byte, error) {
 			outbounds = append(outbounds, customObj)
 		}
 		defaultOut = "custom-out"
+		defaultSupportsUDP = customObj["type"] != "http"
 		euOut = "custom-out"
 	} else {
-		if opts.WarpAvailable {
+		if opts.WarpWG != nil && opts.WarpWG.PrivateKey != "" && opts.WarpWG.Endpoint != "" && opts.WarpWG.PeerPubKey != "" {
+			// Native Cloudflare WARP WireGuard endpoint directly inside sing-box:
+			// delivers full Layer-3 TCP + UDP tunneling (fixes Roblox Error 279, Discord Voice UDP, QUIC, online games).
+			wgAddrs := []string{opts.WarpWG.AddressV4}
+			if opts.WarpWG.AddressV6 != "" {
+				wgAddrs = append(wgAddrs, opts.WarpWG.AddressV6)
+			}
+			wgPort := opts.WarpWG.Port
+			if wgPort <= 0 || wgPort > 65535 {
+				wgPort = 2408
+			}
+			peer := map[string]any{
+				"address":     opts.WarpWG.Endpoint,
+				"port":        wgPort,
+				"public_key":  opts.WarpWG.PeerPubKey,
+				"allowed_ips": []string{"0.0.0.0/0", "::/0"},
+			}
+			if len(opts.WarpWG.Reserved) == 3 {
+				peer["reserved"] = opts.WarpWG.Reserved
+			}
+			endpoints = append(endpoints, map[string]any{
+				"type":        "wireguard",
+				"tag":         "warp-fast",
+				"mtu":         1280,
+				"address":     wgAddrs,
+				"private_key": opts.WarpWG.PrivateKey,
+				"peers":       []map[string]any{peer},
+			})
+			defaultOut = "warp-fast"
+			defaultSupportsUDP = true
+		} else if opts.WarpAvailable {
 			outbounds = append(outbounds, map[string]any{
 				"type":        "socks",
 				"tag":         "warp-fast",
@@ -100,6 +134,7 @@ func BuildSingBoxConfig(cfg config.Config, opts BuildOptions) ([]byte, error) {
 				"version":     "5",
 			})
 			defaultOut = "warp-fast"
+			defaultSupportsUDP = false
 		}
 		if opts.TorAvailable {
 			outbounds = append(outbounds, map[string]any{
@@ -110,8 +145,9 @@ func BuildSingBoxConfig(cfg config.Config, opts BuildOptions) ([]byte, error) {
 				"version":     "5",
 			})
 			euOut = "tor-eu"
-			if useTorOnly || !opts.WarpAvailable {
+			if useTorOnly || defaultOut == "direct" {
 				defaultOut = "tor-eu"
+				defaultSupportsUDP = false
 			}
 		}
 	}
@@ -172,28 +208,55 @@ func BuildSingBoxConfig(cfg config.Config, opts BuildOptions) ([]byte, error) {
 		}
 	}
 
+	// Roblox requires consistent TCP+UDP egress (RakNet UDP game servers reject Tor/TCP-only SOCKS5 with Error 279).
+	// When a UDP-capable fast tunnel (native WARP WireGuard or Custom WireGuard/VLESS) is active,
+	// route ALL Roblox traffic (TCP + UDP) through defaultOut instead of TCP-only Tor.
+	if opts.IsAdmin && defaultSupportsUDP && (useHybrid || cfg.Mode == config.ModeProxyPAC) {
+		rules = append(rules, map[string]any{
+			"process_name": []string{"RobloxPlayerBeta.exe", "RobloxPlayerLauncher.exe"},
+			"outbound":     defaultOut,
+		})
+	}
+
 	if euOut != "" && defaultOut != euOut && (useHybrid || cfg.Mode == config.ModeProxyPAC) {
 		euDomains := []string{
-			"roblox.com",
-			"rbxcdn.com",
-			"rbx.com",
-			"robloxlabs.com",
-			"roblox.qq.com",
 			"wattpad.com",
 			"paypal.com",
 			"booking.com",
 		}
+		if !defaultSupportsUDP {
+			// Fallback when only TCP-only SOCKS5 is available: keep Roblox web TCP reachable via EU Tor.
+			euDomains = append(euDomains,
+				"roblox.com",
+				"rbxcdn.com",
+				"rbx.com",
+				"robloxlabs.com",
+				"roblox.qq.com",
+			)
+		}
 		euDomains = append(euDomains, cfg.CustomTunnel...)
+		// Tor is strictly TCP-only; never send UDP packets to tor-eu (prevents SOCKS5 code=7 errors).
 		rules = append(rules, map[string]any{
+			"network":       "tcp",
 			"domain_suffix": euDomains,
 			"outbound":      euOut,
 		})
-		if opts.IsAdmin {
+		if opts.IsAdmin && !defaultSupportsUDP {
 			rules = append(rules, map[string]any{
+				"network":      "tcp",
 				"process_name": []string{"RobloxPlayerBeta.exe", "RobloxPlayerLauncher.exe"},
 				"outbound":     euOut,
 			})
 		}
+	}
+
+	// If no UDP-capable tunnel is active (e.g. Tor-only or fallback TCP-only warp-cli SOCKS5),
+	// cleanly reject tunneled UDP instead of spamming SOCKS5 UDP ASSOCIATE EOF/code=7 failures.
+	if opts.IsAdmin && !defaultSupportsUDP && cfg.Mode != config.ModeProxyPAC {
+		rules = append(rules, map[string]any{
+			"network": "udp",
+			"action":  "reject",
+		})
 	}
 
 	finalOut := defaultOut
