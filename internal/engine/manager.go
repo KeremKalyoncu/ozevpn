@@ -81,6 +81,7 @@ type Manager struct {
 	baseDir          string
 	warpClient       *warp.Client
 	warpWG           *warp.NativeWGProfile
+	warpCLIUsed      bool
 	torCmd           *exec.Cmd
 	torLogFile       *cappedFileWriter
 	sbCmd            *exec.Cmd
@@ -247,6 +248,7 @@ func (m *Manager) Start(cfg config.Config) ([]string, error) {
 	useWarpOnly := cfg.EngineProfile == "warp_fast"
 
 	warpAvailable := false
+	warpCLIStarted := false
 	var nativeWG *warp.NativeWGProfile
 	torAvailable := false
 	torAttempted := false
@@ -296,21 +298,35 @@ func (m *Manager) Start(cfg config.Config) ([]string, error) {
 			if cfg.Protocol != "MASQUE" {
 				addLog("Yerleşik Cloudflare WARP WireGuard (Tam TCP + UDP Oyun Tüneli) hazırlanıyor...")
 				profPath := warp.DefaultWGProfilePath(m.baseDir)
+				_, hadCached := os.Stat(profPath)
 				prof, wgErr := warp.EnsureNativeWGProfile(profPath)
 				if wgErr != nil {
 					addLog("Yerleşik WARP WireGuard kaydı alınamadı, yedek katmana geçiliyor: " + wgErr.Error())
-				} else if ep, port, pErr := warp.ProbeNativeWG(sbBin, prof); pErr != nil {
-					addLog("Yerleşik WARP WireGuard UDP bu ağda yanıt vermedi, yedek katmana geçiliyor: " + pErr.Error())
 				} else {
-					if prof.Endpoint != ep || prof.Port != port {
-						prof.Endpoint = ep
-						prof.Port = port
-						_ = warp.SaveNativeWGProfile(profPath, prof)
+					ep, port, pErr := warp.ProbeNativeWG(sbBin, prof)
+					// Self-healing: if a cached profile failed all ports (e.g. revoked device key),
+					// register a fresh Cloudflare WARP device once before falling back.
+					if pErr != nil && hadCached == nil {
+						if fresh, rErr := warp.RegisterNativeWG(); rErr == nil {
+							if fep, fport, fpErr := warp.ProbeNativeWG(sbBin, fresh); fpErr == nil {
+								prof, ep, port, pErr = fresh, fep, fport, nil
+								_ = warp.SaveNativeWGProfile(profPath, prof)
+							}
+						}
 					}
-					nativeWG = prof
-					warpAvailable = true
-					addLog(fmt.Sprintf("Hızlı katman hazır: Yerleşik WARP WireGuard (Tam TCP + UDP — %s:%d).", ep, port))
-					return
+					if pErr != nil {
+						addLog("Yerleşik WARP WireGuard UDP bu ağda yanıt vermedi, yedek katmana geçiliyor: " + pErr.Error())
+					} else {
+						if prof.Endpoint != ep || prof.Port != port {
+							prof.Endpoint = ep
+							prof.Port = port
+							_ = warp.SaveNativeWGProfile(profPath, prof)
+						}
+						nativeWG = prof
+						warpAvailable = true
+						addLog(fmt.Sprintf("Hızlı katman hazır: Yerleşik WARP WireGuard (Tam TCP + UDP — %s:%d).", ep, port))
+						return
+					}
 				}
 			}
 
@@ -333,6 +349,7 @@ func (m *Manager) Start(cfg config.Config) ([]string, error) {
 					if conn, dErr := net.DialTimeout("tcp", fmt.Sprintf("127.0.0.1:%d", m.warpPort), 800*time.Millisecond); dErr == nil {
 						_ = conn.Close()
 						warpAvailable = true
+						warpCLIStarted = true
 						addLog(fmt.Sprintf("WARP Proxy hazır (127.0.0.1:%d — TCP yedek modu).", m.warpPort))
 					} else {
 						addLog(fmt.Sprintf("WARP portu (127.0.0.1:%d) dinlemiyor, Avrupa Tor katmanına geçiliyor.", m.warpPort))
@@ -478,6 +495,7 @@ func (m *Manager) Start(cfg config.Config) ([]string, error) {
 	m.activeProf = cfg.EngineProfile
 	m.adBlockActive = cfg.AdBlockSpeed
 	m.warpWG = nativeWG
+	m.warpCLIUsed = warpCLIStarted
 	m.torNeeded = torAvailable
 	m.torBinPath = torBin
 	m.sbBinPath = sbBin
@@ -825,7 +843,10 @@ func (m *Manager) stopLocked() {
 		_ = m.torLogFile.Close()
 		m.torLogFile = nil
 	}
-	_ = m.warpClient.Disconnect()
+	if m.warpCLIUsed {
+		_ = m.warpClient.Disconnect()
+		m.warpCLIUsed = false
+	}
 	_ = os.Remove(filepath.Join(m.baseDir, "bin", "sing-box-active.json"))
 	FlushDNSCache()
 	m.running = false

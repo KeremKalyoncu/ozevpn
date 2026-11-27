@@ -342,6 +342,76 @@ func TestBuildSingBoxConfigNativeWarpWGRobloxUDPAndOfficialCheck(t *testing.T) {
 			t.Fatalf("official sing-box check FAILED on native WARP WireGuard config: %v\n%s", err, string(out))
 		}
 	}
+
+	raw := string(b)
+	for _, want := range []string{
+		`"mtu": 1280`,
+		`"persistent_keepalive_interval": 25`,
+		`"Discord.exe"`,
+		`"RobloxPlayerBeta.exe"`,
+	} {
+		if !containsStr(raw, want) {
+			t.Fatalf("native WARP WireGuard admin config missing %s:\n%s", want, raw)
+		}
+	}
+}
+
+// TestBuildSingBoxConfigFullMatrixOfficialSchemaCheck validates EVERY combination of
+// mode (full/smart/pac) x profile (hybrid_eu/warp_fast/tor_eu) x admin (true/false) x BlockLAN
+// against the official sing-box 1.14.4 schema validator so no config combo can fail at runtime.
+func TestBuildSingBoxConfigFullMatrixOfficialSchemaCheck(t *testing.T) {
+	sbBin := filepath.Join("..", "..", "bin", "sing-box.exe")
+	if _, err := os.Stat(sbBin); err != nil {
+		t.Skip("bin/sing-box.exe not present")
+	}
+	wgProf := &warp.NativeWGProfile{
+		PrivateKey: "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+		AddressV4:  "172.16.0.2/32",
+		AddressV6:  "2606:4700:110:8000::1/128",
+		PeerPubKey: "bmXOC+F1FxEMF9dyiK2H5/1SUtzH0JuVo51h2wPfgyo=",
+		Endpoint:   "162.159.192.1",
+		Port:       2408,
+		Reserved:   []int{10, 20, 30},
+	}
+	modes := []config.Mode{config.ModeGlobalUnrestricted, config.ModeSmartSplit, config.ModeProxyPAC}
+	profiles := []string{"hybrid_eu", "warp_fast", "tor_eu"}
+	tmpDir := t.TempDir()
+	idx := 0
+	for _, mode := range modes {
+		for _, prof := range profiles {
+			for _, isAdmin := range []bool{false, true} {
+				for _, blockLAN := range []bool{false, true} {
+					idx++
+					cfg := config.DefaultConfig()
+					cfg.Mode = mode
+					cfg.EngineProfile = prof
+					cfg.BlockLAN = blockLAN
+					opts := BuildOptions{
+						WarpAvailable: prof != "tor_eu",
+						TorAvailable:  prof != "warp_fast",
+						IsAdmin:       isAdmin,
+						MixedPort:     10808,
+						WarpPort:      40000,
+						TorPort:       9055,
+					}
+					if prof != "tor_eu" {
+						opts.WarpWG = wgProf
+					}
+					b, err := BuildSingBoxConfig(cfg, opts)
+					if err != nil {
+						t.Fatalf("matrix[%s/%s/admin=%v/lan=%v] build failed: %v", mode, prof, isAdmin, blockLAN, err)
+					}
+					p := filepath.Join(tmpDir, "m-"+itoa(idx)+".json")
+					if err := os.WriteFile(p, b, 0600); err != nil {
+						t.Fatal(err)
+					}
+					if out, err := exec.Command(sbBin, "check", "-c", p).CombinedOutput(); err != nil {
+						t.Fatalf("matrix[%s/%s/admin=%v/lan=%v] sing-box check FAILED: %v\n%s", mode, prof, isAdmin, blockLAN, err, string(out))
+					}
+				}
+			}
+		}
+	}
 }
 
 func containsStr(s, sub string) bool {

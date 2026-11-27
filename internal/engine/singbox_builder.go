@@ -71,10 +71,11 @@ func BuildSingBoxConfig(cfg config.Config, opts BuildOptions) ([]byte, error) {
 		if customObj["type"] == "wireguard" {
 			// sing-box 1.11+/1.14+ uses top-level "endpoints" for WireGuard (with optional Post-Quantum PresharedKey)
 			peer := map[string]any{
-				"address":     customObj["server"],
-				"port":        customObj["server_port"],
-				"public_key":  customObj["peer_public_key"],
-				"allowed_ips": []string{"0.0.0.0/0", "::/0"},
+				"address":                       customObj["server"],
+				"port":                          customObj["server_port"],
+				"public_key":                    customObj["peer_public_key"],
+				"allowed_ips":                   []string{"0.0.0.0/0", "::/0"},
+				"persistent_keepalive_interval": 25,
 			}
 			if psk, ok := customObj["pre_shared_key"].(string); ok && psk != "" {
 				peer["pre_shared_key"] = psk
@@ -107,10 +108,11 @@ func BuildSingBoxConfig(cfg config.Config, opts BuildOptions) ([]byte, error) {
 				wgPort = 2408
 			}
 			peer := map[string]any{
-				"address":     opts.WarpWG.Endpoint,
-				"port":        wgPort,
-				"public_key":  opts.WarpWG.PeerPubKey,
-				"allowed_ips": []string{"0.0.0.0/0", "::/0"},
+				"address":                       opts.WarpWG.Endpoint,
+				"port":                          wgPort,
+				"public_key":                    opts.WarpWG.PeerPubKey,
+				"allowed_ips":                   []string{"0.0.0.0/0", "::/0"},
+				"persistent_keepalive_interval": 25,
 			}
 			if len(opts.WarpWG.Reserved) == 3 {
 				peer["reserved"] = opts.WarpWG.Reserved
@@ -165,12 +167,18 @@ func BuildSingBoxConfig(cfg config.Config, opts BuildOptions) ([]byte, error) {
 		},
 	}
 	if opts.IsAdmin {
+		tunMTU := 1400
+		if len(endpoints) > 0 {
+			// Match WireGuard endpoint MTU (1280) to prevent UDP fragmentation/blackholing
+			// in Roblox RakNet, Discord Voice UDP, and QUIC behind PPPoE/CGNAT networks.
+			tunMTU = 1280
+		}
 		inbounds = append(inbounds, map[string]any{
 			"type":           "tun",
 			"tag":            "tun-in",
 			"interface_name": "ozevpn0",
 			"address":        []string{pickSafeTUNv4Subnet(), "fdfe:dcba:9876::1/126"},
-			"mtu":            1400,
+			"mtu":            tunMTU,
 			"auto_route":     true,
 			"strict_route":   true,
 			"stack":          "gvisor",
@@ -208,13 +216,19 @@ func BuildSingBoxConfig(cfg config.Config, opts BuildOptions) ([]byte, error) {
 		}
 	}
 
-	// Roblox requires consistent TCP+UDP egress (RakNet UDP game servers reject Tor/TCP-only SOCKS5 with Error 279).
-	// When a UDP-capable fast tunnel (native WARP WireGuard or Custom WireGuard/VLESS) is active,
-	// route ALL Roblox traffic (TCP + UDP) through defaultOut instead of TCP-only Tor.
+	// Roblox & Discord Desktop require consistent TCP+UDP egress (RakNet UDP game servers & Discord Voice
+	// reject Tor/TCP-only SOCKS5 with Error 279 / EOF). When a UDP-capable fast tunnel (native WARP WireGuard
+	// or Custom WireGuard/VLESS) is active, route their traffic (TCP + UDP) through defaultOut.
 	if opts.IsAdmin && defaultSupportsUDP && (useHybrid || cfg.Mode == config.ModeProxyPAC) {
 		rules = append(rules, map[string]any{
-			"process_name": []string{"RobloxPlayerBeta.exe", "RobloxPlayerLauncher.exe"},
-			"outbound":     defaultOut,
+			"process_name": []string{
+				"RobloxPlayerBeta.exe",
+				"RobloxPlayerLauncher.exe",
+				"Discord.exe",
+				"DiscordPTB.exe",
+				"DiscordCanary.exe",
+			},
+			"outbound": defaultOut,
 		})
 	}
 
