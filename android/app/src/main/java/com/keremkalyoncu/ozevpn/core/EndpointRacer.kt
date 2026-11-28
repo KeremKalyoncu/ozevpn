@@ -96,9 +96,10 @@ object EndpointRacer {
         }
     }
 
+    // Note: Cloudflare's trace `loc=TR` reflects the allocated IP GeoIP even on European POPs
+    // like WAW/AMS/FRA where Roblox works at 200 OK; filter only actual Istanbul (IST) / 162.159.x.x pools.
     internal fun isTurkishPop(colo: String, country: String, endpoint: String): Boolean =
         colo.equals("IST", ignoreCase = true) ||
-            country.equals("TR", ignoreCase = true) ||
             endpoint.startsWith("162.159.")
 
     private fun probeOne(cand: WarpEndpointCandidate, proxyPort: Int): RaceOutcome? {

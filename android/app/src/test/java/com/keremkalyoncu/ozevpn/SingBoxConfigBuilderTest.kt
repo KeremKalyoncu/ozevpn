@@ -36,6 +36,9 @@ class SingBoxConfigBuilderTest {
         val route = obj.getJSONObject("route")
         assertFalse(route.getBoolean("auto_detect_interface"))
         assertEquals("warp-fast", route.getString("final"))
+        assertEquals("dns-warp", route.getString("default_domain_resolver"))
+        assertEquals("dns-warp", obj.getJSONObject("dns").getString("final"))
+        assertEquals("ipv4_only", obj.getJSONObject("dns").getString("strategy"))
         assertTrue(raw.contains("doubleclick.net"))
         assertFalse(raw.contains("gov.tr"))
     }

@@ -202,7 +202,7 @@ gofmt -l . ; go vet ./... ; go test -race -cover ./...
 
 # 2. Verify Android APK SHA-256 checksum (v6.2.0)
 (Get-FileHash .\OzeVPN-Android-arm64.apk -Algorithm SHA256).Hash
-# Expected: 8551F83DEDD7721F49C40A4BD0143F6F2AE5D839463B351F0AE8DB63925539C4
+# Expected: A20EE4DCE1FC0E5A3D0AD2CE1A049599E9C0AEF7219B41B629370E476BC6D034
 
 # 3. Verify Sigstore SLSA Build Provenance via GitHub CLI
 gh attestation verify OzeVPN-core.exe -R KeremKalyoncu/ozevpn

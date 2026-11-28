@@ -127,10 +127,12 @@ object SingBoxConfigBuilder {
                     put(
                         "servers",
                         JSONArray().apply {
+                            // UDP DNS inside the encrypted WireGuard tunnel avoids double-TLS MTU/GSO
+                            // fragmentation errors with auto_detect_interface=false on Android.
                             put(
                                 JSONObject()
-                                    .put("tag", "dns-doh")
-                                    .put("type", "https")
+                                    .put("tag", "dns-warp")
+                                    .put("type", "udp")
                                     .put("server", "1.1.1.1")
                                     .put("detour", "warp-fast")
                             )
@@ -143,8 +145,8 @@ object SingBoxConfigBuilder {
                         }
                     )
                     put("rules", dnsRules)
-                    put("final", "dns-doh")
-                    put("strategy", "prefer_ipv4")
+                    put("final", "dns-warp")
+                    put("strategy", "ipv4_only")
                 }
             )
             put(
@@ -167,7 +169,7 @@ object SingBoxConfigBuilder {
                     // Critical on non-root Android 11+: avoids NETLINK_ROUTE permission errors;
                     // VpnService.addDisallowedApplication(packageName) already bypasses TUN for us.
                     put("auto_detect_interface", false)
-                    put("default_domain_resolver", "dns-direct")
+                    put("default_domain_resolver", "dns-warp")
                 }
             )
         }
