@@ -15,3 +15,15 @@ bin/warp-plus.exe
 internal/embedded/runtime.zip
 *.tmp
 *.log
+
+# Android build outputs, local SDK config & fetched upstream cores
+android/.gradle/
+android/.core-cache/
+android/build/
+android/app/build/
+android/local.properties
+android/app/libs/*.aar
+android/app/src/main/jniLibs/
+android/gradle/wrapper/gradle-wrapper.jar
+android/*.jks
+android/*.keystore

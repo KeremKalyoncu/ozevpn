@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">OzeVPN</string>
+    <string name="notif_channel_name">OzeVPN Tünel Durumu</string>
+    <string name="notif_channel_desc">Anadolu Vaşağı şifreli VPN bağlantı durumu</string>
+</resources>

@@ -1,0 +1,65 @@
+name: OzeVPN Android CI
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'android/**'
+      - '.github/workflows/android.yml'
+    tags: [ 'v*.*.*' ]
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'android/**'
+      - '.github/workflows/android.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: android-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-android:
+    name: Test & Build Android APK
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup JDK 21
+        uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Setup Gradle 8.14.3
+        uses: gradle/actions/setup-gradle@48b5f213c81028ace310571dc5ec0fbbca0b2947 # v4
+        with:
+          gradle-version: '8.14.3'
+
+      - name: Fetch & SHA-256 verify official Android cores
+        run: bash android/scripts/fetch-cores.sh
+
+      - name: Run unit tests and build release APKs
+        working-directory: android
+        run: gradle testDebugUnitTest assembleRelease --no-daemon
+
+      - name: Package named APKs with SHA-256 checksums
+        run: |
+          mkdir -p android-dist
+          cp android/app/build/outputs/apk/release/app-arm64-v8a-release.apk android-dist/OzeVPN-Android-arm64.apk
+          cp android/app/build/outputs/apk/release/app-universal-release.apk android-dist/OzeVPN-Android-universal.apk
+          (cd android-dist && sha256sum OzeVPN-Android-arm64.apk OzeVPN-Android-universal.apk > OzeVPN-Android.sha256)
+          cat android-dist/OzeVPN-Android.sha256
+
+      - name: Upload Android APK artifacts
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ozevpn-android-apk
+          path: android-dist/*
+          retention-days: 14

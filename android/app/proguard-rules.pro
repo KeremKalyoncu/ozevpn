@@ -1,0 +1,2 @@
+-keep class hev.htproxy.TProxyService { *; }
+-dontwarn hev.htproxy.**
