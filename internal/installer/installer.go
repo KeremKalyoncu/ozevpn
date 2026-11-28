@@ -138,12 +138,12 @@ func EnableElevatedResident() (Status, error) {
 	}
 	dstExe := ElevatedInstallPath()
 	if err := os.MkdirAll(filepath.Dir(dstExe), 0755); err != nil {
-		return GetStatus(), fmt.Errorf("Program Files kurulum klasörü oluşturulamadı: %w", err)
+		return GetStatus(), fmt.Errorf("kurulum klasörü (Program Files) oluşturulamadı: %w", err)
 	}
 	if !strings.EqualFold(filepath.Clean(srcExe), filepath.Clean(dstExe)) {
 		if err := copyFile(srcExe, dstExe); err != nil {
 			// If destination binary is currently locked by an older copy, keep running binary if already protected
-			return GetStatus(), fmt.Errorf("OzeVPN.exe Program Files içine kopyalanamadı: %w", err)
+			return GetStatus(), fmt.Errorf("uygulama dosyası Program Files içine kopyalanamadı: %w", err)
 		}
 	}
 
@@ -164,7 +164,7 @@ func EnableElevatedResident() (Status, error) {
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
 	if err := cmd.Run(); err != nil {
-		return GetStatus(), fmt.Errorf("Windows Zamanlanmış Görev oluşturulamadı: %w (%s)", err, strings.TrimSpace(stderr.String()))
+		return GetStatus(), fmt.Errorf("zamanlanmış görev (Windows Task Scheduler) oluşturulamadı: %w (%s)", err, strings.TrimSpace(stderr.String()))
 	}
 
 	// Ensure laptops on battery still auto-start OzeVPN and Windows never stops it after 72 hours
