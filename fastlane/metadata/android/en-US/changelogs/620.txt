@@ -1,0 +1,6 @@
+v6.2.0 — Initial Android Release (Anatolian Lynx)
+- One-tap Cloudflare WARP WireGuard (TCP+UDP) with EU POP prioritization
+- Dual-stack IPv4 + IPv6 TUN and encrypted DoH DNS
+- Automatic Wi-Fi <-> 4.5G/5G handover and tunnel watchdog
+- Full Protection & Hybrid TR modes, 28-network ad/tracker shield, Quick Settings tile
+- Built-in live reachability test and silent update checker

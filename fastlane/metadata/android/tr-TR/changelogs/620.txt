@@ -1,0 +1,6 @@
+v6.2.0 — İlk Android Tam Sürümü (Anadolu Vaşağı)
+- Avrupa POP öncelikli tek dokunuş Cloudflare WARP WireGuard (TCP+UDP)
+- Dual-stack IPv4 + IPv6 TUN ve şifreli DoH DNS
+- Otomatik Wi-Fi ↔ 4.5G/5G geçişi ve tünel watchdog
+- Tam Koruma / Hibrit TR modları, 28 ağlı reklam kalkanı ve Hızlı Ayarlar kutucuğu
+- Yerleşik canlı erişim testi ve sessiz sürüm güncelleme kontrolü

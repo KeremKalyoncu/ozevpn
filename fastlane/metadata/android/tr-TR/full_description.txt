@@ -1,0 +1,10 @@
+OzeVPN (Anadolu Vaşağı), Kotlin ve Jetpack Compose ile geliştirilmiş ücretsiz, açık kaynak ve sıfır telemetrili Android VPN uygulamasıdır.
+
+Öne Çıkan Özellikler:
+- Tek dokunuşla şifreli WireGuard (Cloudflare WARP) TCP+UDP tüneli (Discord ses, Roblox ve tüm internet).
+- Dual-stack IPv4 + IPv6 TUN koruması ve şifreli DNS-over-HTTPS (1.1.1.1).
+- En düşük gecikme ve kesintisiz erişim için Avrupa WARP POP öncelikli akıllı yarışçı.
+- Otomatik Wi-Fi ↔ 4.5G/5G geçişi ve kendini kurtaran tünel watchdog.
+- Tam Koruma / Hibrit TR modları ve 28 ağlı reklam/izleyici DNS kalkanı.
+- Hızlı Ayarlar kutucuğu ve yerleşik canlı erişim testi.
+- Hesap yok, reklam yok, izleyici yok, root gerektirmez.

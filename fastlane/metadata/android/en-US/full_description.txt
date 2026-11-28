@@ -1,0 +1,10 @@
+OzeVPN (Anatolian Lynx) is a free, open-source, zero-telemetry Android VPN built with Kotlin and Jetpack Compose.
+
+Features:
+- One-tap encrypted WireGuard (Cloudflare WARP) tunnel for TCP + UDP (Discord voice, Roblox, web).
+- Dual-stack IPv4 + IPv6 TUN protection with encrypted DNS-over-HTTPS (1.1.1.1).
+- Automatic EU WARP endpoint racing for lowest latency and uninterrupted access.
+- Seamless Wi-Fi to 4.5G/5G handover and auto-recovering tunnel watchdog.
+- Full Protection and Hybrid TR split-tunnel modes plus 28-network DNS ad/tracker shield.
+- Quick Settings tile and built-in live reachability tests.
+- Zero accounts, zero ads, zero proprietary trackers, no root required.

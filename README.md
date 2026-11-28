@@ -285,7 +285,7 @@ go run ./tools/bench -samples 10 -bytes 3000000
 
 # 2. Android APK SHA-256 doğrulaması (v6.2.0)
 (Get-FileHash .\OzeVPN-Android-arm64.apk -Algorithm SHA256).Hash
-# Beklenen: 4321BDE766F6F4A62E93520A22052AD3AD349CDA96EEE56AA4CD7A303651E4B9
+# Beklenen: 8551F83DEDD7721F49C40A4BD0143F6F2AE5D839463B351F0AE8DB63925539C4
 
 # 3. Sigstore SLSA Build Provenance kriptografik doğrulama (GitHub CLI ile)
 gh attestation verify OzeVPN-core.exe -R KeremKalyoncu/ozevpn

@@ -1,0 +1,1 @@
+Zero-telemetry WireGuard (WARP) VPN for Discord, Roblox & unrestricted internet.

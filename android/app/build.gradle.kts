@@ -37,6 +37,12 @@ android {
         versionName = "6.2.0"
     }
 
+    dependenciesInfo {
+        // Strip Google Play proprietary encrypted dependency block for IzzyOnDroid / F-Droid compliance
+        includeInApk = false
+        includeInBundle = false
+    }
+
     signingConfigs {
         if (hasReleaseKeystore) {
             create("release") {
