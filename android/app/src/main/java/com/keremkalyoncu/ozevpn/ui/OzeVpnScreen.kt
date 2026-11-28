@@ -98,7 +98,7 @@ fun OzeVpnScreen(
             TunnelPhase.ERROR -> LynxDanger
             TunnelPhase.DISCONNECTED -> LynxSlate
         },
-        animationSpec = tween(320),
+        animationSpec = tween(280),
         label = "accent",
     )
 
@@ -116,7 +116,7 @@ fun OzeVpnScreen(
                 Brush.verticalGradient(
                     colors = listOf(topGlow, ObsidianCanvas, ObsidianCanvas),
                     startY = 0f,
-                    endY = 900f,
+                    endY = 820f,
                 )
             )
             .statusBarsPadding()
@@ -126,9 +126,9 @@ fun OzeVpnScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState())
-                .padding(horizontal = 20.dp, vertical = 14.dp),
+                .padding(horizontal = 16.dp, vertical = 12.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             TopBrandHeader(snapshot = snapshot, accentColor = accentColor)
 
@@ -150,11 +150,11 @@ fun OzeVpnScreen(
             )
 
             Text(
-                text = "Sıfır telemetri · WireGuard (TCP+UDP) + Şifreli DoH DNS",
+                text = "Sıfır telemetri · WireGuard (TCP+UDP) · Şifreli DoH DNS",
                 color = TextTertiary,
-                fontSize = 11.5.sp,
+                fontSize = 11.sp,
                 textAlign = TextAlign.Center,
-                modifier = Modifier.padding(top = 2.dp, bottom = 6.dp),
+                modifier = Modifier.padding(top = 2.dp, bottom = 4.dp),
             )
         }
     }
@@ -163,7 +163,9 @@ fun OzeVpnScreen(
 @Composable
 private fun TopBrandHeader(snapshot: TunnelSnapshot, accentColor: Color) {
     Row(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 2.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween,
     ) {
@@ -171,15 +173,17 @@ private fun TopBrandHeader(snapshot: TunnelSnapshot, accentColor: Color) {
             Box(
                 modifier = Modifier
                     .size(38.dp)
-                    .clip(RoundedCornerShape(11.dp))
+                    .clip(CircleShape)
                     .background(ObsidianSurface2)
-                    .border(1.dp, accentColor.copy(alpha = 0.55f), RoundedCornerShape(11.dp)),
+                    .border(1.5.dp, accentColor.copy(alpha = 0.65f), CircleShape),
                 contentAlignment = Alignment.Center,
             ) {
                 Image(
                     painter = painterResource(id = R.drawable.lynx_mascot),
                     contentDescription = null,
-                    modifier = Modifier.size(32.dp).clip(RoundedCornerShape(8.dp)),
+                    modifier = Modifier
+                        .size(34.dp)
+                        .clip(CircleShape),
                 )
             }
             Spacer(modifier = Modifier.width(10.dp))
@@ -204,7 +208,7 @@ private fun TopBrandHeader(snapshot: TunnelSnapshot, accentColor: Color) {
                             fontSize = 10.5.sp,
                             fontWeight = FontWeight.SemiBold,
                             fontFamily = FontFamily.Monospace,
-                            modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp),
+                            modifier = Modifier.padding(horizontal = 7.dp, vertical = 1.dp),
                         )
                     }
                 }
@@ -229,7 +233,7 @@ private fun TopBrandHeader(snapshot: TunnelSnapshot, accentColor: Color) {
                     modifier = Modifier
                         .size(7.dp)
                         .clip(CircleShape)
-                        .background(accentColor)
+                        .background(accentColor),
                 )
                 Spacer(modifier = Modifier.width(6.dp))
                 Text(
@@ -260,16 +264,16 @@ private fun LynxHeroCard(
     val infiniteTransition = rememberInfiniteTransition(label = "lynxPulse")
     val pulseScale by infiniteTransition.animateFloat(
         initialValue = 1.0f,
-        targetValue = if (isConnecting) 1.09f else if (isConnected) 1.04f else 1.0f,
+        targetValue = if (isConnecting) 1.08f else if (isConnected) 1.035f else 1.0f,
         animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = if (isConnecting) 900 else 2200, easing = FastOutSlowInEasing),
+            animation = tween(durationMillis = if (isConnecting) 780 else 2200, easing = FastOutSlowInEasing),
             repeatMode = RepeatMode.Reverse,
         ),
         label = "pulseScale",
     )
 
     val mascotFilter = if (snapshot.phase == TunnelPhase.DISCONNECTED) {
-        ColorFilter.colorMatrix(ColorMatrix().apply { setToSaturation(0.30f) })
+        ColorFilter.colorMatrix(ColorMatrix().apply { setToSaturation(0.28f) })
     } else {
         null
     }
@@ -277,46 +281,46 @@ private fun LynxHeroCard(
     Surface(
         modifier = Modifier.fillMaxWidth(),
         color = ObsidianSurface,
-        shape = RoundedCornerShape(26.dp),
+        shape = RoundedCornerShape(24.dp),
         border = BorderStroke(
             width = if (isConnected || isConnecting) 1.4.dp else 1.dp,
-            color = if (isConnected || isConnecting) accentColor.copy(alpha = 0.52f) else ObsidianBorder,
+            color = if (isConnected || isConnecting) accentColor.copy(alpha = 0.55f) else ObsidianBorder,
         ),
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 18.dp, vertical = 24.dp),
+                .padding(horizontal = 16.dp, vertical = 18.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            // Big Tactile Anatolian Lynx Tap Target
+            // Seamless Circular Anatolian Lynx Power Button (no clunky spinner)
             Box(
-                modifier = Modifier.size(182.dp),
+                modifier = Modifier.size(164.dp),
                 contentAlignment = Alignment.Center,
             ) {
                 Box(
                     modifier = Modifier
-                        .size(172.dp)
+                        .size(156.dp)
                         .scale(pulseScale)
-                        .clip(RoundedCornerShape(46.dp))
-                        .background(accentColor.copy(alpha = if (isConnected || isConnecting) 0.14f else 0.05f))
+                        .clip(CircleShape)
+                        .background(accentColor.copy(alpha = if (isConnected || isConnecting) 0.16f else 0.05f))
                         .border(
                             width = 2.dp,
-                            color = accentColor.copy(alpha = if (isConnected || isConnecting) 0.55f else 0.22f),
-                            shape = RoundedCornerShape(46.dp),
+                            color = accentColor.copy(alpha = if (isConnected || isConnecting) 0.62f else 0.24f),
+                            shape = CircleShape,
                         ),
                 )
 
                 val ctaDesc = if (isConnected) "Bağlantıyı kes" else if (isConnecting) "Bağlanıyor" else "Bağlan"
                 Box(
                     modifier = Modifier
-                        .size(152.dp)
-                        .clip(RoundedCornerShape(40.dp))
+                        .size(138.dp)
+                        .clip(CircleShape)
                         .background(ObsidianSurface2)
                         .border(
-                            width = 2.dp,
-                            color = accentColor.copy(alpha = if (isConnected || isConnecting) 0.85f else 0.35f),
-                            shape = RoundedCornerShape(40.dp),
+                            width = 2.5.dp,
+                            color = accentColor.copy(alpha = if (isConnected || isConnecting) 0.92f else 0.38f),
+                            shape = CircleShape,
                         )
                         .semantics { contentDescription = ctaDesc }
                         .clickable(
@@ -330,20 +334,13 @@ private fun LynxHeroCard(
                         contentDescription = null,
                         colorFilter = mascotFilter,
                         modifier = Modifier
-                            .size(124.dp)
-                            .clip(RoundedCornerShape(30.dp)),
+                            .size(126.dp)
+                            .clip(CircleShape),
                     )
-                    if (isConnecting) {
-                        CircularProgressIndicator(
-                            color = LynxAmber,
-                            strokeWidth = 3.dp,
-                            modifier = Modifier.size(144.dp),
-                        )
-                    }
                 }
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(12.dp))
 
             Row(
                 verticalAlignment = Alignment.CenterVertically,
@@ -357,7 +354,7 @@ private fun LynxHeroCard(
                         TunnelPhase.DISCONNECTED -> "Bağlı Değil"
                     },
                     color = TextPrimary,
-                    fontSize = 22.sp,
+                    fontSize = 21.sp,
                     fontWeight = FontWeight.Bold,
                     letterSpacing = (-0.4).sp,
                 )
@@ -371,32 +368,32 @@ private fun LynxHeroCard(
                         Text(
                             text = formatDuration(snapshot.uptimeSec),
                             color = LynxEmeraldBright,
-                            fontSize = 12.sp,
+                            fontSize = 11.5.sp,
                             fontWeight = FontWeight.SemiBold,
                             fontFamily = FontFamily.Monospace,
-                            modifier = Modifier.padding(horizontal = 9.dp, vertical = 3.dp),
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
                         )
                     }
                 }
             }
 
-            Spacer(modifier = Modifier.height(6.dp))
+            Spacer(modifier = Modifier.height(4.dp))
 
             Text(
-                text = if (snapshot.phase == TunnelPhase.ERROR && snapshot.lastError.isNotBlank()) {
-                    snapshot.lastError
-                } else {
-                    snapshot.statusDetail
+                text = when {
+                    snapshot.phase == TunnelPhase.ERROR && snapshot.lastError.isNotBlank() -> snapshot.lastError
+                    snapshot.phase == TunnelPhase.DISCONNECTED -> "Vaşağa dokun, Discord ve Roblox'a bağlan"
+                    else -> snapshot.statusDetail
                 },
                 color = if (snapshot.phase == TunnelPhase.ERROR) LynxDanger else TextSecondary,
-                fontSize = 13.sp,
+                fontSize = 12.5.sp,
                 textAlign = TextAlign.Center,
-                lineHeight = 18.sp,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
             )
 
-            Spacer(modifier = Modifier.height(18.dp))
+            Spacer(modifier = Modifier.height(14.dp))
 
-            // Crisp 3-Pill Telemetry Strip
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -407,19 +404,28 @@ private fun LynxHeroCard(
                     snapshot.exitColo.isNotBlank() -> snapshot.exitColo
                     else -> "—"
                 }
+                val rttColor = when {
+                    !isConnected || snapshot.rttMs <= 0 -> TextPrimary
+                    snapshot.rttMs < 110 -> LynxEmeraldBright
+                    snapshot.rttMs < 240 -> LynxAmber
+                    else -> TextPrimary
+                }
                 MetricPill(
                     label = "Çıkış",
                     value = exitText,
+                    valueColor = TextPrimary,
                     modifier = Modifier.weight(1f),
                 )
                 MetricPill(
-                    label = "Gecikme",
+                    label = "Ping",
                     value = if (snapshot.rttMs > 0 && isConnected) "${snapshot.rttMs} ms" else "—",
+                    valueColor = rttColor,
                     modifier = Modifier.weight(0.85f),
                 )
                 MetricPill(
                     label = "Canlı Hız",
                     value = if (isConnected) "↓ ${formatRateCompact(snapshot.rxBytesPerSec)}" else "—",
+                    valueColor = TextPrimary,
                     modifier = Modifier.weight(1.15f),
                 )
             }
@@ -428,7 +434,12 @@ private fun LynxHeroCard(
 }
 
 @Composable
-private fun MetricPill(label: String, value: String, modifier: Modifier = Modifier) {
+private fun MetricPill(
+    label: String,
+    value: String,
+    valueColor: Color,
+    modifier: Modifier = Modifier,
+) {
     Surface(
         modifier = modifier,
         color = ObsidianSurface2,
@@ -436,13 +447,13 @@ private fun MetricPill(label: String, value: String, modifier: Modifier = Modifi
         border = BorderStroke(1.dp, ObsidianBorder),
     ) {
         Column(
-            modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp),
         ) {
             Text(text = label, color = TextTertiary, fontSize = 10.5.sp)
             Spacer(modifier = Modifier.height(2.dp))
             Text(
                 text = value,
-                color = TextPrimary,
+                color = valueColor,
                 fontSize = 12.5.sp,
                 fontWeight = FontWeight.SemiBold,
                 fontFamily = FontFamily.Monospace,
@@ -462,14 +473,14 @@ private fun QuickControlsCard(
     Surface(
         modifier = Modifier.fillMaxWidth(),
         color = ObsidianSurface,
-        shape = RoundedCornerShape(22.dp),
+        shape = RoundedCornerShape(20.dp),
         border = BorderStroke(1.dp, ObsidianBorder),
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+                .padding(horizontal = 14.dp, vertical = 13.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -479,7 +490,7 @@ private fun QuickControlsCard(
                 Text(
                     text = "Bağlantı Modu",
                     color = TextPrimary,
-                    fontSize = 14.5.sp,
+                    fontSize = 14.sp,
                     fontWeight = FontWeight.Bold,
                 )
                 Text(
@@ -489,13 +500,12 @@ private fun QuickControlsCard(
                 )
             }
 
-            // 2-Segment Mode Selector
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(14.dp))
+                    .clip(RoundedCornerShape(12.dp))
                     .background(ObsidianCanvas)
-                    .border(1.dp, ObsidianBorder, RoundedCornerShape(14.dp))
+                    .border(1.dp, ObsidianBorder, RoundedCornerShape(12.dp))
                     .padding(4.dp),
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
             ) {
@@ -517,13 +527,14 @@ private fun QuickControlsCard(
 
             Text(
                 text = if (snapshot.mode == RoutingMode.FULL) {
-                    "Roblox, Discord ve tüm internet tek dokunuşla şifreli tünelden açılır."
+                    "Roblox, Discord ve tüm internet şifreli tünelden açılır."
                 } else {
-                    "e-Devlet ve TR bankaları normal hatta kalır; Discord, Roblox ve kalan her şey tünelden akar."
+                    "e-Devlet & TR bankaları direkt; Discord, Roblox tünelden akar."
                 },
                 color = TextSecondary,
                 fontSize = 12.sp,
-                lineHeight = 17.sp,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
             )
 
             Box(
@@ -539,27 +550,33 @@ private fun QuickControlsCard(
                 horizontalArrangement = Arrangement.SpaceBetween,
             ) {
                 Row(
-                    modifier = Modifier.weight(1f).padding(end = 12.dp),
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(end = 10.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Icon(
                         imageVector = Icons.Rounded.Shield,
                         contentDescription = null,
                         tint = LynxEmeraldBright,
-                        modifier = Modifier.size(20.dp),
+                        modifier = Modifier.size(19.dp),
                     )
-                    Spacer(modifier = Modifier.width(10.dp))
+                    Spacer(modifier = Modifier.width(9.dp))
                     Column {
                         Text(
                             text = "Reklam & Takipçi Kalkanı",
                             color = TextPrimary,
                             fontSize = 13.5.sp,
                             fontWeight = FontWeight.SemiBold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
                         )
                         Text(
-                            text = "28 reklam/izleyici ağını DNS katmanında engeller",
+                            text = "28 reklam/izleyici ağını DNS'te engeller",
                             color = TextSecondary,
                             fontSize = 11.5.sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
                         )
                     }
                 }
@@ -588,14 +605,14 @@ private fun ModeSegmentButton(
 ) {
     Surface(
         modifier = modifier
-            .clip(RoundedCornerShape(10.dp))
+            .clip(RoundedCornerShape(9.dp))
             .clickable(role = Role.RadioButton, onClick = onClick),
         color = if (selected) LynxEmeraldSoft else Color.Transparent,
-        shape = RoundedCornerShape(10.dp),
+        shape = RoundedCornerShape(9.dp),
         border = if (selected) BorderStroke(1.dp, LynxEmerald.copy(alpha = 0.55f)) else null,
     ) {
         Row(
-            modifier = Modifier.padding(vertical = 10.dp, horizontal = 8.dp),
+            modifier = Modifier.padding(vertical = 9.dp, horizontal = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.Center,
         ) {
@@ -611,6 +628,7 @@ private fun ModeSegmentButton(
                 color = if (selected) LynxEmeraldBright else TextSecondary,
                 fontSize = 13.sp,
                 fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
             )
         }
     }
@@ -624,14 +642,14 @@ private fun AccessCheckCard(
     Surface(
         modifier = Modifier.fillMaxWidth(),
         color = ObsidianSurface,
-        shape = RoundedCornerShape(22.dp),
+        shape = RoundedCornerShape(20.dp),
         border = BorderStroke(1.dp, ObsidianBorder),
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+                .padding(horizontal = 14.dp, vertical = 13.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -642,7 +660,7 @@ private fun AccessCheckCard(
                     Text(
                         text = "Canlı Erişim Testi",
                         color = TextPrimary,
-                        fontSize = 14.5.sp,
+                        fontSize = 14.sp,
                         fontWeight = FontWeight.Bold,
                     )
                     Text(
@@ -677,7 +695,7 @@ private fun AccessCheckCard(
                                 imageVector = Icons.Rounded.Speed,
                                 contentDescription = null,
                                 tint = LynxEmeraldBright,
-                                modifier = Modifier.size(16.dp),
+                                modifier = Modifier.size(15.dp),
                             )
                         }
                         Spacer(modifier = Modifier.width(6.dp))

@@ -221,7 +221,7 @@ class OzeVpnService : VpnService() {
             promoteForeground(notifTitle, "Discord, Roblox ve tüm internet korunuyor")
             requestTileSync()
 
-            // Enrich exit country/POP/RTT asynchronously via encrypted tunnel
+            // Enrich exit country/POP and true warm 1-RTT ping asynchronously via encrypted tunnel
             scope.launch {
                 val trace = ConnectivityTester.fetchTrace(viaTunnel = true)
                 if (trace != null && TunnelStateHolder.current().phase == TunnelPhase.CONNECTED) {
@@ -229,7 +229,7 @@ class OzeVpnService : VpnService() {
                         it.copy(
                             exitColo = trace.colo.ifBlank { it.exitColo },
                             exitCountry = trace.country.ifBlank { it.exitCountry },
-                            rttMs = if (it.rttMs > 0) it.rttMs else trace.rttMs,
+                            rttMs = if (trace.rttMs > 0) trace.rttMs else it.rttMs,
                         )
                     }
                 }

@@ -18,13 +18,15 @@ import javax.net.ssl.SSLSocketFactory
 
 data class TraceResult(val colo: String, val country: String, val warpActive: Boolean, val rttMs: Int)
 
-internal data class SimpleHttpResponse(val statusCode: Int, val body: String, val latencyMs: Long)
+internal data class SimpleHttpResponse(
+    val statusCode: Int,
+    val body: String,
+    val latencyMs: Long,
+)
 
 /**
- * Tests live reachability of Discord, Roblox, Google, and Cloudflare Trace.
- * When the VPN tunnel is active, sends explicit HTTP CONNECT host:443 straight into local
- * sing-box (127.0.0.1:10808) + TLS with strict hostname verification, guaranteeing ZERO local
- * ISP DNS resolution even on carriers that censor Discord/Roblox DNS.
+ * Tests live reachability and measures TRUE warm 1-RTT ping (excluding cold TCP/TLS handshake)
+ * over explicit HTTP CONNECT host:443 straight into local sing-box (127.0.0.1:10808).
  */
 object ConnectivityTester {
     private data class Target(val name: String, val host: String, val path: String)
@@ -48,7 +50,13 @@ object ConnectivityTester {
 
     suspend fun fetchTrace(viaTunnel: Boolean): TraceResult? = withContext(Dispatchers.IO) {
         val resp = if (viaTunnel) {
-            httpsGetViaConnectProxy(SingBoxConfigBuilder.LOCAL_MIXED_PORT, "1.1.1.1", "/cdn-cgi/trace", 6000)
+            httpsGetViaConnectProxy(
+                proxyPort = SingBoxConfigBuilder.LOCAL_MIXED_PORT,
+                host = "1.1.1.1",
+                path = "/cdn-cgi/trace",
+                timeoutMs = 6000,
+                measureWarmRtt = true,
+            )
         } else {
             httpsGetDirect("https://1.1.1.1/cdn-cgi/trace", 5000)
         } ?: return@withContext null
@@ -66,7 +74,13 @@ object ConnectivityTester {
 
     private fun probeTarget(t: Target, viaTunnel: Boolean): ProbeItem {
         val resp = if (viaTunnel) {
-            httpsGetViaConnectProxy(SingBoxConfigBuilder.LOCAL_MIXED_PORT, t.host, t.path, 8500)
+            httpsGetViaConnectProxy(
+                proxyPort = SingBoxConfigBuilder.LOCAL_MIXED_PORT,
+                host = t.host,
+                path = t.path,
+                timeoutMs = 8500,
+                measureWarmRtt = false,
+            )
         } else {
             httpsGetDirect("https://${t.host}${t.path}", 6000)
         }
@@ -87,12 +101,13 @@ object ConnectivityTester {
         host: String,
         path: String,
         timeoutMs: Int,
+        measureWarmRtt: Boolean = false,
     ): SimpleHttpResponse? {
-        val start = System.nanoTime()
         var rawSock: Socket? = null
         var tlsSock: SSLSocket? = null
         return try {
             rawSock = Socket().apply {
+                tcpNoDelay = true
                 soTimeout = timeoutMs
                 connect(InetSocketAddress("127.0.0.1", proxyPort), 2500)
             }
@@ -108,6 +123,7 @@ object ConnectivityTester {
 
             val sslFactory = SSLSocketFactory.getDefault() as SSLSocketFactory
             tlsSock = (sslFactory.createSocket(rawSock, host, 443, true) as SSLSocket).apply {
+                tcpNoDelay = true
                 soTimeout = timeoutMs
                 startHandshake()
             }
@@ -116,18 +132,42 @@ object ConnectivityTester {
                 return null
             }
 
-            val req = "GET $path HTTP/1.1\r\nHost: $host\r\nUser-Agent: OzeVPN-Android/6.2\r\nAccept: */*\r\nConnection: close\r\n\r\n"
-            tlsSock.outputStream.write(req.toByteArray(Charsets.US_ASCII))
-            tlsSock.outputStream.flush()
-
+            val tlsOut = tlsSock.outputStream
             val tlsIn = BufferedInputStream(tlsSock.inputStream)
+
+            // Start timer AFTER TLS handshake so latency reflects real HTTP/network RTT, not cold TLS setup
+            val reqStart = System.nanoTime()
+            val connHdr = if (measureWarmRtt) "keep-alive" else "close"
+            val req = "GET $path HTTP/1.1\r\nHost: $host\r\nUser-Agent: OzeVPN-Android/6.2\r\nAccept: */*\r\nConnection: $connHdr\r\n\r\n"
+            tlsOut.write(req.toByteArray(Charsets.US_ASCII))
+            tlsOut.flush()
+
             val head = readHeadersOnly(tlsIn)
+            var rttMs = ((System.nanoTime() - reqStart) / 1_000_000L).coerceAtLeast(1)
             val statusCode = parseStatusCode(head)
             if (statusCode <= 0) return null
 
-            val body = if (path == "/cdn-cgi/trace") readBodyLimited(tlsIn, 4096) else ""
-            val ms = ((System.nanoTime() - start) / 1_000_000L).coerceAtLeast(1)
-            SimpleHttpResponse(statusCode = statusCode, body = body, latencyMs = ms)
+            val contentLen = parseContentLength(head)
+            val body = if (path == "/cdn-cgi/trace") {
+                if (contentLen in 1..8192) readExactBytes(tlsIn, contentLen)
+                else readBodyLimited(tlsIn, 4096)
+            } else {
+                ""
+            }
+
+            // Warm 1-RTT keep-alive ping probe on the already-established TLS connection
+            if (measureWarmRtt && contentLen > 0) {
+                val pingStart = System.nanoTime()
+                val pingReq = "HEAD $path HTTP/1.1\r\nHost: $host\r\nUser-Agent: OzeVPN-Android/6.2\r\nConnection: close\r\n\r\n"
+                tlsOut.write(pingReq.toByteArray(Charsets.US_ASCII))
+                tlsOut.flush()
+                val pingHead = readHeadersOnly(tlsIn)
+                if (parseStatusCode(pingHead) in 200..399) {
+                    rttMs = ((System.nanoTime() - pingStart) / 1_000_000L).coerceAtLeast(1)
+                }
+            }
+
+            SimpleHttpResponse(statusCode = statusCode, body = body, latencyMs = rttMs)
         } catch (_: Throwable) {
             null
         } finally {
@@ -181,6 +221,27 @@ object ConnectivityTester {
             }
         }
         return buf.toString(Charsets.ISO_8859_1.name())
+    }
+
+    private fun parseContentLength(headers: String): Int {
+        for (line in headers.lineSequence()) {
+            val idx = line.indexOf(':')
+            if (idx > 0 && line.substring(0, idx).trim().equals("Content-Length", ignoreCase = true)) {
+                return line.substring(idx + 1).trim().toIntOrNull() ?: -1
+            }
+        }
+        return -1
+    }
+
+    private fun readExactBytes(input: BufferedInputStream, length: Int): String {
+        val buf = ByteArray(length)
+        var off = 0
+        while (off < length) {
+            val n = input.read(buf, off, length - off)
+            if (n <= 0) break
+            off += n
+        }
+        return String(buf, 0, off, Charsets.UTF_8)
     }
 
     private fun readBodyLimited(input: BufferedInputStream, maxBytes: Int): String {

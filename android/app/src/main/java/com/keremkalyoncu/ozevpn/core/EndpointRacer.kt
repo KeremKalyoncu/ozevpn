@@ -96,7 +96,8 @@ object EndpointRacer {
             proxyPort = proxyPort,
             host = "1.1.1.1",
             path = "/cdn-cgi/trace",
-            timeoutMs = 3400,
+            timeoutMs = 3600,
+            measureWarmRtt = true,
         ) ?: return null
         if (resp.statusCode != 200) return null
         val kv = parseTrace(resp.body)
