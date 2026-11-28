@@ -1,7 +1,7 @@
 # yaml-language-server: $schema=https://aka.ms/winget-manifest.defaultLocale.1.10.0.schema.json
 
 PackageIdentifier: KeremKalyoncu.OzeVPN
-PackageVersion: 6.1.2
+PackageVersion: 6.2.0
 PackageLocale: en-US
 Publisher: Kerem Kalyoncu
 PublisherUrl: https://github.com/KeremKalyoncu
@@ -27,6 +27,6 @@ Tags:
 - tor
 - vpn
 - wireguard
-ReleaseNotesUrl: https://github.com/KeremKalyoncu/ozevpn/releases/tag/v6.1.2
+ReleaseNotesUrl: https://github.com/KeremKalyoncu/ozevpn/releases/tag/v6.2.0
 ManifestType: defaultLocale
 ManifestVersion: 1.10.0

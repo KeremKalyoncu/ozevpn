@@ -30,6 +30,7 @@
 <h3>Sıfır üçüncü parti Go/npm bağımlılıklı, tek-dosya (<code>.exe</code>) Windows ve root'suz <b>Android (<code>.apk</code>)</b> Anadolu Vaşağı hibrit VPN uygulaması.</h3>
 
 <p>
+  <a href="https://keremkalyoncu.github.io/ozevpn/"><b>🌐 İndirme Sitesi</b></a> ·
   <a href="#-sertifikalar--bağımsız-denetimler"><b>Sertifikalar</b></a> ·
   <a href="#-canlı-arayüz--windows--android"><b>Arayüz & Android</b></a> ·
   <a href="#-neden-ozevpn"><b>Karşılaştırma</b></a> ·

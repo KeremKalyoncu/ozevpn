@@ -30,6 +30,7 @@
 <h3>Zero third-party Go/npm dependencies. Single-file Windows desktop (<code>.exe</code>) and root-free <b>Android (<code>.apk</code>)</b> Anatolian Lynx hybrid VPN built for speed, gaming UDP, and zero leaks.</h3>
 
 <p>
+  <a href="https://keremkalyoncu.github.io/ozevpn/"><b>🌐 Download Page</b></a> ·
   <a href="#-certifications--independent-audits"><b>Certifications</b></a> ·
   <a href="#-live-preview--windows--android"><b>Preview & Android</b></a> ·
   <a href="#-why-ozevpn"><b>Comparison</b></a> ·

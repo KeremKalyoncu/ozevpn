@@ -1,0 +1,805 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#070B12" />
+  <meta name="description" content="OzeVPN — Anadolu Vaşağı. Windows ve Android için tek dokunuşla Discord, Roblox ve sınırsız internet. Ücretsiz, açık kaynak, sıfır telemetri." />
+  <meta property="og:title" content="OzeVPN — Anadolu Vaşağı (Windows & Android)" />
+  <meta property="og:description" content="Tek dokunuşla Discord (UDP), Roblox ve tüm internete sınırsız erişim. Hesap yok, reklam yok, sıfır telemetri." />
+  <meta property="og:image" content="https://keremkalyoncu.github.io/ozevpn/screenshots/desktop-v62-lynx.png" />
+  <link rel="icon" type="image/png" href="lynx.png" />
+  <title>OzeVPN — Anadolu Vaşağı | Windows & Android İndir</title>
+  <style>
+    :root {
+      --bg: #070B12;
+      --surface: #0F1623;
+      --surface-2: #151F30;
+      --border: #223047;
+      --text: #F1F5F9;
+      --muted: #94A3B8;
+      --subtle: #64748B;
+      --emerald: #10B981;
+      --emerald-bright: #34D399;
+      --emerald-soft: rgba(16, 185, 129, 0.14);
+      --sky: #0EA5E9;
+      --sky-soft: rgba(14, 165, 233, 0.14);
+      --radius: 20px;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, sans-serif;
+      background:
+        radial-gradient(900px 460px at 50% -120px, rgba(16, 185, 129, 0.22), transparent 70%),
+        radial-gradient(640px 360px at 85% 15%, rgba(14, 165, 233, 0.11), transparent 70%),
+        var(--bg);
+      color: var(--text);
+      line-height: 1.55;
+      min-height: 100vh;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    .wrap {
+      max-width: 980px;
+      margin: 0 auto;
+      padding: 20px 18px 64px;
+    }
+
+    /* Top Nav */
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 36px;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 11px;
+      text-decoration: none;
+      color: var(--text);
+    }
+
+    .brand-icon {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      border: 1.5px solid rgba(16, 185, 129, 0.65);
+      background: var(--surface-2);
+      object-fit: cover;
+    }
+
+    .brand-name {
+      font-size: 19px;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 2px 9px;
+      border-radius: 999px;
+      font-size: 11.5px;
+      font-weight: 700;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      color: var(--emerald-bright);
+      background: var(--emerald-soft);
+      border: 1px solid rgba(16, 185, 129, 0.4);
+    }
+
+    .nav-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .nav-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 7px 12px;
+      border-radius: 10px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 600;
+      text-decoration: none;
+      cursor: pointer;
+      transition: border-color 0.18s ease, color 0.18s ease;
+    }
+
+    .nav-btn:hover {
+      border-color: var(--emerald);
+      color: var(--text);
+    }
+
+    /* Hero */
+    .hero {
+      text-align: center;
+      margin-bottom: 34px;
+    }
+
+    .lynx-halo {
+      width: 118px;
+      height: 118px;
+      margin: 0 auto 20px;
+      border-radius: 50%;
+      padding: 6px;
+      background: linear-gradient(145deg, rgba(16, 185, 129, 0.35), rgba(14, 165, 233, 0.25));
+      box-shadow: 0 0 48px rgba(16, 185, 129, 0.28);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .lynx-halo img {
+      width: 100%;
+      height: 100%;
+      border-radius: 50%;
+      object-fit: cover;
+      background: var(--surface-2);
+    }
+
+    h1 {
+      font-size: clamp(28px, 5vw, 44px);
+      font-weight: 850;
+      letter-spacing: -0.03em;
+      line-height: 1.12;
+      margin-bottom: 12px;
+    }
+
+    h1 span {
+      background: linear-gradient(90deg, #34D399, #38BDF8);
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+    }
+
+    .subtitle {
+      max-width: 620px;
+      margin: 0 auto 28px;
+      color: var(--muted);
+      font-size: clamp(15px, 2.2vw, 17px);
+    }
+
+    /* Primary Download Grid */
+    .dl-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 16px;
+      max-width: 780px;
+      margin: 0 auto 14px;
+    }
+
+    .dl-card {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 10px;
+      padding: 22px 22px 20px;
+      border-radius: var(--radius);
+      background: var(--surface);
+      border: 1.5px solid var(--border);
+      text-decoration: none;
+      color: var(--text);
+      text-align: left;
+      transition: transform 0.16s ease, border-color 0.18s ease, box-shadow 0.18s ease;
+    }
+
+    .dl-card:hover {
+      transform: translateY(-2px);
+      border-color: var(--emerald);
+      box-shadow: 0 12px 34px rgba(16, 185, 129, 0.18);
+    }
+
+    .dl-card.recommended {
+      border-color: rgba(16, 185, 129, 0.75);
+      background: linear-gradient(180deg, rgba(16, 185, 129, 0.12), var(--surface) 65%);
+      box-shadow: 0 10px 30px rgba(16, 185, 129, 0.14);
+    }
+
+    .dl-top {
+      width: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+    }
+
+    .os-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 9px;
+      font-size: 19px;
+      font-weight: 800;
+      letter-spacing: -0.01em;
+    }
+
+    .os-badge svg {
+      width: 24px;
+      height: 24px;
+      flex-shrink: 0;
+    }
+
+    .rec-tag {
+      display: none;
+      padding: 3px 9px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 700;
+      background: var(--emerald);
+      color: #03150E;
+    }
+
+    .dl-card.recommended .rec-tag {
+      display: inline-flex;
+    }
+
+    .dl-desc {
+      font-size: 13.5px;
+      color: var(--muted);
+    }
+
+    .dl-cta {
+      margin-top: 4px;
+      width: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 11px 14px;
+      border-radius: 12px;
+      background: var(--emerald);
+      color: #03150E;
+      font-weight: 800;
+      font-size: 14.5px;
+    }
+
+    .dl-card:not(.recommended) .dl-cta {
+      background: var(--surface-2);
+      color: var(--emerald-bright);
+      border: 1px solid rgba(16, 185, 129, 0.45);
+    }
+
+    .dl-meta {
+      font-size: 12px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      opacity: 0.85;
+    }
+
+    .sub-links {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 16px;
+      font-size: 13px;
+      color: var(--subtle);
+      margin-top: 12px;
+    }
+
+    .sub-links a {
+      color: var(--muted);
+      text-decoration: none;
+      border-bottom: 1px dashed rgba(148, 163, 184, 0.35);
+    }
+
+    .sub-links a:hover {
+      color: var(--emerald-bright);
+      border-color: var(--emerald-bright);
+    }
+
+    /* Trust Strip */
+    .trust-strip {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 10px;
+      margin: 28px 0 42px;
+    }
+
+    .trust-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      padding: 7px 13px;
+      border-radius: 999px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      font-size: 12.5px;
+      font-weight: 600;
+      color: var(--muted);
+    }
+
+    .dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--emerald);
+    }
+
+    /* Screenshots */
+    .section-title {
+      font-size: 20px;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      margin-bottom: 14px;
+      text-align: center;
+    }
+
+    .preview-grid {
+      display: grid;
+      grid-template-columns: 1.55fr 0.72fr;
+      gap: 16px;
+      align-items: stretch;
+      margin-bottom: 42px;
+    }
+
+    .shot-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .shot-label {
+      font-size: 12.5px;
+      font-weight: 700;
+      color: var(--muted);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .shot-card img {
+      width: 100%;
+      height: auto;
+      border-radius: 12px;
+      border: 1px solid rgba(148, 163, 184, 0.14);
+      object-fit: cover;
+      margin: auto 0;
+    }
+
+    /* How-to cards */
+    .steps-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 16px;
+      margin-bottom: 34px;
+    }
+
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px;
+    }
+
+    .card h3 {
+      font-size: 16px;
+      font-weight: 800;
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .step-list {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 9px;
+      color: var(--muted);
+      font-size: 13.5px;
+    }
+
+    .step-list li {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+    }
+
+    .num {
+      flex-shrink: 0;
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      background: var(--emerald-soft);
+      border: 1px solid rgba(16, 185, 129, 0.45);
+      color: var(--emerald-bright);
+      font-size: 12px;
+      font-weight: 800;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      margin-top: 1px;
+    }
+
+    /* Checksum Details */
+    details.verify {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 14px 18px;
+      margin-bottom: 34px;
+    }
+
+    details.verify summary {
+      cursor: pointer;
+      font-weight: 700;
+      font-size: 14px;
+      color: var(--text);
+      list-style: none;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    details.verify summary::-webkit-details-marker { display: none; }
+
+    .hash-list {
+      margin-top: 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .hash-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 10px 12px;
+      border-radius: 10px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 12px;
+    }
+
+    .hash-val {
+      overflow-x: auto;
+      white-space: nowrap;
+      color: var(--muted);
+    }
+
+    .hash-val strong { color: var(--text); }
+
+    .copy-btn {
+      flex-shrink: 0;
+      padding: 5px 10px;
+      border-radius: 8px;
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      color: var(--emerald-bright);
+      font-size: 11.5px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    .copy-btn:hover { border-color: var(--emerald); }
+
+    footer {
+      text-align: center;
+      color: var(--subtle);
+      font-size: 12.5px;
+      padding-top: 18px;
+      border-top: 1px solid rgba(34, 48, 71, 0.7);
+    }
+
+    footer a {
+      color: var(--muted);
+      text-decoration: none;
+    }
+
+    footer a:hover { color: var(--emerald-bright); }
+
+    @media (max-width: 760px) {
+      .dl-grid, .preview-grid, .steps-grid {
+        grid-template-columns: 1fr;
+      }
+      .shot-card.mobile-shot img {
+        max-width: 280px;
+        margin: 0 auto;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <a class="brand" href="#">
+        <img class="brand-icon" src="lynx.png" alt="OzeVPN Anadolu Vaşağı" />
+        <span class="brand-name">OzeVPN <span class="pill" id="verPill">v6.2.0</span></span>
+      </a>
+      <div class="nav-actions">
+        <button class="nav-btn" id="langToggle" type="button">EN</button>
+        <a class="nav-btn" href="https://github.com/KeremKalyoncu/ozevpn" target="_blank" rel="noopener">GitHub</a>
+      </div>
+    </header>
+
+    <main>
+      <section class="hero">
+        <div class="lynx-halo">
+          <img src="lynx.png" alt="Anadolu Vaşağı" />
+        </div>
+        <h1 id="heroTitle">Tek Dokunuş. <span>Sınırsız İnternet.</span></h1>
+        <p class="subtitle" id="heroSub">
+          Anadolu Vaşağı ile Discord sesli sohbet, Roblox ve tüm internete anında bağlan.
+          Hesap yok, reklam yok, sıfır telemetri — tamamen açık kaynak.
+        </p>
+
+        <div class="dl-grid">
+          <a class="dl-card" id="winCard" href="https://github.com/KeremKalyoncu/ozevpn/releases/download/v6.2.0/OzeVPN.exe">
+            <div class="dl-top">
+              <span class="os-badge">
+                <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 5.55 10.35 4.5v7.05H3V5.55Zm8.35-1.2L21 3v8.55h-9.65V4.35ZM3 12.55h7.35v7.05L3 18.55v-6Zm8.35 0H21V21l-9.65-1.35v-7.1Z"/></svg>
+                Windows
+              </span>
+              <span class="rec-tag" id="winRecTag">Senin Cihazın</span>
+            </div>
+            <p class="dl-desc" id="winDesc">Windows 10 / 11 (64-bit) · Tek dosya, kurulum gerektirmez · Oyun TUN + Kill Switch</p>
+            <div class="dl-cta">
+              <span id="winBtnText">Windows İndir (.exe)</span>
+              <span class="dl-meta" id="winSize">57.8 MB</span>
+            </div>
+          </a>
+
+          <a class="dl-card" id="andCard" href="https://github.com/KeremKalyoncu/ozevpn/releases/download/v6.2.0/OzeVPN-Android-arm64.apk">
+            <div class="dl-top">
+              <span class="os-badge">
+                <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M17.6 9.48 19.44 6.3a.5.5 0 0 0-.86-.5l-1.88 3.24a11.4 11.4 0 0 0-9.4 0L5.42 5.8a.5.5 0 0 0-.86.5l1.84 3.18A10.1 10.1 0 0 0 2 18h20a10.1 10.1 0 0 0-4.4-8.52ZM8.5 14.75a1 1 0 1 1 0-2 1 1 0 0 1 0 2Zm7 0a1 1 0 1 1 0-2 1 1 0 0 1 0 2Z"/></svg>
+                Android
+              </span>
+              <span class="rec-tag" id="andRecTag">Senin Cihazın</span>
+            </div>
+            <p class="dl-desc" id="andDesc">Android 10+ · Root gerektirmez · Dual-Stack IPv6 + Wi-Fi/5G otomatik geçiş</p>
+            <div class="dl-cta">
+              <span id="andBtnText">Android İndir (.apk)</span>
+              <span class="dl-meta" id="andSize">26.5 MB</span>
+            </div>
+          </a>
+        </div>
+
+        <div class="sub-links">
+          <a id="uniLink" href="https://github.com/KeremKalyoncu/ozevpn/releases/download/v6.2.0/OzeVPN-Android-universal.apk">Universal APK (eski cihazlar)</a>
+          <a id="relLink" href="https://github.com/KeremKalyoncu/ozevpn/releases/latest" target="_blank" rel="noopener">Tüm Sürüm Dosyaları & İmza</a>
+          <a href="#verify" id="verifyJump">SHA-256 Doğrulama</a>
+        </div>
+      </section>
+
+      <div class="trust-strip">
+        <span class="trust-chip"><span class="dot"></span><span id="t1">Sıfır Hesap & Telemetri</span></span>
+        <span class="trust-chip"><span class="dot"></span><span id="t2">Avrupa WARP POP (Roblox + Discord UDP)</span></span>
+        <span class="trust-chip"><span class="dot"></span><span id="t3">OpenSSF Passing · Scorecard A</span></span>
+        <span class="trust-chip"><span class="dot"></span><span id="t4">Açık Kaynak GPL-3.0</span></span>
+      </div>
+
+      <h2 class="section-title" id="previewTitle">Canlı Arayüz Önizlemesi</h2>
+      <section class="preview-grid">
+        <div class="shot-card">
+          <div class="shot-label">
+            <span id="shotWinLabel">Windows Masaüstü — 4 Sekmeli Anadolu Vaşağı</span>
+            <span class="pill">Oyun TUN · Kill Switch</span>
+          </div>
+          <img src="screenshots/desktop-v62-lynx.png" alt="OzeVPN Windows Masaüstü Arayüzü" loading="lazy" />
+        </div>
+        <div class="shot-card mobile-shot">
+          <div class="shot-label">
+            <span id="shotAndLabel">Android — 4/4 Yeşil</span>
+            <span class="pill">Root'suz</span>
+          </div>
+          <img src="screenshots/android-v62-connected.png" alt="OzeVPN Android Bağlı Ekranı" loading="lazy" />
+        </div>
+      </section>
+
+      <section class="steps-grid">
+        <div class="card">
+          <h3 id="winStepsTitle">Windows'ta 30 Saniyede Başla</h3>
+          <ol class="step-list" id="winSteps">
+            <li><span class="num">1</span><span><strong>OzeVPN.exe</strong> dosyasını indir ve çift tıkla (ek kurulum gerekmez).</span></li>
+            <li><span class="num">2</span><span>Ortadaki <strong>Anadolu Vaşağı</strong> butonuna tıkla — kendi cihaz anahtarın otomatik üretilir.</span></li>
+            <li><span class="num">3</span><span>Oyunlar & Discord ses için <strong>Oyun TUN</strong>'u aç; istersen <strong>1 Kez Kur</strong> ile UAC'siz arka plan başlat.</span></li>
+          </ol>
+        </div>
+        <div class="card">
+          <h3 id="andStepsTitle">Android'de 30 Saniyede Başla</h3>
+          <ol class="step-list" id="andSteps">
+            <li><span class="num">1</span><span><strong>OzeVPN-Android-arm64.apk</strong> dosyasını indir ve üzerine dokunup yükle.</span></li>
+            <li><span class="num">2</span><span>Uygulamayı aç, ortadaki <strong>Anadolu Vaşağı</strong>'na dokun ve tek seferlik Android VPN iznini onayla.</span></li>
+            <li><span class="num">3</span><span>Hazır! Roblox, Discord ve tüm internet koruma altında — Wi-Fi'dan 5G'ye geçerken kopmaz.</span></li>
+          </ol>
+        </div>
+      </section>
+
+      <details class="verify" id="verify">
+        <summary>
+          <span id="verifyTitle">SHA-256 Dosya Özetleri, PowerShell Tek Satır Kurulum & İmza Doğrulama</span>
+          <span style="color: var(--emerald-bright); font-size: 12px;">▼</span>
+        </summary>
+        <div class="hash-list">
+          <div class="hash-row">
+            <div class="hash-val"><strong>PowerShell:</strong> <span id="psCmd">irm https://raw.githubusercontent.com/KeremKalyoncu/ozevpn/main/scripts/install.ps1 | iex</span></div>
+            <button class="copy-btn" type="button" data-copy="psCmd">Kopyala</button>
+          </div>
+          <div class="hash-row">
+            <div class="hash-val"><strong>OzeVPN.exe SHA-256:</strong> <span id="winHash">3430E0363646DE2EF6E031BA45372948FD84E68DDCE2975AB737BE627E12082A</span></div>
+            <button class="copy-btn" type="button" data-copy="winHash">Kopyala</button>
+          </div>
+          <div class="hash-row">
+            <div class="hash-val"><strong>Android arm64 APK SHA-256:</strong> <span id="andHash">4321BDE766F6F4A62E93520A22052AD3AD349CDA96EEE56AA4CD7A303651E4B9</span></div>
+            <button class="copy-btn" type="button" data-copy="andHash">Kopyala</button>
+          </div>
+          <div class="hash-row">
+            <div class="hash-val"><strong>Android İmza Sertifikası (SHA-256):</strong> <span id="certHash">05:F7:B3:D9:28:4F:B0:2B:7D:FD:E8:4A:34:5B:78:46:67:5E:93:81:6E:DD:0C:3B:17:98:44:B1:90:D7:4C:45</span></div>
+            <button class="copy-btn" type="button" data-copy="certHash">Kopyala</button>
+          </div>
+        </div>
+      </details>
+    </main>
+
+    <footer>
+      OzeVPN · GNU GPL-3.0 ·
+      <a href="https://github.com/KeremKalyoncu/ozevpn" target="_blank" rel="noopener">Kaynak Kod</a> ·
+      <a href="https://github.com/KeremKalyoncu/ozevpn/blob/main/PRIVACY.md" target="_blank" rel="noopener">Gizlilik</a> ·
+      <a href="https://github.com/KeremKalyoncu/ozevpn/blob/main/SECURITY.md" target="_blank" rel="noopener">Güvenlik</a>
+    </footer>
+  </div>
+
+  <script>
+    (function () {
+      // 1. Highlight visitor's own OS card
+      var ua = (navigator.userAgent || "").toLowerCase();
+      var winCard = document.getElementById("winCard");
+      var andCard = document.getElementById("andCard");
+      if (ua.indexOf("android") !== -1) {
+        andCard.classList.add("recommended");
+      } else {
+        winCard.classList.add("recommended");
+      }
+
+      // 2. Copy buttons (strict textContent, zero innerHTML)
+      document.querySelectorAll(".copy-btn").forEach(function (btn) {
+        btn.addEventListener("click", function () {
+          var target = document.getElementById(btn.getAttribute("data-copy"));
+          if (!target || !navigator.clipboard) return;
+          navigator.clipboard.writeText(target.textContent.trim()).then(function () {
+            var old = btn.textContent;
+            btn.textContent = currentLang === "en" ? "Copied" : "Kopyalandı";
+            setTimeout(function () { btn.textContent = old; }, 1400);
+          });
+        });
+      });
+
+      // 3. Auto-refresh download links to latest GitHub release
+      fetch("https://api.github.com/repos/KeremKalyoncu/ozevpn/releases/latest", {
+        headers: { "Accept": "application/vnd.github+json" }
+      })
+        .then(function (r) { return r.ok ? r.json() : null; })
+        .then(function (rel) {
+          if (!rel || !rel.tag_name) return;
+          document.getElementById("verPill").textContent = rel.tag_name;
+          var assets = Array.isArray(rel.assets) ? rel.assets : [];
+          assets.forEach(function (a) {
+            var url = typeof a.browser_download_url === "string" ? a.browser_download_url : "";
+            if (url.indexOf("https://github.com/KeremKalyoncu/ozevpn/releases/") !== 0) return;
+            var mb = a.size ? (a.size / 1048576).toFixed(1) + " MB" : "";
+            if (a.name === "OzeVPN.exe") {
+              winCard.href = url;
+              if (mb) document.getElementById("winSize").textContent = mb;
+            } else if (a.name === "OzeVPN-Android-arm64.apk") {
+              andCard.href = url;
+              if (mb) document.getElementById("andSize").textContent = mb;
+            } else if (a.name === "OzeVPN-Android-universal.apk") {
+              document.getElementById("uniLink").href = url;
+            }
+          });
+        })
+        .catch(function () { /* keep verified v6.2.0 fallback links */ });
+
+      // 4. TR / EN language switcher
+      var currentLang = "tr";
+      var strings = {
+        tr: {
+          toggle: "EN",
+          heroPrefix: "Tek Dokunuş. ",
+          heroAccent: "Sınırsız İnternet.",
+          heroSub: "Anadolu Vaşağı ile Discord sesli sohbet, Roblox ve tüm internete anında bağlan. Hesap yok, reklam yok, sıfır telemetri — tamamen açık kaynak.",
+          rec: "Senin Cihazın",
+          winDesc: "Windows 10 / 11 (64-bit) · Tek dosya, kurulum gerektirmez · Oyun TUN + Kill Switch",
+          winBtn: "Windows İndir (.exe)",
+          andDesc: "Android 10+ · Root gerektirmez · Dual-Stack IPv6 + Wi-Fi/5G otomatik geçiş",
+          andBtn: "Android İndir (.apk)",
+          uniLink: "Universal APK (eski cihazlar)",
+          relLink: "Tüm Sürüm Dosyaları & İmza",
+          verifyJump: "SHA-256 Doğrulama",
+          t1: "Sıfır Hesap & Telemetri",
+          t2: "Avrupa WARP POP (Roblox + Discord UDP)",
+          t3: "OpenSSF Passing · Scorecard A",
+          t4: "Açık Kaynak GPL-3.0",
+          previewTitle: "Canlı Arayüz Önizlemesi",
+          shotWinLabel: "Windows Masaüstü — 4 Sekmeli Anadolu Vaşağı",
+          shotAndLabel: "Android — 4/4 Yeşil",
+          winStepsTitle: "Windows'ta 30 Saniyede Başla",
+          andStepsTitle: "Android'de 30 Saniyede Başla",
+          verifyTitle: "SHA-256 Dosya Özetleri, PowerShell Tek Satır Kurulum & İmza Doğrulama",
+          copy: "Kopyala"
+        },
+        en: {
+          toggle: "TR",
+          heroPrefix: "One Tap. ",
+          heroAccent: "Unrestricted Internet.",
+          heroSub: "Connect to Discord voice, Roblox, and the open internet with the Anatolian Lynx. No accounts, no ads, zero telemetry — 100% open source.",
+          rec: "Your Device",
+          winDesc: "Windows 10 / 11 (64-bit) · Single portable EXE · Gaming TUN + Kill Switch",
+          winBtn: "Download Windows (.exe)",
+          andDesc: "Android 10+ · No root required · Dual-Stack IPv6 + Wi-Fi/5G seamless handover",
+          andBtn: "Download Android (.apk)",
+          uniLink: "Universal APK (older devices)",
+          relLink: "All Release Assets & Signatures",
+          verifyJump: "SHA-256 Verification",
+          t1: "Zero Accounts & Telemetry",
+          t2: "EU WARP POP (Roblox + Discord UDP)",
+          t3: "OpenSSF Passing · Scorecard A",
+          t4: "Open Source GPL-3.0",
+          previewTitle: "Live Interface Preview",
+          shotWinLabel: "Windows Desktop — 4-Tab Anatolian Lynx",
+          shotAndLabel: "Android — 4/4 Green",
+          winStepsTitle: "Start on Windows in 30 Seconds",
+          andStepsTitle: "Start on Android in 30 Seconds",
+          verifyTitle: "SHA-256 Checksums, PowerShell One-Liner & Signing Certificate",
+          copy: "Copy"
+        }
+      };
+
+      document.getElementById("langToggle").addEventListener("click", function () {
+        currentLang = currentLang === "tr" ? "en" : "tr";
+        var s = strings[currentLang];
+        document.documentElement.lang = currentLang;
+        document.getElementById("langToggle").textContent = s.toggle;
+        var h1 = document.getElementById("heroTitle");
+        h1.textContent = "";
+        h1.appendChild(document.createTextNode(s.heroPrefix));
+        var sp = document.createElement("span");
+        sp.textContent = s.heroAccent;
+        h1.appendChild(sp);
+        document.getElementById("heroSub").textContent = s.heroSub;
+        document.getElementById("winRecTag").textContent = s.rec;
+        document.getElementById("andRecTag").textContent = s.rec;
+        document.getElementById("winDesc").textContent = s.winDesc;
+        document.getElementById("winBtnText").textContent = s.winBtn;
+        document.getElementById("andDesc").textContent = s.andDesc;
+        document.getElementById("andBtnText").textContent = s.andBtn;
+        document.getElementById("uniLink").textContent = s.uniLink;
+        document.getElementById("relLink").textContent = s.relLink;
+        document.getElementById("verifyJump").textContent = s.verifyJump;
+        document.getElementById("t1").textContent = s.t1;
+        document.getElementById("t2").textContent = s.t2;
+        document.getElementById("t3").textContent = s.t3;
+        document.getElementById("t4").textContent = s.t4;
+        document.getElementById("previewTitle").textContent = s.previewTitle;
+        document.getElementById("shotWinLabel").textContent = s.shotWinLabel;
+        document.getElementById("shotAndLabel").textContent = s.shotAndLabel;
+        document.getElementById("winStepsTitle").textContent = s.winStepsTitle;
+        document.getElementById("andStepsTitle").textContent = s.andStepsTitle;
+        document.getElementById("verifyTitle").textContent = s.verifyTitle;
+        document.querySelectorAll(".copy-btn").forEach(function (b) { b.textContent = s.copy; });
+      });
+    })();
+  </script>
+</body>
+</html>
