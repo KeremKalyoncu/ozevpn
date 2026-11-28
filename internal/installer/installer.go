@@ -248,8 +248,10 @@ func Uninstall(extraPaths ...string) error {
 	if runtime.GOOS == "windows" {
 		ps := `
 $desktop = [Environment]::GetFolderPath('Desktop')
-$lnk = Join-Path $desktop 'OzeVPN.lnk'
-if (Test-Path $lnk) { Remove-Item $lnk -Force -ErrorAction SilentlyContinue }
+$programs = [Environment]::GetFolderPath('Programs')
+foreach ($lnk in @((Join-Path $desktop 'OzeVPN.lnk'), (Join-Path $programs 'OzeVPN.lnk'))) {
+  if (Test-Path $lnk) { Remove-Item $lnk -Force -ErrorAction SilentlyContinue }
+}
 `
 		_, _ = runPS(ps)
 		appDir := filepath.Dir(DefaultInstallPath())
@@ -287,15 +289,20 @@ func migrateConfigToLocalAppData(srcDir string) {
 
 func createDesktopShortcut(targetExe string) {
 	ps := fmt.Sprintf(`
-$desktop = [Environment]::GetFolderPath('Desktop')
-$lnk = Join-Path $desktop 'OzeVPN.lnk'
 $ws = New-Object -ComObject WScript.Shell
-$sc = $ws.CreateShortcut($lnk)
-$sc.TargetPath = '%s'
-$sc.WorkingDirectory = '%s'
-$sc.Description = 'OzeVPN - Anadolu Vaşağı | Engelsiz ve Hızlı İnternet'
-$sc.Save()
-`, escapePS(targetExe), escapePS(filepath.Dir(targetExe)))
+$targets = @(
+  (Join-Path ([Environment]::GetFolderPath('Desktop')) 'OzeVPN.lnk'),
+  (Join-Path ([Environment]::GetFolderPath('Programs')) 'OzeVPN.lnk')
+)
+foreach ($lnk in $targets) {
+  $sc = $ws.CreateShortcut($lnk)
+  $sc.TargetPath = '%s'
+  $sc.WorkingDirectory = '%s'
+  $sc.IconLocation = '%s,0'
+  $sc.Description = 'OzeVPN - Anadolu Vaşağı | Engelsiz ve Hızlı İnternet'
+  $sc.Save()
+}
+`, escapePS(targetExe), escapePS(filepath.Dir(targetExe)), escapePS(targetExe))
 	_, _ = runPS(ps)
 }
 

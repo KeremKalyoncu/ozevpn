@@ -13,3 +13,6 @@ var IconConnecting []byte
 
 //go:embed ozevpn-connected.ico
 var IconConnected []byte
+
+//go:embed mascot-ui.png
+var BrandPNG []byte

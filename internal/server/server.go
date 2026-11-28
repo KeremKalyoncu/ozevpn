@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"ozevpn/assets"
 	"ozevpn/internal/config"
 	"ozevpn/internal/engine"
 	"ozevpn/internal/installer"
@@ -72,6 +73,7 @@ func NewHandler(opts Options) http.Handler {
 	mux.HandleFunc("/auth", srv.handleAuth)
 	mux.HandleFunc("/", srv.handleStaticOrIndex)
 	mux.HandleFunc("/favicon.ico", srv.handleFavicon)
+	mux.HandleFunc("/brand.png", srv.handleBrandPNG)
 	mux.HandleFunc("/proxy.pac", srv.handleProxyPAC)
 	mux.HandleFunc("/api/healthz", srv.handleHealthz)
 	mux.HandleFunc("/api/metrics", srv.handleMetrics)
@@ -177,6 +179,12 @@ func (s *apiServer) serveNotFound(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *apiServer) handleFavicon(w http.ResponseWriter, r *http.Request) {
+	if len(assets.IconApp) > 0 {
+		w.Header().Set("Content-Type", "image/x-icon")
+		w.Header().Set("Cache-Control", "public, max-age=86400")
+		_, _ = w.Write(assets.IconApp)
+		return
+	}
 	data, err := s.webFS.ReadFile("favicon.svg")
 	if err != nil {
 		w.WriteHeader(http.StatusNoContent)
@@ -185,6 +193,16 @@ func (s *apiServer) handleFavicon(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "image/svg+xml")
 	w.Header().Set("Cache-Control", "public, max-age=86400")
 	_, _ = w.Write(data)
+}
+
+func (s *apiServer) handleBrandPNG(w http.ResponseWriter, r *http.Request) {
+	if len(assets.BrandPNG) == 0 {
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+	w.Header().Set("Content-Type", "image/png")
+	w.Header().Set("Cache-Control", "public, max-age=86400")
+	_, _ = w.Write(assets.BrandPNG)
 }
 
 func (s *apiServer) handleProxyPAC(w http.ResponseWriter, r *http.Request) {

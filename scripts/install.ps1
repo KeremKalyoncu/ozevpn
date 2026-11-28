@@ -1,4 +1,4 @@
-# OzeVPN Tek Satır Kurulum Betiği (SHA-256 Doğrulamalı)
+﻿# OzeVPN Tek Satır Kurulum Betiği (SHA-256 Doğrulamalı)
 # Kullanım:
 #   irm https://raw.githubusercontent.com/KeremKalyoncu/ozevpn/main/scripts/install.ps1 | iex
 $ErrorActionPreference = 'Stop'
@@ -33,15 +33,18 @@ try {
   New-Item -ItemType Directory -Force -Path $installDir | Out-Null
   Move-Item -Force $tmpExe $exePath
 
-  # Masaüstü kısayolu oluştur
-  $desktop = [Environment]::GetFolderPath('Desktop')
-  $lnkPath = Join-Path $desktop 'OzeVPN.lnk'
+  # Masaüstü ve Başlat Menüsü kısayollarını yeni Anadolu Vaşağı ikonuyla oluştur
   $shell = New-Object -ComObject WScript.Shell
-  $sc = $shell.CreateShortcut($lnkPath)
-  $sc.TargetPath = $exePath
-  $sc.WorkingDirectory = $installDir
-  $sc.Description = 'OzeVPN — Yerel Hibrit Masaüstü VPN'
-  $sc.Save()
+  $lnkPath = Join-Path ([Environment]::GetFolderPath('Desktop')) 'OzeVPN.lnk'
+  $startLnk = Join-Path ([Environment]::GetFolderPath('Programs')) 'OzeVPN.lnk'
+  foreach ($p in @($lnkPath, $startLnk)) {
+    $sc = $shell.CreateShortcut($p)
+    $sc.TargetPath = $exePath
+    $sc.WorkingDirectory = $installDir
+    $sc.IconLocation = "$exePath,0"
+    $sc.Description = 'OzeVPN — Anadolu Vaşağı | Yerel Hibrit Masaüstü VPN'
+    $sc.Save()
+  }
 
   Write-Host "`nOzeVPN $($release.tag_name) başarıyla kuruldu!" -ForegroundColor Green
   Write-Host "Konum: $exePath"
