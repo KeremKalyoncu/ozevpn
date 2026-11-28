@@ -3,8 +3,8 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-<meta name="description" content="OzeVPN v6 — sing-box hibrit motor, yerleşik WARP WireGuard (TCP+UDP), şifreli DoH DNS ve reklam kalkanı kontrol paneli." />
-<title>OzeVPN v6 — Canlı Sinyal Kokpiti</title>
+<meta name="description" content="OzeVPN v6.2 — Anadolu Vaşağı: sing-box hibrit motor, yerleşik WARP WireGuard (TCP+UDP), şifreli DoH DNS ve reklam kalkanı." />
+<title>OzeVPN v6.2 — Anadolu Vaşağı</title>
 <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
 <script src="/theme.js"></script>
 <link rel="stylesheet" href="/style.css" />
@@ -45,16 +45,14 @@
 <span class="brand-mark" id="brandDot" aria-hidden="true">
 <svg class="ico ico-brand"><use href="#ico-shield"/></svg>
 </span>
-<div class="brand-copy">
 <div class="brand-title-row">
 <h1>OzeVPN</h1>
-<span class="ver mono">v6</span>
+<span class="ver mono">v6.2</span>
 <span class="state-chip" id="installBadge">Aç/Kapa</span>
 </div>
 </div>
-</div>
 <div class="topbar-actions">
-<button id="relaunchAdminBtn" type="button" class="btn secondary sm" title="Roblox masaüstü ve oyun UDP trafiği için Yönetici (Oyun TUN) modunda aç">
+<button id="relaunchAdminBtn" type="button" class="btn secondary sm" title="Oyun UDP trafiği ve Kill Switch için Yönetici (Oyun TUN) modunda aç">
 <svg class="ico" aria-hidden="true"><use href="#ico-gamepad"/></svg>
 <span class="btn-label">Oyun TUN</span>
 </button>
@@ -97,6 +95,24 @@
 </div>
 </div>
 </header>
+<nav class="nav-tabs" role="tablist" aria-label="Ana Görünümler">
+<button type="button" class="nav-tab active" id="navBtn-home" role="tab" aria-selected="true" aria-controls="view-home" tabindex="0" data-view="home">
+<svg class="ico" aria-hidden="true"><use href="#ico-shield"/></svg>
+<span>Bağlantı</span>
+</button>
+<button type="button" class="nav-tab" id="navBtn-sites" role="tab" aria-selected="false" aria-controls="view-sites" tabindex="-1" data-view="sites">
+<svg class="ico" aria-hidden="true"><use href="#ico-globe"/></svg>
+<span>Siteler &amp; Test</span>
+</button>
+<button type="button" class="nav-tab" id="navBtn-network" role="tab" aria-selected="false" aria-controls="view-network" tabindex="-1" data-view="network">
+<svg class="ico" aria-hidden="true"><use href="#ico-sliders"/></svg>
+<span>Ağ &amp; Gelişmiş</span>
+</button>
+<button type="button" class="nav-tab" id="navBtn-logs" role="tab" aria-selected="false" aria-controls="view-logs" tabindex="-1" data-view="logs">
+<svg class="ico" aria-hidden="true"><use href="#ico-terminal"/></svg>
+<span>Günlük</span>
+</button>
+</nav>
 <noscript>
 <div class="offline-banner">OzeVPN kontrol panelinin çalışması için JavaScript gereklidir. Tarayıcı ayarlarından JavaScript'i etkinleştirip sayfayı yenile.</div>
 </noscript>
@@ -107,127 +123,183 @@
 </div>
 <button id="retryConnBtn" type="button" class="btn secondary sm">Yeniden Dene</button>
 </div>
-<main id="mainContent" class="cockpit-main" tabindex="-1">
-<section class="panel cockpit-hero" id="cockpitHero" aria-labelledby="controlHeading">
-<h2 id="controlHeading" class="sr-only">Bağlantı Durumu ve Canlı Tünel Şeması</h2>
-<div class="hero-top">
-<div class="power-area">
+<main id="mainContent" class="main-shell" tabindex="-1">
+<section class="view-panel active" id="view-home" role="tabpanel" aria-labelledby="navBtn-home" tabindex="0">
+<div class="panel lynx-hero" id="cockpitHero" data-state="disconnected">
+<div class="hero-stage">
 <button id="powerBtn" type="button" class="power-btn disconnected" aria-label="Bağlan" aria-pressed="false" title="Bağlan / Kes (Alt+C)">
-<svg class="ico ico-power" aria-hidden="true" focusable="false"><use href="#ico-power"/></svg>
+<span class="power-ring" aria-hidden="true"></span>
+<svg class="lynx-hero-svg" viewBox="0 0 64 64" aria-hidden="true" focusable="false"><path class="lynx-head" d="M15 11l5.5 7.5 6.8 4.8q4.7-1.9 9.4 0l6.8-4.8L49 11l-1.9 10.8 2.3 10.2 5.2 9.4-6.3 3.9 1.7 5.8-9.2 3.8-3.4-5.7q-5.4 2.2-10.8 0l-3.4 5.7-9.2-3.8 1.7-5.8-6.3-3.9 5.2-9.4 2.3-10.2z"/><path class="lynx-ear" d="M13.5 7l2.5 4.2M50.5 7L48 11.2"/><path class="lynx-eye" d="M21 32.2l8.2 2.6-2.3 4.1-5.2-2.2zm22 0l-8.2 2.6 2.3 4.1 5.2-2.2z"/><path class="lynx-nose" d="M29.4 42.2h5.2L32 45.6z"/></svg>
 </button>
 <div class="power-meta" role="status" aria-live="polite" aria-atomic="true">
 <div class="status-line">
-<div id="statusText" class="status-title">Bağlı Değil</div>
+<h2 id="statusText" class="status-title">Bağlı Değil</h2>
 <span id="uptimeBadge" class="uptime-badge mono hidden">00:00</span>
 </div>
-<div id="statusSub" class="status-sub">Hazır — Tek tıkla engelsiz ve düşük pingli bağlantıya geç</div>
+<p id="statusSub" class="status-sub">Hazır — Tek tıkla engelsiz ve düşük pingli bağlantıya geç</p>
 </div>
 </div>
-<div class="route-schematic" id="routeSchematic" data-state="disconnected" aria-label="Canlı tünel akış şeması">
-<div class="route-node" id="nodeDevice">
-<span class="node-icon" aria-hidden="true"><svg class="ico"><use href="#ico-laptop"/></svg></span>
-<span class="node-label">Cihaz</span>
-<span class="node-val mono" id="nodeDeviceVal">Yerel</span>
+<div class="hero-metrics">
+<div class="metric-pill">
+<span class="metric-label">Çıkış</span>
+<span class="metric-val mono" id="coloBadge">—</span>
 </div>
-<div class="route-link" aria-hidden="true"><span class="route-pulse"></span></div>
-<div class="route-node" id="nodeLayer">
-<span class="node-icon" aria-hidden="true"><svg class="ico"><use href="#ico-layers"/></svg></span>
-<span class="node-label">Katman</span>
-<span class="node-val mono" id="protoBadge">Proxy</span>
+<div class="metric-pill">
+<span class="metric-label">Katman</span>
+<span class="metric-val mono" id="protoBadge">Proxy</span>
 </div>
-<div class="route-link" aria-hidden="true"><span class="route-pulse"></span></div>
-<div class="route-node" id="nodeTunnel">
-<span class="node-icon" aria-hidden="true"><svg class="ico"><use href="#ico-shield"/></svg></span>
-<span class="node-label">Tünel</span>
-<span class="node-val mono" id="nodeTunnelVal">Beklemede</span>
-</div>
-<div class="route-link" aria-hidden="true"><span class="route-pulse"></span></div>
-<div class="route-node" id="nodeExit">
-<span class="node-icon" aria-hidden="true"><svg class="ico"><use href="#ico-globe"/></svg></span>
-<span class="node-label">Çıkış</span>
-<span class="node-val mono" id="coloBadge">—</span>
-</div>
-</div>
-</div>
-<div class="telemetry-bar">
-<div class="telemetry-items">
-<div class="tele-item">
-<span class="tele-label">Ağ &amp; Modem</span>
-<span class="tele-val mono" id="modemHint">Taranıyor...</span>
-</div>
-<div class="tele-item">
-<span class="tele-label">Aktif DNS</span>
-<span class="tele-val mono" id="dnsInfo">—</span>
-</div>
-<div class="tele-item tele-item-sm">
-<span class="tele-label">IPv6</span>
-<span class="tele-val mono" id="ipv6Info">—</span>
-</div>
-<div class="tele-item">
-<span class="tele-label">Canlı Trafik</span>
-<span class="tele-val mono" id="liveTrafficVal">—</span>
-</div>
+<div class="metric-pill metric-wide">
+<span class="metric-label">Canlı Trafik</span>
+<span class="metric-val mono" id="liveTrafficVal">—</span>
 </div>
 <button id="maskIpBtn" type="button" class="btn ghost sm" aria-pressed="false" title="Ekran paylaşımı için IP ve modem bilgilerini gizle">
 <svg class="ico" id="maskIpIcon" aria-hidden="true"><use href="#ico-eye"/></svg>
 <span id="maskIpLabel">IP Gizle</span>
 </button>
 </div>
-</section>
-<div class="grid">
-<section class="left-col" aria-label="Mod, Güvenlik ve Sistem Günlüğü">
+</div>
 <div class="panel">
 <div class="panel-head">
 <h2 class="panel-title" id="modeGroupLabel">Bağlantı Modu</h2>
-<span class="panel-meta">Anlık geçiş (Hot-Reload)</span>
+<span class="panel-meta">Anlık geçiş</span>
 </div>
-<div class="mode-list" id="modeGrid" role="group" aria-labelledby="modeGroupLabel">
+<div class="mode-seg" id="modeGrid" role="group" aria-labelledby="modeGroupLabel">
 <button type="button" class="mode-row active" data-mode="full" aria-pressed="true">
-<span class="mode-ico" aria-hidden="true"><svg class="ico"><use href="#ico-globe"/></svg></span>
-<span class="mode-body">
-<span class="mode-head">
-<span class="mode-title">Tüm Dünya Engelsiz</span>
-<span class="tag ok">Önerilen</span>
-</span>
-<span class="mode-desc">Tüm engelli siteler ve servisler ek ayar yapmadan şifreli tünelden açılır.</span>
-</span>
+<svg class="ico" aria-hidden="true"><use href="#ico-globe"/></svg>
+<span>Tam Koruma</span>
 </button>
 <button type="button" class="mode-row" data-mode="smart" aria-pressed="false">
-<span class="mode-ico" aria-hidden="true"><svg class="ico"><use href="#ico-zap"/></svg></span>
-<span class="mode-body">
-<span class="mode-head">
-<span class="mode-title">Hibrit + TR Hız Koruması</span>
-<span class="tag">Hibrit</span>
-</span>
-<span class="mode-desc">e-Devlet, TR bankalar ve 4K/oyun indirmeleri direkt hatta kalır; kalanı tünelden akar.</span>
-</span>
+<svg class="ico" aria-hidden="true"><use href="#ico-zap"/></svg>
+<span>Hibrit TR</span>
 </button>
 <button type="button" class="mode-row" data-mode="pac" aria-pressed="false">
-<span class="mode-ico" aria-hidden="true"><svg class="ico"><use href="#ico-target"/></svg></span>
-<span class="mode-body">
-<span class="mode-head">
-<span class="mode-title">Sadece Seçili Siteler (PAC)</span>
-<span class="tag">Seçici</span>
-</span>
-<span class="mode-desc">Yalnızca seçtiğin alan adları ve oyun istemcileri tünele girer.</span>
-</span>
+<svg class="ico" aria-hidden="true"><use href="#ico-target"/></svg>
+<span>Seçili Siteler</span>
 </button>
 </div>
-<div class="hairline-list" aria-label="Koruma ve Başlangıç Ayarları">
+<p class="mode-hint" id="modeHintText">Tüm engelli siteler ve servisler ek ayar yapmadan şifreli tünelden açılır.</p>
+<div class="hairline-list" aria-label="Hızlı Koruma Ayarları">
 <label class="switch-row">
 <span class="switch-copy">
-<span class="switch-title">Reklam &amp; Takipçi Hız Kalkanı</span>
-<span class="switch-desc">28 ağır reklam ve izleyici ağını DNS/yönlendirme katmanında engeller.</span>
+<span class="switch-title">Reklam &amp; Takipçi Kalkanı</span>
+<span class="switch-desc">28 ağır reklam ve izleyici ağını DNS katmanında engeller.</span>
 </span>
 <input type="checkbox" class="switch-input" role="switch" id="adBlockToggle" checked />
 </label>
 <label class="switch-row">
 <span class="switch-copy">
 <span class="switch-title">Kill Switch (Oyun TUN)</span>
-<span class="switch-desc">Yalnız Yönetici modunda: tünel koparsa fiziksel çıkışı keser. Kurtarma: <em>Proxy Sıfırla</em>.</span>
+<span class="switch-desc">Yönetici modunda tünel koparsa fiziksel çıkışı keser.</span>
 </span>
 <input type="checkbox" class="switch-input" role="switch" id="killSwitchToggle" />
 </label>
+<div class="switch-row">
+<span class="switch-copy">
+<span class="switch-title" id="adminTaskTitle">Otomatik Yönetici (UAC'siz Oyun TUN)</span>
+<span class="switch-desc" id="adminTaskSub">1 kez Yönetici onayı ile her açılışta UAC sormadan tam Oyun TUN olarak başlar.</span>
+</span>
+<button id="setupAdminTaskBtn" type="button" class="btn primary sm nowrap">1 Kez Kur</button>
+</div>
+</div>
+<div class="quick-bar">
+<span class="shortcut-hint mono">Alt+C Bağlan · Alt+T Test</span>
+<button id="quickTestJumpBtn" type="button" class="btn ghost sm">
+<svg class="ico" aria-hidden="true"><use href="#ico-activity"/></svg>
+<span>Hız &amp; Erişim Testi →</span>
+</button>
+</div>
+</div>
+</section>
+<section class="view-panel" id="view-sites" role="tabpanel" aria-labelledby="navBtn-sites" tabindex="0" hidden>
+<div class="panel">
+<div class="card-header">
+<div class="card-header-copy">
+<h2 class="panel-title">Canlı Erişim, Hız &amp; Site Kurtarıcı</h2>
+<p class="muted-text" id="traceSummary" role="status" aria-live="polite">Çıkış IP, indirme hızı ve 6 hedefin erişim gecikmesini tek tıkla ölç.</p>
+</div>
+<div class="btn-group">
+<button id="speedBtn" type="button" class="btn secondary sm">
+<svg class="ico" aria-hidden="true"><use href="#ico-activity"/></svg>
+<span>Hız Ölç</span>
+</button>
+<button id="probeBtn" type="button" class="btn primary sm">
+<svg class="ico" aria-hidden="true"><use href="#ico-zap"/></svg>
+<span>Test Et</span>
+</button>
+</div>
+</div>
+<div class="speed-strip hidden" id="speedStrip" aria-label="Hız testi ölçümleri">
+<div class="speed-cell"><span class="tele-label">İndirme</span><span class="speed-val mono" id="speedMbps">—</span></div>
+<div class="speed-cell"><span class="tele-label">Gecikme</span><span class="speed-val mono" id="speedPing">—</span></div>
+<div class="speed-cell"><span class="tele-label">Jitter</span><span class="speed-val mono" id="speedJitter">—</span></div>
+<div class="speed-cell"><span class="tele-label">Hat</span><span class="speed-val mono" id="speedPath">—</span></div>
+</div>
+<div class="probe-grid" id="probeGrid">
+<div class="probe-empty">Gerçek erişim gecikmelerini görmek için <strong>Test Et</strong> veya <strong>Hız Ölç</strong> butonuna bas.</div>
+</div>
+<div class="field-group rescue-row">
+<label class="field-label" for="rescueInput">Site Kurtarıcı — açılmayan siteyi test et veya Avrupa çıkışına al (kısayol: <kbd>/</kbd>)</label>
+<div class="add-row">
+<input id="rescueInput" type="text" class="mono" spellcheck="false" autocomplete="off" aria-describedby="rescueResult" placeholder="wattpad.com veya roblox.com" />
+<button id="rescueTestBtn" type="button" class="btn secondary">Kontrol Et</button>
+<button id="rescueAddBtn" type="button" class="btn primary">Avrupa'ya Al</button>
+</div>
+</div>
+<div id="rescueResult" class="rescue-result muted-small" role="status" aria-live="polite"></div>
+</div>
+<div class="panel">
+<div class="tabs" role="tablist" aria-label="Site Yönlendirme Listeleri">
+<button type="button" class="tab active" id="tabBtn-bypass" role="tab" aria-selected="true" aria-controls="tab-bypass" tabindex="0" data-tab="bypass">
+<svg class="ico" aria-hidden="true"><use href="#ico-zap"/></svg>
+<span>Direkt Geç (TR)</span>
+</button>
+<button type="button" class="tab" id="tabBtn-tunnel" role="tab" aria-selected="false" aria-controls="tab-tunnel" tabindex="-1" data-tab="tunnel">
+<svg class="ico" aria-hidden="true"><use href="#ico-globe"/></svg>
+<span>Tünele Al (PAC &amp; Avrupa)</span>
+</button>
+</div>
+<div class="tab-panel active" id="tab-bypass" role="tabpanel" aria-labelledby="tabBtn-bypass" tabindex="0">
+<p class="muted-text">Hibrit modda bu siteler tünele <strong>girmez</strong>, doğrudan yerel internet hızında açılır.</p>
+<div id="bypassPresets" class="hairline-list preset-list"></div>
+<div class="field-group">
+<label class="field-label" for="customBypassInput">Direkt geçecek özel site ekle</label>
+<div class="add-row">
+<input id="customBypassInput" type="text" class="mono" spellcheck="false" autocomplete="off" aria-describedby="bypassErr" placeholder="yemeksepeti.com veya bankam.com.tr" />
+<button id="addBypassBtn" type="button" class="btn primary">Ekle</button>
+</div>
+<div id="bypassErr" class="inline-error hidden" role="alert"></div>
+</div>
+<div id="customBypassChips" class="chip-list"></div>
+</div>
+<div class="tab-panel" id="tab-tunnel" role="tabpanel" aria-labelledby="tabBtn-tunnel" tabindex="0" hidden>
+<p class="muted-text">Seçili Siteler (PAC) modunda veya Site Kurtarıcı ile tünele alınan alan adları.</p>
+<div id="tunnelPresets" class="hairline-list preset-list"></div>
+<div class="field-group">
+<label class="field-label" for="customTunnelInput">Özel olarak tünele alınacak site ekle</label>
+<div class="add-row">
+<input id="customTunnelInput" type="text" class="mono" spellcheck="false" autocomplete="off" aria-describedby="tunnelErr" placeholder="reddit.com veya engellisite.com" />
+<button id="addTunnelBtn" type="button" class="btn primary">Ekle</button>
+</div>
+<div id="tunnelErr" class="inline-error hidden" role="alert"></div>
+</div>
+<div id="customTunnelChips" class="chip-list"></div>
+</div>
+</div>
+</section>
+<section class="view-panel" id="view-network" role="tabpanel" aria-labelledby="navBtn-network" tabindex="0" hidden>
+<div class="panel">
+<div class="panel-head">
+<h2 class="panel-title">Başlangıç, Paylaşım &amp; Gizlilik</h2>
+<span class="panel-meta">Windows &amp; Yerel Ağ</span>
+</div>
+<div class="hairline-list">
+<div class="switch-row">
+<span class="switch-copy">
+<span class="switch-title" id="residentTitle">Yerleşik Başlangıç: Kapalı</span>
+<span class="switch-desc" id="residentSub">Aç/Kapa modunda — sadece sen açınca çalışır.</span>
+</span>
+<button id="toggleResidentBtn" type="button" class="btn secondary sm nowrap">Yerleşik Yap</button>
+</div>
 <label class="switch-row">
 <span class="switch-copy">
 <span class="switch-title">Ev Ağıyla Paylaş (Telefon / TV)</span>
@@ -239,24 +311,37 @@
 <span class="mono" id="lanShareAddr">—</span>
 <button id="copyLanBtn" type="button" class="btn secondary sm nowrap">Kopyala</button>
 </div>
-<div class="switch-row">
+<label class="switch-row">
 <span class="switch-copy">
-<span class="switch-title" id="residentTitle">Yerleşik Başlangıç: Kapalı</span>
-<span class="switch-desc" id="residentSub">Aç/Kapa modunda — sadece sen açınca çalışır.</span>
+<span class="switch-title">Tor Snowflake Köprü Modu</span>
+<span class="switch-desc">Okul veya işyeri güvenlik duvarı doğrudan Tor'u engelliyorsa aç.</span>
 </span>
-<button id="toggleResidentBtn" type="button" class="btn secondary sm nowrap">Yerleşik Yap</button>
+<input type="checkbox" class="switch-input" role="switch" id="torBridgeToggle" />
+</label>
+<label class="switch-row">
+<span class="switch-copy">
+<span class="switch-title">Yerel Ağı (LAN) İzole Et</span>
+<span class="switch-desc">Halka açık Wi-Fi'da özel ağ (<code class="mono">192.168.x.x</code>) erişimini keser.</span>
+</span>
+<input type="checkbox" class="switch-input" role="switch" id="blockLanToggle" />
+</label>
+<label class="switch-row">
+<span class="switch-copy">
+<span class="switch-title">Harici Başlangıç Sorgusunu Kapat</span>
+<span class="switch-desc">Açılışta otomatik ülke sorgusu gönderilmez.</span>
+</span>
+<input type="checkbox" class="switch-input" role="switch" id="disableNetProbeToggle" />
+</label>
 </div>
 </div>
-<details id="advancedSettings" class="adv-details">
-<summary>
-<svg class="ico" aria-hidden="true"><use href="#ico-sliders"/></svg>
-<span>Gelişmiş Ağ Ayarları (Motor, Protokol &amp; Gizlilik)</span>
-<svg class="ico ico-chevron" aria-hidden="true"><use href="#ico-chevron"/></svg>
-</summary>
-<div class="adv-body">
+<div class="panel">
+<div class="panel-head">
+<h2 class="panel-title">Çıkış Motoru &amp; Protokol</h2>
+<span class="panel-meta mono">sing-box</span>
+</div>
 <div class="control-stack">
 <div class="control-box">
-<label for="engineProfileSelect">Çıkış Motoru (sing-box)</label>
+<label for="engineProfileSelect">Çıkış Motoru</label>
 <select id="engineProfileSelect">
 <option value="hybrid_eu">Hibrit: WARP WireGuard + Avrupa Tor</option>
 <option value="tor_eu">Saf Avrupa Tor (0 Kurulum)</option>
@@ -282,31 +367,58 @@
 </div>
 <div id="customServerErr" class="inline-error hidden" role="alert"></div>
 </div>
-<div class="hairline-list compact">
-<label class="switch-row">
-<span class="switch-copy">
-<span class="switch-title">Tor Snowflake Köprü Modu</span>
-<span class="switch-desc">Okul veya işyeri güvenlik duvarı doğrudan Tor'u engelliyorsa aç.</span>
-</span>
-<input type="checkbox" class="switch-input" role="switch" id="torBridgeToggle" />
-</label>
-<label class="switch-row">
-<span class="switch-copy">
-<span class="switch-title">Yerel Ağı (LAN) İzole Et</span>
-<span class="switch-desc">Halka açık Wi-Fi'da özel ağ (<code class="mono">192.168.x.x</code>) erişimini keser.</span>
-</span>
-<input type="checkbox" class="switch-input" role="switch" id="blockLanToggle" />
-</label>
-<label class="switch-row">
-<span class="switch-copy">
-<span class="switch-title">Harici Başlangıç Sorgusunu Kapat</span>
-<span class="switch-desc">Açılışta otomatik ülke sorgusu gönderilmez.</span>
-</span>
-<input type="checkbox" class="switch-input" role="switch" id="disableNetProbeToggle" />
-</label>
+</div>
+<div class="panel">
+<div class="router-box">
+<div class="panel-head">
+<h2 class="panel-title">OpenWrt Router &amp; Ortak Avrupa VPS</h2>
+<span class="panel-meta">Tüm Ev</span>
+</div>
+<p class="muted-text">Evdeki tüm cihazların (PC, telefon, TV, konsol) tek merkezden engelsiz çalışması için <code class="mono">sing-box</code> ayarını indirip OpenWrt router'a yükleyebilirsin.</p>
+<div class="router-actions">
+<a href="/api/export/openwrt" download="sing-box-openwrt.json" class="btn primary sm">sing-box-openwrt.json İndir</a>
+<a href="/proxy.pac" target="_blank" rel="noopener noreferrer" class="btn secondary sm">Aktif PAC Dosyasını Gör<span class="sr-only"> (yeni sekmede açılır)</span></a>
+</div>
+<div class="hint-box mono">router/openwrt-setup.sh · router/README.md · vps/setup-vps.sh</div>
 </div>
 </div>
-</details>
+</section>
+<section class="view-panel" id="view-logs" role="tabpanel" aria-labelledby="navBtn-logs" tabindex="0" hidden>
+<div class="panel">
+<div class="panel-head">
+<h2 class="panel-title">Canlı Tünel Akışı &amp; Ağ Telemetrisi</h2>
+<span class="panel-meta mono">127.0.0.1</span>
+</div>
+<div class="route-schematic" id="routeSchematic" data-state="disconnected" aria-label="Canlı tünel akış şeması">
+<div class="route-node" id="nodeDevice">
+<span class="node-icon" aria-hidden="true"><svg class="ico"><use href="#ico-laptop"/></svg></span>
+<span class="node-label">Cihaz</span>
+<span class="node-val mono" id="nodeDeviceVal">Yerel</span>
+</div>
+<div class="route-link" aria-hidden="true"><span class="route-pulse"></span></div>
+<div class="route-node" id="nodeLayer">
+<span class="node-icon" aria-hidden="true"><svg class="ico"><use href="#ico-layers"/></svg></span>
+<span class="node-label">Katman</span>
+<span class="node-val mono" id="nodeLayerVal">Proxy</span>
+</div>
+<div class="route-link" aria-hidden="true"><span class="route-pulse"></span></div>
+<div class="route-node" id="nodeTunnel">
+<span class="node-icon" aria-hidden="true"><svg class="ico"><use href="#ico-shield"/></svg></span>
+<span class="node-label">Tünel</span>
+<span class="node-val mono" id="nodeTunnelVal">Beklemede</span>
+</div>
+<div class="route-link" aria-hidden="true"><span class="route-pulse"></span></div>
+<div class="route-node" id="nodeExit">
+<span class="node-icon" aria-hidden="true"><svg class="ico"><use href="#ico-globe"/></svg></span>
+<span class="node-label">Çıkış</span>
+<span class="node-val mono" id="nodeExitVal">—</span>
+</div>
+</div>
+<div class="tele-grid">
+<div class="tele-item"><span class="tele-label">Ağ &amp; Modem</span><span class="tele-val mono" id="modemHint">Taranıyor...</span></div>
+<div class="tele-item"><span class="tele-label">Aktif DNS</span><span class="tele-val mono" id="dnsInfo">—</span></div>
+<div class="tele-item"><span class="tele-label">IPv6</span><span class="tele-val mono" id="ipv6Info">—</span></div>
+</div>
 </div>
 <div class="panel log-panel">
 <div class="panel-head tight">
@@ -314,159 +426,53 @@
 <svg class="ico" aria-hidden="true"><use href="#ico-terminal"/></svg>
 <span>Sistem Günlüğü</span>
 </span>
-<span class="shortcut-hint mono">Alt+C Bağlan · Alt+T Test</span>
+<div class="btn-group">
+<button id="logCopyDiagBtn" type="button" class="btn secondary sm">Tanılama Kopyala</button>
+<button id="logCheckUpdateBtn" type="button" class="btn secondary sm">Güncelleme Kontrol</button>
+</div>
 </div>
 <div class="log-box mono" id="logBox" role="log" aria-live="polite" aria-relevant="additions" aria-label="Bağlantı ve sistem günlüğü">
-<div class="log-line">OzeVPN v6 hazır.</div>
+<div class="log-line">OzeVPN v6.2 (Anadolu Vaşağı) hazır.</div>
 </div>
 </div>
 </section>
-<section class="right-col" aria-label="Canlı Erişim Testi, Hız ve Kural Yönetimi">
-<div class="panel">
-<div class="card-header">
-<div class="card-header-copy">
-<h2 class="panel-title">Canlı Erişim, Hız &amp; Site Kurtarıcı</h2>
-<p class="muted-text" id="traceSummary" role="status" aria-live="polite">Çıkış IP, indirme hızı ve 6 hedefin erişim gecikmesini tek tıkla ölç.</p>
-</div>
-<div class="btn-group">
-<button id="speedBtn" type="button" class="btn secondary sm">
-<svg class="ico" aria-hidden="true"><use href="#ico-activity"/></svg>
-<span>Hız Ölç</span>
-</button>
-<button id="probeBtn" type="button" class="btn primary sm">
-<svg class="ico" aria-hidden="true"><use href="#ico-zap"/></svg>
-<span>Test Et</span>
-</button>
-</div>
-</div>
-<div class="speed-strip hidden" id="speedStrip" aria-label="Hız testi ölçümleri">
-<div class="speed-cell">
-<span class="tele-label">İndirme</span>
-<span class="speed-val mono" id="speedMbps">—</span>
-</div>
-<div class="speed-cell">
-<span class="tele-label">Gecikme (Ping)</span>
-<span class="speed-val mono" id="speedPing">—</span>
-</div>
-<div class="speed-cell">
-<span class="tele-label">Jitter</span>
-<span class="speed-val mono" id="speedJitter">—</span>
-</div>
-<div class="speed-cell">
-<span class="tele-label">Hat</span>
-<span class="speed-val mono" id="speedPath">—</span>
-</div>
-</div>
-<div class="probe-grid" id="probeGrid">
-<div class="probe-empty">Henüz test yapılmadı. Gerçek erişim gecikmelerini görmek için <strong>Test Et</strong> veya <strong>Hız Ölç</strong> butonuna bas.</div>
-</div>
-<div class="field-group rescue-row">
-<label class="field-label" for="rescueInput">Site Kurtarıcı — açılmayan alan adını test et veya Avrupa çıkışına al (kısayol: <kbd>/</kbd>)</label>
-<div class="add-row">
-<input id="rescueInput" type="text" class="mono" spellcheck="false" autocomplete="off" aria-describedby="rescueResult" placeholder="wattpad.com veya roblox.com" />
-<button id="rescueTestBtn" type="button" class="btn secondary">Kontrol Et</button>
-<button id="rescueAddBtn" type="button" class="btn primary">Avrupa'ya Al</button>
-</div>
-</div>
-<div id="rescueResult" class="rescue-result muted-small" role="status" aria-live="polite"></div>
-</div>
-<div class="panel">
-<div class="tabs" role="tablist" aria-label="Kural ve Router Ayarları">
-<button type="button" class="tab active" id="tabBtn-bypass" role="tab" aria-selected="true" aria-controls="tab-bypass" tabindex="0" data-tab="bypass">
-<svg class="ico" aria-hidden="true"><use href="#ico-zap"/></svg>
-<span>Direkt Geç (TR)</span>
-</button>
-<button type="button" class="tab" id="tabBtn-tunnel" role="tab" aria-selected="false" aria-controls="tab-tunnel" tabindex="-1" data-tab="tunnel">
-<svg class="ico" aria-hidden="true"><use href="#ico-globe"/></svg>
-<span>PAC &amp; Avrupa</span>
-</button>
-<button type="button" class="tab" id="tabBtn-router" role="tab" aria-selected="false" aria-controls="tab-router" tabindex="-1" data-tab="router">
-<svg class="ico" aria-hidden="true"><use href="#ico-router"/></svg>
-<span>Router &amp; VPS</span>
-</button>
-</div>
-<div class="tab-panel active" id="tab-bypass" role="tabpanel" aria-labelledby="tabBtn-bypass" tabindex="0">
-<p class="muted-text">Hibrit modda bu siteler tünele <strong>girmez</strong>, doğrudan yerel internet hızında açılır.</p>
-<div id="bypassPresets" class="hairline-list preset-list"></div>
-<div class="field-group">
-<label class="field-label" for="customBypassInput">Direkt geçecek özel site ekle</label>
-<div class="add-row">
-<input id="customBypassInput" type="text" class="mono" spellcheck="false" autocomplete="off" aria-describedby="bypassErr" placeholder="yemeksepeti.com veya bankam.com.tr" />
-<button id="addBypassBtn" type="button" class="btn primary">Ekle</button>
-</div>
-<div id="bypassErr" class="inline-error hidden" role="alert"></div>
-</div>
-<div id="customBypassChips" class="chip-list"></div>
-</div>
-<div class="tab-panel" id="tab-tunnel" role="tabpanel" aria-labelledby="tabBtn-tunnel" tabindex="0" hidden>
-<p class="muted-text">PAC modunda, Site Kurtarıcı ile eklenenlerde veya OpenWrt router'da özel olarak tünele alınacak siteler.</p>
-<div id="tunnelPresets" class="hairline-list preset-list"></div>
-<div class="field-group">
-<label class="field-label" for="customTunnelInput">Özel olarak tünele alınacak site ekle</label>
-<div class="add-row">
-<input id="customTunnelInput" type="text" class="mono" spellcheck="false" autocomplete="off" aria-describedby="tunnelErr" placeholder="reddit.com veya engellisite.com" />
-<button id="addTunnelBtn" type="button" class="btn primary">Ekle</button>
-</div>
-<div id="tunnelErr" class="inline-error hidden" role="alert"></div>
-</div>
-<div id="customTunnelChips" class="chip-list"></div>
-</div>
-<div class="tab-panel" id="tab-router" role="tabpanel" aria-labelledby="tabBtn-router" tabindex="0" hidden>
-<div class="router-box">
-<h3>Tüm Ev İçin OpenWrt Router &amp; Ortak Avrupa VPS</h3>
-<p>Evdeki tüm cihazların (PC, telefon, TV, konsol) tek merkezden engelsiz çalışması için <code class="mono">sing-box</code> ayarını indirip OpenWrt router'a yükleyebilirsin.</p>
-<div class="router-actions">
-<a href="/api/export/openwrt" download="sing-box-openwrt.json" class="btn primary">sing-box-openwrt.json İndir</a>
-<a href="/proxy.pac" target="_blank" rel="noopener noreferrer" class="btn secondary">Aktif PAC Dosyasını Gör<span class="sr-only"> (yeni sekmede açılır)</span></a>
-</div>
-<div class="hint-box mono">
-<strong>Hazır betikler:</strong><br/>
-router/openwrt-setup.sh — OpenWrt + sing-box kurulum betiği<br/>
-router/README.md — Modem → OpenWrt bağlantı rehberi<br/>
-vps/setup-vps.sh — Ortak Avrupa VPS (WireGuard + BBR)
-</div>
-</div>
-</div>
-</div>
-</section>
-</div>
 </main>
 <footer class="app-footer">
-<span>%100 Yerel Kontrol Paneli (<code class="mono">127.0.0.1</code>) · Sıfır Telemetri · <code class="mono">sing-box</code> (GPL-3.0) &amp; <code class="mono">Tor</code> (BSD-3)</span>
-<span>Belgeler: <code class="mono">SECURITY.md</code> · <code class="mono">THIRD_PARTY_LICENSES.md</code></span>
+<span>%100 Yerel (<code class="mono">127.0.0.1</code>) · Sıfır Telemetri · <code class="mono">sing-box</code> (GPL-3.0) &amp; <code class="mono">Tor</code> (BSD-3)</span>
+<span><code class="mono">SECURITY.md</code> · <code class="mono">THIRD_PARTY_LICENSES.md</code></span>
 </footer>
 </div>
 <div id="toastStack" class="toast-stack" role="region" aria-label="Bildirimler" aria-live="polite" aria-atomic="false"></div>
 <div id="wizardOverlay" class="wizard-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="wizardTitle" aria-describedby="wizardDesc">
 <div class="wizard-card" tabindex="-1">
-<div class="wizard-badge">OzeVPN Kurulum Sihirbazı</div>
-<h2 id="wizardTitle">Bilgisayarına Nasıl Kurulsun?</h2>
-<p id="wizardDesc" class="wizard-desc">Tek seferlik tercihini seç — sonra ister arka planda otomatik çalışsın, ister sadece sen açınca devreye girsin.</p>
-<div class="wizard-section-title" id="wizInstallLabel">1. Çalışma Şekli</div>
+<div class="wizard-badge">OzeVPN v6.2 · Anadolu Vaşağı Kurulumu</div>
+<h2 id="wizardTitle">Nasıl Çalışsın?</h2>
+<p id="wizardDesc" class="wizard-desc">Tek seferlik tercihini seç — istersen 1 kez Yönetici onayı ver, sonraki her açılışta UAC sormadan tam Oyun TUN ile otomatik başlasın.</p>
+<div class="wizard-section-title" id="wizInstallLabel">1. Çalışma &amp; Yönetici İzni</div>
 <div class="wizard-choice-grid" id="wizardInstallChoices" role="group" aria-labelledby="wizInstallLabel">
-<button type="button" class="wizard-choice active" data-install="resident" aria-pressed="true">
+<button type="button" class="wizard-choice active" data-install="resident_admin" aria-pressed="true">
 <div class="choice-head">
-<span>Yerleşik Mod (Otomatik)</span>
+<span>Otomatik Yönetici (Oyun TUN)</span>
 <span class="tag ok">Önerilen</span>
 </div>
-<p>Windows her açıldığında arka planda sessizce başlar; her zaman hazır kalır.</p>
+<p>1 kez Yönetici onayı ister. Sonraki her Windows açılışında sormadan tam Oyun TUN + Kill Switch ile hazır başlar.</p>
 </button>
 <button type="button" class="wizard-choice" data-install="on_demand" aria-pressed="false">
 <div class="choice-head">
-<span>Aç / Kapa Modu</span>
-<span class="tag">Manuel</span>
+<span>Standart Aç / Kapa</span>
+<span class="tag">İzinsiz</span>
 </div>
-<p>Başlangıca eklenmez. Yalnızca sen uygulamayı açıp güç düğmesine bastığında çalışır.</p>
+<p>Yönetici izni istemez. Yalnızca sen açıp bağlandığında tarayıcı/proxy modunda çalışır.</p>
 </button>
 </div>
 <div class="wizard-section-title" id="wizModeLabel">2. Engelsiz İnternet Kapsamı</div>
 <div class="wizard-choice-grid" id="wizardModeChoices" role="group" aria-labelledby="wizModeLabel">
 <button type="button" class="wizard-choice active" data-mode="full" aria-pressed="true">
 <div class="choice-head">
-<span>Tüm Dünya Engelsiz</span>
-<span class="tag ok">Tam Tünel</span>
+<span>Tam Koruma</span>
+<span class="tag ok">Önerilen</span>
 </div>
-<p>Tek tek site eklemeden tüm engelli siteler ve servisler otomatik açılır.</p>
+<p>Tüm engelli siteler ve servisler ek ayar yapmadan şifreli tünelden açılır.</p>
 </button>
 <button type="button" class="wizard-choice" data-mode="smart" aria-pressed="false">
 <div class="choice-head">

@@ -2,6 +2,20 @@
 
 Bu proje [Keep a Changelog](https://keepachangelog.com/tr/1.1.0/) ve [Semantic Versioning](https://semver.org/) ilkelerini izler.
 
+## [6.2.0] - 2026-11-28
+
+### Added
+- **Anadolu Vaşağı ("Orman Hayaleti") Marka Kimliği & 3 Durumlu Canlı Sistem Tepsisi:** Çok çözünürlüklü Anadolu Vaşağı `.exe` ikonu (`assets/ozevpn.ico`) ve Windows saat/takvim yanında canlı renk değiştiren 3 durumlu sistem tepsisi ikonları (`ozevpn-idle.ico` gri beklemede, `ozevpn-connecting.ico` kehribar bağlanıyor, `ozevpn-connected.ico` zümrüt bağlı).
+- **4 Sekmeli Sade & Odaklı UI/UX (`web/index.html`, `web/style.css`, `web/app.js`):** Kalabalık tek ekran kokpit yerine `Bağlantı`, `Siteler & Test`, `Ağ & Gelişmiş` ve `Günlük` sekmeli modern masaüstü tasarımı; etkileşimli Anadolu Vaşağı güç butonu ve `≤ 120 KB` gömülü web bütçesi (`117.2 KB`).
+- **Tek Seferlik Yönetici İzni (UAC'siz Otomatik Oyun TUN — `internal/installer/installer.go`):** 1 kez Yönetici (UAC) onayıyla `OzeVPN.exe` uygulamasını yönetici korumalı `%ProgramFiles%\OzeVPN` klasörüne kurar ve pil/süre uyumlu resmi Windows Task Scheduler (`\OzeVPN`, `/RL HIGHEST`) başlangıç görevi ekler; sonraki açılışlarda UAC sormadan tam Oyun TUN + Kill Switch ile başlar.
+- **8-Endpoint Tek Süreç WARP RTT Yarışçısı (`internal/warp/wg_native.go`):** 8 resmi Cloudflare WARP Anycast uç noktasını tek geçici `sing-box` örneği içinde paralel yarıştırıp en düşük gecikmeli noktayı ve POP'u (`colo`) 30 dk önbellekle otomatik seçer.
+- **Sıfır Telemetri Manuel Sürüm Denetleyicisi (`GET /api/update/check`):** Kullanıcı tetiklemedikçe hiçbir harici sürüm sorgusu göndermez.
+- **Canlı Windows Doğrulama Betiği (`tools/verify-live.ps1` + `docs/VERIFICATION.md`):** Salt-okunur, IP/MAC maskeli canlı sistem/sızıntı doğrulama paketi.
+
+### Changed
+- **2–4× Daha Yüksek TUN TCP Hızı (`internal/engine/singbox_builder.go`):** `tun-in` ağ yığını `"gvisor"` yerine `"mixed"` (Windows çekirdek TCP + gVisor UDP) moduna geçirildi.
+- **Fail-Closed Güvenlik & Kill Switch Yedekleme:** `internal/config/config.go:Save()` DPAPI hatasında düz metne düşmez (fail-closed); `internal/killswitch/killswitch_windows.go` profil bazlı (`Domain`/`Private`/`Public`) Windows Firewall politikalarını JSON yedekleyip birebir geri yükler; CI'da `staticcheck@v0.8.2` ve `govulncheck@v1.10.0` sürüm pinlendi.
+
 ## [6.1.2] - 2026-11-27
 
 ### Security

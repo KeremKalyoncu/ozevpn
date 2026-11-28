@@ -11,7 +11,7 @@ import (
 )
 
 // AppVersion is the current OzeVPN semantic version (overrideable via -ldflags).
-var AppVersion = "v6.1.2"
+var AppVersion = "v6.2.0"
 
 const (
 	latestReleaseAPI = "https://api.github.com/repos/KeremKalyoncu/ozevpn/releases/latest"

@@ -47,6 +47,11 @@ func resolveAppPaths() (baseDir, cfgPath string) {
 		cfgPath = "ozevpn.json"
 		return baseDir, cfgPath
 	}
+	if installer.IsUnderProgramFiles(exeDir) {
+		// Always store per-user config & session token in %LOCALAPPDATA%\OzeVPN when installed under Program Files
+		cfgPath = filepath.Join(filepath.Dir(installer.DefaultInstallPath()), "ozevpn.json")
+		return baseDir, cfgPath
+	}
 	probeFile := filepath.Join(exeDir, ".ozevpn_write_test")
 	if f, err := os.OpenFile(probeFile, os.O_CREATE|os.O_WRONLY, 0644); err != nil {
 		// Read-only install folder (e.g. C:\Program Files) -> safely fall back to %LOCALAPPDATA%\OzeVPN
@@ -129,6 +134,7 @@ func main() {
 	silent := flag.Bool("silent", false, "Sessiz arka plan modu (tarayıcı açmaz)")
 	autoConnect := flag.Bool("autoconnect", false, "Başlangıçta otomatik bağlan")
 	takeover := flag.Bool("takeover", false, "Mevcut örneğin portu bırakmasını bekle (Yönetici geçişi)")
+	installAdminTask := flag.Bool("install-admin-task", false, "Tek seferlik Yönetici onayı ile UAC'siz başlangıç görevi (\\OzeVPN) kur")
 	uninstallFlag := flag.Bool("uninstall", false, "OzeVPN başlangıç kaydını, kısayolu, proxy/kill-switch kurallarını ve yerel verileri temizle")
 	addrFlag := flag.String("addr", "", "Dinleme adresi (varsayılan: 127.0.0.1:7777)")
 	flag.Parse()
@@ -161,6 +167,18 @@ func main() {
 
 	sessionToken := server.LoadOrCreateSessionToken(tokenPath, *takeover)
 	authURL := baseURL + "/auth?t=" + sessionToken
+
+	if *installAdminTask && engine.IsAdmin() {
+		if _, iErr := installer.EnableElevatedResident(); iErr != nil {
+			log.Printf("Otomatik Yönetici başlangıç görevi uyarısı: %v", iErr)
+		} else {
+			_ = store.Update(func(c *config.Config) {
+				c.SetupCompleted = true
+				c.InstallStyle = config.InstallResident
+			})
+			slog.Info("audit_action", "action", "install_elevated_task")
+		}
+	}
 
 	// In standalone single-EXE builds, extract embedded sing-box + Tor runtime once into %LOCALAPPDATA%\OzeVPN\runtime
 	if runtimeDir, err := embedded.EnsureRuntime(baseDir); err == nil && runtimeDir != "" {
@@ -206,7 +224,7 @@ func main() {
 	}
 
 	if !*silent {
-		fmt.Printf("\n  OzeVPN v6 (sing-box + DoH + Hot-Reload + Hız Kalkanı) çalışıyor -> %s\n", baseURL)
+		fmt.Printf("\n  OzeVPN v6.2 (Anadolu Vaşağı · sing-box + WARP WG + DoH) çalışıyor -> %s\n", baseURL)
 		fmt.Println("  Kapatmak için CTRL+C tuşlarına bas.")
 		fmt.Println()
 	}
@@ -261,7 +279,7 @@ func openBrowser(targetURL string) {
 			if _, err := os.Stat(bin); err == nil {
 				cmd := exec.Command(bin,
 					"--app="+targetURL,
-					"--window-size=1180,820",
+					"--window-size=920,760",
 					"--user-data-dir="+profileDir,
 					"--disable-extensions",
 					"--force-webrtc-ip-handling-policy=disable_non_proxied_udp",

@@ -2,7 +2,9 @@ package server
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"io"
 	"io/fs"
 	"log/slog"
 	"net/http"
@@ -242,29 +244,11 @@ func (s *apiServer) handleInstallSetup(w http.ResponseWriter, r *http.Request) {
 		Mode          config.Mode         `json:"mode"`
 		EngineProfile string              `json:"engine_profile"`
 		ConnectNow    bool                `json:"connect_now"`
+		RequireAdmin  bool                `json:"require_admin"`
 	}
 	if err := decodeStrictJSON(r, &req); err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
 		return
-	}
-
-	var logs []string
-	var inst installer.Status
-	var err error
-	if req.InstallStyle == config.InstallResident {
-		inst, err = installer.EnableResident()
-		if err != nil {
-			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
-			return
-		}
-		logs = append(logs, "Yerleşik Mod kuruldu: Windows her açıldığında otomatik ve sessiz başlayacak.")
-	} else {
-		inst, err = installer.DisableResident()
-		if err != nil {
-			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
-			return
-		}
-		logs = append(logs, "Aç/Kapa Modu seçildi.")
 	}
 
 	if err := s.store.Update(func(c *config.Config) {
@@ -281,6 +265,50 @@ func (s *apiServer) handleInstallSetup(w http.ResponseWriter, r *http.Request) {
 	}); err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "Ayarlar kaydedilemedi: " + err.Error()})
 		return
+	}
+
+	// One-time UAC flow: user chose Automatic Admin (Oyun TUN) while currently non-admin.
+	if req.InstallStyle == config.InstallResident && req.RequireAdmin && !engine.IsAdmin() {
+		extra := []string{"-install-admin-task"}
+		if req.ConnectNow {
+			extra = append(extra, "-autoconnect")
+		}
+		if err := engine.RelaunchAsAdmin(s.listenAddr, extra...); err != nil {
+			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "Yönetici izni iptal edildi veya başlatılamadı: " + err.Error()})
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{
+			"ok":                true,
+			"relaunching_admin": true,
+			"config":            s.store.Get().Redacted(),
+			"install":           installer.GetStatus(),
+			"logs":              []string{"Tek seferlik Yönetici (Oyun TUN) başlangıç görevi kuruluyor, servis devrediliyor..."},
+		})
+		s.scheduleExit(w)
+		return
+	}
+
+	var logs []string
+	var inst installer.Status
+	var err error
+	if req.InstallStyle == config.InstallResident {
+		inst, err = installer.EnableResident()
+		if err != nil {
+			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+			return
+		}
+		if inst.ElevatedTaskEnabled {
+			logs = append(logs, "Otomatik Yönetici (Oyun TUN) görevi kuruldu: bundan sonra UAC sormadan tam yetkiyle açılır.")
+		} else {
+			logs = append(logs, "Yerleşik Mod kuruldu: Windows her açıldığında otomatik ve sessiz başlayacak.")
+		}
+	} else {
+		inst, err = installer.DisableResident()
+		if err != nil {
+			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+			return
+		}
+		logs = append(logs, "Aç/Kapa Modu seçildi.")
 	}
 
 	if req.ConnectNow {
@@ -424,11 +452,29 @@ func (s *apiServer) handleRelaunchAdmin(w http.ResponseWriter, r *http.Request) 
 	if !requireMethod(w, r, http.MethodPost) {
 		return
 	}
-	if err := engine.RelaunchAsAdmin(s.listenAddr); err != nil {
+	var req struct {
+		InstallTask bool `json:"install_task"`
+		Autoconnect bool `json:"autoconnect"`
+	}
+	if r.Body != nil {
+		_ = json.NewDecoder(io.LimitReader(r.Body, 4096)).Decode(&req)
+	}
+	var extra []string
+	if req.InstallTask {
+		extra = append(extra, "-install-admin-task")
+	}
+	if req.Autoconnect {
+		extra = append(extra, "-autoconnect")
+	}
+	if err := engine.RelaunchAsAdmin(s.listenAddr, extra...); err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "message": "Yönetici (Oyun TUN) süreci başlatıldı, port devrediliyor..."})
+	msg := "Yönetici (Oyun TUN) süreci başlatıldı, port devrediliyor..."
+	if req.InstallTask {
+		msg = "Yönetici izni alındı — UAC'siz başlangıç görevi kuruluyor, port devrediliyor..."
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "message": msg})
 	s.scheduleExit(w)
 }
 

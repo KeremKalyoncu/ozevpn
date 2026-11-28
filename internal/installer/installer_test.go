@@ -16,8 +16,18 @@ func TestInstallerPathsAndEscapePS(t *testing.T) {
 		t.Fatalf("escapePS failed: %q", got)
 	}
 	st := GetStatus()
-	if st.InstallPath == "" {
-		t.Fatal("expected non-empty InstallPath in GetStatus")
+	if st.InstallPath == "" || st.ElevatedInstallPath == "" {
+		t.Fatal("expected non-empty InstallPath and ElevatedInstallPath in GetStatus")
+	}
+	ep := ElevatedInstallPath()
+	if !strings.HasSuffix(strings.ToLower(ep), filepath.Join("ozevpn", "ozevpn.exe")) {
+		t.Fatalf("unexpected elevated install path: %q", ep)
+	}
+	if !parseTaskQueryOutput("TaskName: \\OzeVPN\r\nStatus: Ready\r\n") {
+		t.Fatal("expected parseTaskQueryOutput to match \\OzeVPN")
+	}
+	if parseTaskQueryOutput("ERROR: The system cannot find the file specified.") {
+		t.Fatal("expected parseTaskQueryOutput to reject error output")
 	}
 }
 
