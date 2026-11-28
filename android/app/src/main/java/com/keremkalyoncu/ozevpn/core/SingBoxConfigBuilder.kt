@@ -239,6 +239,7 @@ tunnel:
   mtu: $MTU_WIREGUARD
   multi-queue: false
   ipv4: 10.233.233.1
+  ipv6: 'fdfe:dcba:9876::1'
 socks5:
   port: $listenPort
   address: 127.0.0.1

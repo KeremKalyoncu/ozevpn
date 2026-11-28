@@ -56,4 +56,12 @@ class SingBoxConfigBuilderTest {
         assertEquals(8, obj.getJSONArray("inbounds").length())
         assertEquals(8, obj.getJSONArray("endpoints").length())
     }
+
+    @Test
+    fun hevTunnelYamlEnablesDualStackIpv4AndIpv6() {
+        val yaml = SingBoxConfigBuilder.buildHevTunnelYaml()
+        assertTrue(yaml.contains("ipv4: 10.233.233.1"))
+        assertTrue(yaml.contains("ipv6: 'fdfe:dcba:9876::1'"))
+        assertTrue(yaml.contains("udp: 'udp'"))
+    }
 }

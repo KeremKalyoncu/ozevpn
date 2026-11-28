@@ -3,6 +3,7 @@ package com.keremkalyoncu.ozevpn
 import android.Manifest
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.net.VpnService
 import android.os.Build
 import android.os.Bundle
@@ -16,6 +17,7 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.lifecycleScope
 import com.keremkalyoncu.ozevpn.core.ConnectivityTester
+import com.keremkalyoncu.ozevpn.core.UpdateChecker
 import com.keremkalyoncu.ozevpn.data.PreferencesStore
 import com.keremkalyoncu.ozevpn.data.RoutingMode
 import com.keremkalyoncu.ozevpn.data.TunnelPhase
@@ -69,9 +71,12 @@ class MainActivity : ComponentActivity() {
                     onSelectMode = { mode -> updateMode(mode) },
                     onToggleAdBlock = { enabled -> updateAdBlock(enabled) },
                     onRunProbe = { runLiveProbe() },
+                    onOpenUpdate = { url -> openUpdateUrl(url) },
                 )
             }
         }
+
+        checkForReleaseUpdate()
 
         if (intent?.getBooleanExtra(EXTRA_AUTO_CONNECT, false) == true) {
             toggleVpn()
@@ -133,6 +138,25 @@ class MainActivity : ComponentActivity() {
             } catch (_: Throwable) {
                 TunnelStateHolder.update { it.copy(probing = false) }
             }
+        }
+    }
+
+    private fun checkForReleaseUpdate() {
+        lifecycleScope.launch {
+            val update = UpdateChecker.checkLatest(BuildConfig.VERSION_NAME) ?: return@launch
+            TunnelStateHolder.update {
+                it.copy(
+                    updateVersion = update.version,
+                    updateUrl = update.downloadUrl,
+                )
+            }
+        }
+    }
+
+    private fun openUpdateUrl(url: String) {
+        if (!url.startsWith("https://")) return
+        runCatching {
+            startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
         }
     }
 

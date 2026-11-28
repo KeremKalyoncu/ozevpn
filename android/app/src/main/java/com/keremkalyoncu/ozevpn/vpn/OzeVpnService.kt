@@ -8,6 +8,10 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
+import android.net.ConnectivityManager
+import android.net.Network
+import android.net.NetworkCapabilities
+import android.net.NetworkRequest
 import android.net.VpnService
 import android.os.Build
 import android.os.ParcelFileDescriptor
@@ -20,8 +24,10 @@ import com.keremkalyoncu.ozevpn.core.EndpointRacer
 import com.keremkalyoncu.ozevpn.core.SingBoxConfigBuilder
 import com.keremkalyoncu.ozevpn.core.WarpRegistrar
 import com.keremkalyoncu.ozevpn.data.PreferencesStore
+import com.keremkalyoncu.ozevpn.data.RoutingMode
 import com.keremkalyoncu.ozevpn.data.TunnelPhase
 import com.keremkalyoncu.ozevpn.data.TunnelStateHolder
+import com.keremkalyoncu.ozevpn.data.WarpProfile
 import hev.htproxy.TProxyService
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -44,8 +50,17 @@ class OzeVpnService : VpnService() {
     private lateinit var store: PreferencesStore
     private var tunPfd: ParcelFileDescriptor? = null
     private var singBoxProcess: Process? = null
+    private var activeProfile: WarpProfile? = null
+    private var activeMode: RoutingMode = RoutingMode.FULL
+    private var activeAdBlock: Boolean = true
     private var statsJob: Job? = null
+    private var handoverJob: Job? = null
+    private var networkCallback: ConnectivityManager.NetworkCallback? = null
+    @Volatile
+    private var lastPhysicalNetHandle: Long = -1L
     private var connectedAtMs: Long = 0L
+    private var lastHealthyMs: Long = 0L
+    private var watchdogRetries: Int = 0
 
     override fun onCreate() {
         super.onCreate()
@@ -87,6 +102,8 @@ class OzeVpnService : VpnService() {
     }
 
     override fun onDestroy() {
+        unregisterNetworkCallback()
+        handoverJob?.cancel()
         runCatching { TProxyService.TProxyStopService() }
         runCatching { tunPfd?.close() }
         tunPfd = null
@@ -151,46 +168,21 @@ class OzeVpnService : VpnService() {
                 it.copy(statusDetail = "Şifreli WireGuard (TCP+UDP) tüneli başlatılıyor...")
             }
 
-            val sbCfgFile = File(filesDir, "sing-box-active.json")
-            sbCfgFile.writeText(
-                SingBoxConfigBuilder.buildTunnelConfig(
-                    profile = profile,
-                    mode = mode,
-                    adBlockEnabled = adBlock,
-                ),
-                Charsets.UTF_8,
-            )
-
-            val sbProc = ProcessBuilder(singBoxBin.absolutePath, "run", "-c", sbCfgFile.absolutePath)
-                .directory(filesDir)
-                .redirectErrorStream(true)
-                .start()
-            singBoxProcess = sbProc
-
-            // Drain process stdout/stderr in background so pipe buffers never block
-            scope.launch {
-                runCatching {
-                    sbProc.inputStream.bufferedReader().use { r ->
-                        while (r.readLine() != null) { /* discard */ }
-                    }
-                }
-            }
-
-            if (!waitForLocalPort(SingBoxConfigBuilder.LOCAL_MIXED_PORT, 3500L)) {
-                val exited = !sbProc.isAlive
-                throw IllegalStateException(
-                    if (exited) "sing-box motoru başlatılamadı (çıkış=${sbProc.exitValue()})"
-                    else "Yerel tünel portu açılamadı"
-                )
-            }
+            activeProfile = profile
+            activeMode = mode
+            activeAdBlock = adBlock
+            launchSingBoxLocked(singBoxBin, profile, mode, adBlock)
 
             val builder = Builder()
                 .setSession("OzeVPN")
                 .setMtu(1280)
                 .addAddress("10.233.233.1", 30)
                 .addRoute("0.0.0.0", 0)
+                .addAddress("fdfe:dcba:9876::1", 126)
+                .addRoute("::", 0)
                 .addDnsServer("1.1.1.1")
                 .addDnsServer("1.0.0.1")
+                .addDnsServer("2606:4700:4700::1111")
 
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                 builder.setMetered(false)
@@ -211,6 +203,8 @@ class OzeVpnService : VpnService() {
             }
 
             connectedAtMs = System.currentTimeMillis()
+            lastHealthyMs = connectedAtMs
+            watchdogRetries = 0
             val colo = race?.colo?.ifBlank { profile.lastColo } ?: profile.lastColo
             val country = race?.country.orEmpty()
             val rtt = race?.rttMs ?: profile.lastRttMs
@@ -230,19 +224,11 @@ class OzeVpnService : VpnService() {
             promoteForeground(notifTitle, "Discord, Roblox ve tüm internet korunuyor")
             requestTileSync()
 
+            // Register physical network callback for seamless Wi-Fi <-> 4.5G/5G handover
+            registerNetworkCallback()
+
             // Enrich exit country/POP and true warm 1-RTT ping asynchronously via encrypted tunnel
-            scope.launch {
-                val trace = ConnectivityTester.fetchTrace(viaTunnel = true)
-                if (trace != null && TunnelStateHolder.current().phase == TunnelPhase.CONNECTED) {
-                    TunnelStateHolder.update {
-                        it.copy(
-                            exitColo = trace.colo.ifBlank { it.exitColo },
-                            exitCountry = trace.country.ifBlank { it.exitCountry },
-                            rttMs = if (trace.rttMs > 0) trace.rttMs else it.rttMs,
-                        )
-                    }
-                }
-            }
+            refreshTraceAsync()
 
             startStatsLoop()
         } catch (t: Throwable) {
@@ -261,6 +247,125 @@ class OzeVpnService : VpnService() {
         }
     }
 
+    private fun launchSingBoxLocked(
+        singBoxBin: File,
+        profile: WarpProfile,
+        mode: RoutingMode,
+        adBlock: Boolean,
+    ) {
+        runCatching { singBoxProcess?.destroyForcibly() }
+        singBoxProcess = null
+
+        val sbCfgFile = File(filesDir, "sing-box-active.json")
+        sbCfgFile.writeText(
+            SingBoxConfigBuilder.buildTunnelConfig(
+                profile = profile,
+                mode = mode,
+                adBlockEnabled = adBlock,
+            ),
+            Charsets.UTF_8,
+        )
+
+        val sbProc = ProcessBuilder(singBoxBin.absolutePath, "run", "-c", sbCfgFile.absolutePath)
+            .directory(filesDir)
+            .redirectErrorStream(true)
+            .start()
+        singBoxProcess = sbProc
+
+        // Drain process stdout/stderr in background so pipe buffers never block
+        scope.launch {
+            runCatching {
+                sbProc.inputStream.bufferedReader().use { r ->
+                    while (r.readLine() != null) { /* discard */ }
+                }
+            }
+        }
+
+        if (!waitForLocalPort(SingBoxConfigBuilder.LOCAL_MIXED_PORT, 3500L)) {
+            val exited = !sbProc.isAlive
+            throw IllegalStateException(
+                if (exited) "sing-box motoru başlatılamadı (çıkış=${sbProc.exitValue()})"
+                else "Yerel tünel portu açılamadı"
+            )
+        }
+    }
+
+    private suspend fun bounceSingBoxLocked(reason: String): Boolean {
+        val profile = activeProfile ?: return false
+        val singBoxBin = File(applicationInfo.nativeLibraryDir, "libsingbox.so")
+        if (!singBoxBin.exists() || tunPfd == null) return false
+
+        TunnelStateHolder.update { it.copy(statusDetail = reason) }
+        return runCatching {
+            launchSingBoxLocked(singBoxBin, profile, activeMode, activeAdBlock)
+            lastHealthyMs = System.currentTimeMillis()
+            TunnelStateHolder.update {
+                it.copy(
+                    statusDetail = "Discord (UDP) · Roblox · Tüm İnternet Aktif",
+                    lastError = "",
+                )
+            }
+            refreshTraceAsync()
+            true
+        }.getOrDefault(false)
+    }
+
+    private fun refreshTraceAsync() {
+        scope.launch {
+            val trace = ConnectivityTester.fetchTrace(viaTunnel = true)
+            if (trace != null && TunnelStateHolder.current().phase == TunnelPhase.CONNECTED) {
+                TunnelStateHolder.update {
+                    it.copy(
+                        exitColo = trace.colo.ifBlank { it.exitColo },
+                        exitCountry = trace.country.ifBlank { it.exitCountry },
+                        rttMs = if (trace.rttMs > 0) trace.rttMs else it.rttMs,
+                    )
+                }
+            }
+        }
+    }
+
+    private fun registerNetworkCallback() {
+        unregisterNetworkCallback()
+        val cm = getSystemService(ConnectivityManager::class.java) ?: return
+        lastPhysicalNetHandle = -1L
+        val req = NetworkRequest.Builder()
+            .addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+            .addCapability(NetworkCapabilities.NET_CAPABILITY_NOT_VPN)
+            .build()
+        val cb = object : ConnectivityManager.NetworkCallback() {
+            override fun onAvailable(network: Network) {
+                val handle = network.networkHandle
+                val prev = lastPhysicalNetHandle
+                lastPhysicalNetHandle = handle
+                // Skip initial registration callback; only bounce on genuine Wi-Fi <-> Cellular handover
+                if (prev == -1L || prev == handle) return
+                handoverJob?.cancel()
+                handoverJob = scope.launch {
+                    delay(1200L)
+                    opMutex.withLock {
+                        if (TunnelStateHolder.current().phase == TunnelPhase.CONNECTED) {
+                            bounceSingBoxLocked("Ağ geçişi algılandı — tünel tazeleniyor...")
+                        }
+                    }
+                }
+            }
+        }
+        runCatching {
+            cm.registerNetworkCallback(req, cb)
+            networkCallback = cb
+        }
+    }
+
+    private fun unregisterNetworkCallback() {
+        val cb = networkCallback ?: return
+        networkCallback = null
+        lastPhysicalNetHandle = -1L
+        runCatching {
+            getSystemService(ConnectivityManager::class.java)?.unregisterNetworkCallback(cb)
+        }
+    }
+
     private fun startStatsLoop() {
         statsJob?.cancel()
         statsJob = scope.launch {
@@ -271,8 +376,26 @@ class OzeVpnService : VpnService() {
                 delay(1000L)
                 val proc = singBoxProcess
                 if (proc == null || !proc.isAlive) {
-                    opMutex.withLock { teardownLocked(stopServiceAfter = true) }
-                    break
+                    var recovered = false
+                    opMutex.withLock {
+                        if (TunnelStateHolder.current().phase == TunnelPhase.CONNECTED && watchdogRetries < MAX_WATCHDOG_RETRIES) {
+                            watchdogRetries++
+                            val backoffMs = 1500L * (1L shl (watchdogRetries - 1))
+                            TunnelStateHolder.update {
+                                it.copy(statusDetail = "Tünel motoru yeniden başlatılıyor ($watchdogRetries/$MAX_WATCHDOG_RETRIES)...")
+                            }
+                            delay(backoffMs)
+                            recovered = bounceSingBoxLocked("Tünel motoru kurtarılıyor...")
+                        }
+                        if (!recovered) {
+                            teardownLocked(stopServiceAfter = true)
+                        }
+                    }
+                    if (!recovered) break
+                    continue
+                }
+                if (watchdogRetries > 0 && System.currentTimeMillis() - lastHealthyMs > 30_000L) {
+                    watchdogRetries = 0
                 }
                 val raw = runCatching { TProxyService.TProxyGetStats() }.getOrNull()
                 val txBytes = if (raw != null && raw.size >= 4) raw[1] else prevTx
@@ -310,6 +433,9 @@ class OzeVpnService : VpnService() {
     }
 
     private fun teardownLocked(stopServiceAfter: Boolean) {
+        unregisterNetworkCallback()
+        handoverJob?.cancel()
+        handoverJob = null
         statsJob?.cancel()
         statsJob = null
         runCatching { TProxyService.TProxyStopService() }
@@ -424,6 +550,7 @@ class OzeVpnService : VpnService() {
         const val ACTION_RELOAD = "com.keremkalyoncu.ozevpn.ACTION_RELOAD"
         private const val CHANNEL_ID = "ozevpn_tunnel"
         private const val NOTIF_ID = 6201
+        private const val MAX_WATCHDOG_RETRIES = 3
 
         fun start(context: Context) {
             val i = Intent(context, OzeVpnService::class.java).apply { action = ACTION_START }

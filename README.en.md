@@ -19,6 +19,7 @@
 </p>
 <p>
   <a href="https://github.com/KeremKalyoncu/ozevpn/actions/workflows/ci.yml"><img src="https://github.com/KeremKalyoncu/ozevpn/actions/workflows/ci.yml/badge.svg" alt="CI"/></a>
+  <a href="https://github.com/KeremKalyoncu/ozevpn/actions/workflows/android.yml"><img src="https://github.com/KeremKalyoncu/ozevpn/actions/workflows/android.yml/badge.svg" alt="Android CI"/></a>
   <a href="https://github.com/KeremKalyoncu/ozevpn/actions/workflows/codeql.yml"><img src="https://github.com/KeremKalyoncu/ozevpn/actions/workflows/codeql.yml/badge.svg" alt="CodeQL SAST"/></a>
   <a href="https://github.com/KeremKalyoncu/ozevpn/actions/workflows/release.yml"><img src="https://github.com/KeremKalyoncu/ozevpn/actions/workflows/release.yml/badge.svg" alt="SLSA Provenance"/></a>
   <a href="https://api.reuse.software/info/github.com/KeremKalyoncu/ozevpn"><img src="https://api.reuse.software/badge/github.com/KeremKalyoncu/ozevpn" alt="FSFE REUSE 3.3"/></a>
@@ -26,11 +27,11 @@
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-GPL--3.0-22C55E" alt="License: GPL-3.0"/></a>
 </p>
 
-<h3>Zero third-party Go/npm dependencies. Single-file Windows desktop hybrid VPN (<code>.exe</code>) built for speed, gaming UDP, and zero leaks.</h3>
+<h3>Zero third-party Go/npm dependencies. Single-file Windows desktop (<code>.exe</code>) and root-free <b>Android (<code>.apk</code>)</b> Anatolian Lynx hybrid VPN built for speed, gaming UDP, and zero leaks.</h3>
 
 <p>
   <a href="#-certifications--independent-audits"><b>Certifications</b></a> ·
-  <a href="#-live-preview--signal-cockpit-ui"><b>Preview</b></a> ·
+  <a href="#-live-preview--windows--android"><b>Preview & Android</b></a> ·
   <a href="#-why-ozevpn"><b>Comparison</b></a> ·
   <a href="#-architecture--defense-in-depth"><b>Architecture</b></a> ·
   <a href="#-quick-start"><b>Quick Start</b></a> ·
@@ -64,8 +65,8 @@ OzeVPN is continuously audited on every commit against **Linux Foundation OpenSS
 | **GitHub CodeQL SAST** | [![CodeQL](https://github.com/KeremKalyoncu/ozevpn/actions/workflows/codeql.yml/badge.svg)](https://github.com/KeremKalyoncu/ozevpn/actions/workflows/codeql.yml) | Automated **Go + JavaScript** security scanning on every push, PR & schedule | [CodeQL Workflow](https://github.com/KeremKalyoncu/ozevpn/actions/workflows/codeql.yml) |
 | **Sigstore SLSA Build Provenance** | [![SLSA](https://github.com/KeremKalyoncu/ozevpn/actions/workflows/release.yml/badge.svg)](https://github.com/KeremKalyoncu/ozevpn/actions/workflows/release.yml) | Cryptographic build attestation (`gh attestation verify`) + CycloneDX 1.5 SBOM | [Release Workflow](https://github.com/KeremKalyoncu/ozevpn/actions/workflows/release.yml) |
 | **FSFE REUSE 3.3 License Compliance** | [![REUSE](https://api.reuse.software/badge/github.com/KeremKalyoncu/ozevpn)](https://api.reuse.software/info/github.com/KeremKalyoncu/ozevpn) | Machine-readable `SPDX: GPL-3.0-or-later` coverage across all files | [REUSE Status](https://api.reuse.software/info/github.com/KeremKalyoncu/ozevpn) |
-| **OzeVPN CI (Race + Fuzz + Live EXE)** | [![CI](https://github.com/KeremKalyoncu/ozevpn/actions/workflows/ci.yml/badge.svg)](https://github.com/KeremKalyoncu/ozevpn/actions/workflows/ci.yml) | `go test -race`, fuzzing, `staticcheck`, `govulncheck`, live Windows `.exe` smoke test | [CI Workflow](https://github.com/KeremKalyoncu/ozevpn/actions/workflows/ci.yml) |
-| **VirusTotal & Windows Distribution** | [![Release](https://img.shields.io/github/v/release/KeremKalyoncu/ozevpn?color=0EA5E9)](https://github.com/KeremKalyoncu/ozevpn/releases/tag/v6.1.2) | SHA-256 scanned binary · Winget PR · SignPath code-signing application | [VirusTotal](https://www.virustotal.com/gui/file/37ea85b678e37bfa02958fdd16d4513026e585351a9530d2899cfa287d931558) · [Winget PR](https://github.com/microsoft/winget-pkgs/pull/491333) |
+| **OzeVPN CI (Windows + Android)** | [![CI](https://github.com/KeremKalyoncu/ozevpn/actions/workflows/ci.yml/badge.svg)](https://github.com/KeremKalyoncu/ozevpn/actions/workflows/ci.yml) [![Android CI](https://github.com/KeremKalyoncu/ozevpn/actions/workflows/android.yml/badge.svg)](https://github.com/KeremKalyoncu/ozevpn/actions/workflows/android.yml) | `go test -race`, fuzzing, `staticcheck`, `govulncheck`, Android Kotlin unit tests & release APK | [Windows CI](https://github.com/KeremKalyoncu/ozevpn/actions/workflows/ci.yml) · [Android CI](https://github.com/KeremKalyoncu/ozevpn/actions/workflows/android.yml) |
+| **Releases, VirusTotal & Distribution** | [![Release](https://img.shields.io/github/v/release/KeremKalyoncu/ozevpn?color=0EA5E9)](https://github.com/KeremKalyoncu/ozevpn/releases/tag/v6.2.0) | Windows `.exe` + signed Android `.apk` · Winget PR · SignPath code-signing application | [v6.2.0 Release](https://github.com/KeremKalyoncu/ozevpn/releases/tag/v6.2.0) · [Winget PR](https://github.com/microsoft/winget-pkgs/pull/491333) |
 
 > [!IMPORTANT]
 > **Audit Scope Transparency:** **OpenSSF Best Practices** is a voluntary self-certification program; **CodeQL**, **SonarCloud**, **OpenSSF Scorecard**, and **Sigstore SLSA** provide automated static and supply-chain verification—they do not replace an independent third-party penetration test. Windows Authenticode signing via [SignPath Foundation](CODE_SIGNING_POLICY.md) is currently under review; releases are verified via `SHA-256` checksums and **SLSA Build Level 3 (`*.intoto.jsonl`)** provenance.
@@ -96,19 +97,21 @@ OzeVPN is continuously audited on every commit against **Linux Foundation OpenSS
 
 ---
 
-## 🖥️ Live Preview — Signal Cockpit UI
+## 🖥️ Live Preview — Windows & Android
 
-Handcrafted **pure HTML/CSS/Vanilla JS (`< 120 KB` total embedded budget)** with **zero Electron overhead**, native dark (`Obsidian Cockpit`) & light (`Cool Porcelain`) themes, and keyboard navigation:
+### 🪟 Windows Desktop (`v6.2.0` — Anatolian Lynx Cockpit)
+Handcrafted **pure HTML/CSS/Vanilla JS (`< 120 KB` total embedded budget)** with **zero Electron overhead**, streamlined 4-tab layout, 3-state live system tray icon, and one-time elevated background task:
 
 <div align="center">
-  <img src="docs/screenshots/demo.gif" alt="OzeVPN Signal Cockpit Live Demo" width="92%" />
+  <img src="docs/screenshots/desktop-v62-lynx.png" alt="OzeVPN v6.2.0 Windows Anatolian Lynx UI" width="88%" />
 </div>
 
-<br/>
+### 📱 Android (`v6.2.0` — Root-Free 1-Tap Lynx VPN)
+Zero-bloat **Kotlin + Jetpack Compose** native Android `VpnService` app powered by SHA-256 verified `sing-box` + `hev-socks5-tunnel`: tap the Anatolian Lynx for **Discord (voice/UDP) + Roblox + unrestricted internet** with dual-stack IPv4/IPv6 TUN, seamless Wi-Fi ↔ 4.5G/5G handover, and auto-recovering Watchdog.
 
-| 🌑 Obsidian Cockpit (Dark Theme) | ☀️ Cool Porcelain (Light Theme) |
+| 🐾 Ready Screen | ✅ Connected & 4/4 Live Probe Verification |
 | :---: | :---: |
-| ![OzeVPN Dark Theme](docs/screenshots/signal-cockpit-dark.png) | ![OzeVPN Light Theme](docs/screenshots/signal-cockpit-light.png) |
+| <img src="docs/screenshots/android-v62-idle.png" alt="OzeVPN Android Ready" width="270" /> | <img src="docs/screenshots/android-v62-connected.png" alt="OzeVPN Android Connected 4/4 Green" width="270" /> |
 
 ---
 
@@ -116,10 +119,11 @@ Handcrafted **pure HTML/CSS/Vanilla JS (`< 120 KB` total embedded budget)** with
 
 Named after Turkish **"Öz"** *(core, pure, unadorned)* and **Oze** *(an unobstructed natural pass)*, OzeVPN is a local, telemetry-free desktop tunnel controller built strictly on Go's standard library — no Electron, no accounts, no cloud backend.
 
-| Capability | Typical Free / Electron VPNs | OzeVPN v6.1.1 |
+| Capability | Typical Free / Electron VPNs | OzeVPN v6.2.0 |
 | :--- | :--- | :--- |
+| **Platforms** | Single-platform Electron or ad-heavy mobile | **Windows (`.exe`) + Root-Free Native Android (`.apk`)** with shared WARP WireGuard core |
 | **External Dependencies** | Hundreds of npm / Electron / SDK packages | **`0` external Go/npm modules** (pure Go stdlib + `<120 KB` Vanilla UI) |
-| **Gaming UDP (Roblox / Discord Voice)** | Often TCP-only SOCKS proxies | **Native pure-Go Cloudflare WARP WireGuard (full L3 TCP+UDP, `MTU 1280`, `25s` keepalive)** |
+| **Gaming UDP (Roblox / Discord Voice)** | Often TCP-only or geo-blocked exit POPs | **EU-POP prioritized WARP WireGuard (full L3 TCP+UDP, `MTU 1280`, `25s` keepalive)** |
 | **Smart Split Tunneling** | Routes everything through slow nodes | **Direct bypass** for banking, `.gov`, and 4K/Steam CDNs + EU Tor for geo-restricted TCP |
 | **Home Wi-Fi / Phone / TV Sharing** | Requires router flashing | **1-click LAN Proxy Sharing** (`192.168.x.x:10808`, opt-in, disabled by default) |
 | **Real-Time Telemetry** | Static or fake counters | **Live throughput (`↓/↑ B/s` & session total)** via authenticated loopback `sing-box` API |
@@ -167,12 +171,18 @@ irm https://raw.githubusercontent.com/KeremKalyoncu/ozevpn/main/scripts/install.
 
 ### Option 2 — Portable Single-EXE Download or Winget
 
-1. Download `OzeVPN.exe` from [GitHub Releases (`v6.1.2`)](https://github.com/KeremKalyoncu/ozevpn/releases/tag/v6.1.2) and double-click.
+1. Download `OzeVPN.exe` from [GitHub Releases (`v6.2.0`)](https://github.com/KeremKalyoncu/ozevpn/releases/tag/v6.2.0) and double-click.
 2. Click **Oyun TUN** in the top bar for full-system `IPv4+IPv6+UDP` tunneling and WFP Kill Switch.
 3. Clean uninstall anytime: `.\OzeVPN.exe -uninstall`.
 4. **Winget:** Manifest submitted in [microsoft/winget-pkgs#491333](https://github.com/microsoft/winget-pkgs/pull/491333) (`winget install KeremKalyoncu.OzeVPN`).
 
-### Option 3 — Build from Source (Windows `amd64`, Go 1.22+ / 1.26+)
+### Option 3 — Native Android App (`.apk`, Android 10+ / No Root)
+
+1. Download **`OzeVPN-Android-arm64.apk`** (`26.5 MB`, modern Android devices) or `OzeVPN-Android-universal.apk` from [GitHub Releases (`v6.2.0`)](https://github.com/KeremKalyoncu/ozevpn/releases/tag/v6.2.0).
+2. Open OzeVPN, tap the **Anatolian Lynx** emblem, and grant the one-time Android VPN permission.
+3. Includes EU-POP prioritized Cloudflare WARP WireGuard, dual-stack **IPv4 + IPv6 TUN**, automatic **Wi-Fi ↔ 4.5G/5G handover**, `sing-box` Watchdog, Quick Settings Tile, and 1-tap live reachability probes.
+
+### Option 4 — Build from Source (Windows `amd64`, Go 1.22+ / 1.26+)
 
 ```powershell
 go run ./cmd/ozevpn
@@ -185,15 +195,20 @@ gofmt -l . ; go vet ./... ; go test -race -cover ./...
 ## 🔐 Verification & Supply Chain
 
 ```powershell
-# 1. Verify SHA-256 checksum of downloaded OzeVPN.exe (v6.1.2)
+# 1. Verify SHA-256 checksum of downloaded OzeVPN.exe (v6.2.0)
 (Get-FileHash .\OzeVPN.exe -Algorithm SHA256).Hash
-# Expected: 64D4962541966E18F7D935B6D2E97CA8BEBF4CD587B61128E774D4330A1DCB34
+# Expected: 3430E0363646DE2EF6E031BA45372948FD84E68DDCE2975AB737BE627E12082A
 
-# 2. Verify Sigstore SLSA Build Provenance via GitHub CLI
+# 2. Verify Android APK SHA-256 checksum (v6.2.0)
+(Get-FileHash .\OzeVPN-Android-arm64.apk -Algorithm SHA256).Hash
+# Expected: 4321BDE766F6F4A62E93520A22052AD3AD349CDA96EEE56AA4CD7A303651E4B9
+
+# 3. Verify Sigstore SLSA Build Provenance via GitHub CLI
 gh attestation verify OzeVPN-core.exe -R KeremKalyoncu/ozevpn
 ```
 
-- **VirusTotal (`v6.1.1`):** [Public SHA-256 Scan Report](https://www.virustotal.com/gui/file/37ea85b678e37bfa02958fdd16d4513026e585351a9530d2899cfa287d931558)
+- **Android Signing Certificate (SHA-256):** `05:F7:B3:D9:28:4F:B0:2B:7D:FD:E8:4A:34:5B:78:46:67:5E:93:81:6E:DD:0C:3B:17:98:44:B1:90:D7:4C:45` (`CN=OzeVPN Release, O=OzeVPN, C=TR`)
+- **VirusTotal:** [Public SHA-256 Scan Report](https://www.virustotal.com/gui/file/37ea85b678e37bfa02958fdd16d4513026e585351a9530d2899cfa287d931558)
 - **SBOM:** `sbom.cdx.json` (CycloneDX 1.5) attached to every GitHub Release
 - **Code Signing Policy:** [CODE_SIGNING_POLICY.md](CODE_SIGNING_POLICY.md) *(applying for free open-source Windows Authenticode signing via [SignPath.io](https://signpath.io/) / [SignPath Foundation](https://signpath.org/))*
 

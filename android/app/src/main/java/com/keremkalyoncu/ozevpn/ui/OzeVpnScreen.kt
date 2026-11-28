@@ -32,6 +32,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Bolt
 import androidx.compose.material.icons.rounded.CheckCircle
+import androidx.compose.material.icons.rounded.Download
 import androidx.compose.material.icons.rounded.ErrorOutline
 import androidx.compose.material.icons.rounded.Public
 import androidx.compose.material.icons.rounded.Shield
@@ -90,6 +91,7 @@ fun OzeVpnScreen(
     onSelectMode: (RoutingMode) -> Unit,
     onToggleAdBlock: (Boolean) -> Unit,
     onRunProbe: () -> Unit,
+    onOpenUpdate: (String) -> Unit = {},
 ) {
     val accentColor by animateColorAsState(
         targetValue = when (snapshot.phase) {
@@ -131,6 +133,13 @@ fun OzeVpnScreen(
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             TopBrandHeader(snapshot = snapshot, accentColor = accentColor)
+
+            if (snapshot.updateVersion.isNotBlank() && snapshot.updateUrl.isNotBlank()) {
+                UpdateAvailableBanner(
+                    version = snapshot.updateVersion,
+                    onClick = { onOpenUpdate(snapshot.updateUrl) },
+                )
+            }
 
             LynxHeroCard(
                 snapshot = snapshot,
@@ -248,6 +257,57 @@ private fun TopBrandHeader(snapshot: TunnelSnapshot, accentColor: Color) {
                     fontWeight = FontWeight.SemiBold,
                 )
             }
+        }
+    }
+}
+
+@Composable
+private fun UpdateAvailableBanner(
+    version: String,
+    onClick: () -> Unit,
+) {
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(14.dp))
+            .clickable(role = Role.Button, onClick = onClick),
+        color = LynxEmeraldSoft,
+        shape = RoundedCornerShape(14.dp),
+        border = BorderStroke(1.dp, LynxEmerald.copy(alpha = 0.5f)),
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp, vertical = 9.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.weight(1f),
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.Download,
+                    contentDescription = null,
+                    tint = LynxEmeraldBright,
+                    modifier = Modifier.size(16.dp),
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = "Yeni sürüm v$version hazır",
+                    color = TextPrimary,
+                    fontSize = 12.5.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            Text(
+                text = "İndir →",
+                color = LynxEmeraldBright,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Bold,
+            )
         }
     }
 }

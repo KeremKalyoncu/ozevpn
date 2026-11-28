@@ -19,6 +19,7 @@
 </p>
 <p>
   <a href="https://github.com/KeremKalyoncu/ozevpn/actions/workflows/ci.yml"><img src="https://github.com/KeremKalyoncu/ozevpn/actions/workflows/ci.yml/badge.svg" alt="CI"/></a>
+  <a href="https://github.com/KeremKalyoncu/ozevpn/actions/workflows/android.yml"><img src="https://github.com/KeremKalyoncu/ozevpn/actions/workflows/android.yml/badge.svg" alt="Android CI"/></a>
   <a href="https://github.com/KeremKalyoncu/ozevpn/actions/workflows/codeql.yml"><img src="https://github.com/KeremKalyoncu/ozevpn/actions/workflows/codeql.yml/badge.svg" alt="CodeQL SAST"/></a>
   <a href="https://github.com/KeremKalyoncu/ozevpn/actions/workflows/release.yml"><img src="https://github.com/KeremKalyoncu/ozevpn/actions/workflows/release.yml/badge.svg" alt="SLSA Provenance"/></a>
   <a href="https://api.reuse.software/info/github.com/KeremKalyoncu/ozevpn"><img src="https://api.reuse.software/badge/github.com/KeremKalyoncu/ozevpn" alt="FSFE REUSE 3.3"/></a>
@@ -26,11 +27,11 @@
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-GPL--3.0-22C55E" alt="License: GPL-3.0"/></a>
 </p>
 
-<h3>Sıfır üçüncü parti Go/npm bağımlılıklı, tek-dosya (<code>.exe</code>) Windows hibrit VPN ve sansür aşım uygulaması.</h3>
+<h3>Sıfır üçüncü parti Go/npm bağımlılıklı, tek-dosya (<code>.exe</code>) Windows ve root'suz <b>Android (<code>.apk</code>)</b> Anadolu Vaşağı hibrit VPN uygulaması.</h3>
 
 <p>
   <a href="#-sertifikalar--bağımsız-denetimler"><b>Sertifikalar</b></a> ·
-  <a href="#-canlı-arayüz--signal-cockpit-ui"><b>Arayüz</b></a> ·
+  <a href="#-canlı-arayüz--windows--android"><b>Arayüz & Android</b></a> ·
   <a href="#-neden-ozevpn"><b>Karşılaştırma</b></a> ·
   <a href="#-mimari--sıfır-sızıntı-tasarımı"><b>Mimari</b></a> ·
   <a href="#-kurulum--hızlı-başlangıç"><b>Kurulum</b></a> ·
@@ -64,8 +65,8 @@ OzeVPN, yalnızca kod yazıp bırakılmış bir araç değil; **Linux Foundation
 | **GitHub CodeQL SAST** | [![CodeQL](https://github.com/KeremKalyoncu/ozevpn/actions/workflows/codeql.yml/badge.svg)](https://github.com/KeremKalyoncu/ozevpn/actions/workflows/codeql.yml) | Her push, PR ve haftalık planda **Go + JavaScript** güvenlik taraması | [CodeQL Akışı](https://github.com/KeremKalyoncu/ozevpn/actions/workflows/codeql.yml) |
 | **Sigstore SLSA Build Provenance** | [![SLSA](https://github.com/KeremKalyoncu/ozevpn/actions/workflows/release.yml/badge.svg)](https://github.com/KeremKalyoncu/ozevpn/actions/workflows/release.yml) | Kriptografik derleme kanıtı (`gh attestation verify`) + CycloneDX 1.5 SBOM | [Release Akışı](https://github.com/KeremKalyoncu/ozevpn/actions/workflows/release.yml) |
 | **FSFE REUSE 3.3 Lisans Uyumu** | [![REUSE](https://api.reuse.software/badge/github.com/KeremKalyoncu/ozevpn)](https://api.reuse.software/info/github.com/KeremKalyoncu/ozevpn) | Tüm kaynak ve varlıklarda makine-okunur `SPDX: GPL-3.0-or-later` uyumu | [REUSE Raporu](https://api.reuse.software/info/github.com/KeremKalyoncu/ozevpn) |
-| **OzeVPN CI (Race + Fuzz + Canlı EXE)** | [![CI](https://github.com/KeremKalyoncu/ozevpn/actions/workflows/ci.yml/badge.svg)](https://github.com/KeremKalyoncu/ozevpn/actions/workflows/ci.yml) | `go test -race`, fuzzing, `staticcheck`, `govulncheck`, canlı Windows `.exe` testi | [CI Akışı](https://github.com/KeremKalyoncu/ozevpn/actions/workflows/ci.yml) |
-| **VirusTotal & Windows Dağıtımı** | [![Release](https://img.shields.io/github/v/release/KeremKalyoncu/ozevpn?color=0EA5E9)](https://github.com/KeremKalyoncu/ozevpn/releases/tag/v6.1.2) | SHA-256 taranmış ikili · Winget PR · SignPath kod imzalama başvurusu | [VirusTotal](https://www.virustotal.com/gui/file/37ea85b678e37bfa02958fdd16d4513026e585351a9530d2899cfa287d931558) · [Winget PR](https://github.com/microsoft/winget-pkgs/pull/491333) |
+| **OzeVPN CI (Windows + Android)** | [![CI](https://github.com/KeremKalyoncu/ozevpn/actions/workflows/ci.yml/badge.svg)](https://github.com/KeremKalyoncu/ozevpn/actions/workflows/ci.yml) [![Android CI](https://github.com/KeremKalyoncu/ozevpn/actions/workflows/android.yml/badge.svg)](https://github.com/KeremKalyoncu/ozevpn/actions/workflows/android.yml) | `go test -race`, fuzzing, `staticcheck`, `govulncheck`, Android Kotlin birim testleri & release APK | [Windows CI](https://github.com/KeremKalyoncu/ozevpn/actions/workflows/ci.yml) · [Android CI](https://github.com/KeremKalyoncu/ozevpn/actions/workflows/android.yml) |
+| **Sürüm, VirusTotal & Dağıtım** | [![Release](https://img.shields.io/github/v/release/KeremKalyoncu/ozevpn?color=0EA5E9)](https://github.com/KeremKalyoncu/ozevpn/releases/tag/v6.2.0) | Windows `.exe` + imzalı Android `.apk` · Winget PR · SignPath kod imzalama başvurusu | [v6.2.0 Release](https://github.com/KeremKalyoncu/ozevpn/releases/tag/v6.2.0) · [Winget PR](https://github.com/microsoft/winget-pkgs/pull/491333) |
 
 > [!IMPORTANT]
 > **Denetim Kapsamı Şeffaflığı:** **OpenSSF Best Practices** gönüllü proje öz-değerlendirme programıdır; **CodeQL**, **SonarCloud**, **OpenSSF Scorecard** ve **Sigstore SLSA** otomatik statik/tedarik zinciri doğrulaması sağlar. Bu araçlar bağımsız üçüncü parti sızma testi (pentest) yerine geçmez. Windows Authenticode kod imzası için [SignPath Foundation](CODE_SIGNING_POLICY.md) başvurusu inceleme aşamasındadır; sürümler şu anda `SHA-256` ve **SLSA Build Level 3 (`*.intoto.jsonl`)** ile doğrulanır.
@@ -96,19 +97,36 @@ OzeVPN, yalnızca kod yazıp bırakılmış bir araç değil; **Linux Foundation
 
 ---
 
-## 🖥️ Canlı Arayüz — Signal Cockpit UI
+## 🖥️ Canlı Arayüz — Windows & Android
 
-Electron şişkinliği olmadan **saf HTML/CSS/Vanilla JS (`< 120 KB` toplam gömülü paket)** ile yazılmış, koyu (`Obsidian Cockpit`) ve açık (`Cool Porcelain`) temalı yerel kontrol kokpiti:
+### 🪟 Windows Masaüstü (`v6.2.0` — Anadolu Vaşağı Kokpiti)
+Electron şişkinliği olmadan **saf HTML/CSS/Vanilla JS (`< 120 KB` toplam gömülü paket)** ile yazılmış, 4 sekmeli sade tasarım, 3 durumlu canlı tepsi ikonu ve tek seferlik yönetici kurulumu:
 
 <div align="center">
-  <img src="docs/screenshots/demo.gif" alt="OzeVPN Signal Cockpit Canlı Demosu" width="92%" />
+  <img src="docs/screenshots/desktop-v62-lynx.png" alt="OzeVPN v6.2.0 Windows Anadolu Vaşağı Arayüzü" width="88%" />
 </div>
 
+### 📱 Android (`v6.2.0` — Root'suz Tek Dokunuş Vaşak)
+Şişkinlik olmadan **Kotlin + Jetpack Compose** ve resmi SHA-256 pinli `sing-box` + `hev-socks5-tunnel` çekirdeğiyle çalışan yerel Android `VpnService` uygulaması: vaşağa dokun, **Discord (sesli/UDP) + Roblox + tüm internete** dual-stack IPv4/IPv6 koruması ve otomatik Wi-Fi ↔ 4.5G/5G geçişiyle bağlan.
+
+| 🐾 Hazır Ekranı | ✅ Bağlı & 4/4 Canlı Erişim Doğrulaması |
+| :---: | :---: |
+| <img src="docs/screenshots/android-v62-idle.png" alt="OzeVPN Android Hazır" width="270" /> | <img src="docs/screenshots/android-v62-connected.png" alt="OzeVPN Android Bağlı 4/4 Yeşil" width="270" /> |
+
+<details>
+<summary><b>🌑 Eski Koyu / Açık Tema & Canlı Demo GIF Önizlemesi</b></summary>
+
 <br/>
+
+<div align="center">
+  <img src="docs/screenshots/demo.gif" alt="OzeVPN Signal Cockpit Canlı Demosu" width="88%" />
+</div>
 
 | 🌑 Obsidian Cockpit (Koyu Tema) | ☀️ Cool Porcelain (Açık Tema) |
 | :---: | :---: |
 | ![OzeVPN Koyu Tema](docs/screenshots/signal-cockpit-dark.png) | ![OzeVPN Açık Tema](docs/screenshots/signal-cockpit-light.png) |
+
+</details>
 
 ### Öne Çıkan Yetenekler
 
@@ -151,10 +169,11 @@ Electron şişkinliği olmadan **saf HTML/CSS/Vanilla JS (`< 120 KB` toplam göm
 
 Türkçe **"Öz"** *(çekirdek, saf, aracısız)* ve el değmemiş doğal geçit **Oze** kavramlarından adını alan **OzeVPN**, abonelik satmayan, telemetri toplamayan ve tek yürütülebilir dosyada tam şeffaflık sunan saf bir yerel tünel denetleyicisidir.
 
-| Özellik | Klasik Ücretsiz / Electron VPN'ler | OzeVPN v6.1.1 |
+| Özellik | Klasik Ücretsiz / Electron VPN'ler | OzeVPN v6.2.0 |
 | :--- | :--- | :--- |
+| **Platform Desteği** | Tek platform veya şişkin Electron + reklamlı mobil | **Windows (`.exe`) + Root'suz Yerel Android (`.apk`)**, aynı Anadolu Vaşağı motoru |
 | **Harici Kod Bağımlılığı** | Yüzlerce npm / Electron / üçüncü parti SDK | **`0` harici Go/npm bağımlılığı** (saf Go stdlib + `<120 KB` Vanilla UI) |
-| **Oyun UDP (Roblox / Discord Ses)** | Çoğu ücretsiz proxy yalnız TCP | **Yerleşik saf-Go WARP WireGuard (Tam L3 TCP+UDP, `MTU 1280`, `25s` keepalive)** |
+| **Oyun UDP (Roblox / Discord Ses)** | Çoğu ücretsiz proxy yalnız TCP veya TR çıkışında Roblox engelli | **Avrupa POP öncelikli WARP WireGuard (Tam L3 TCP+UDP, `MTU 1280`, `25s` keepalive)** |
 | **TR Bankalar & 4K İndirme Hızı** | Tüm trafik tünele girer, gecikme artar | **Akıllı Hibrit Split:** `.gov.tr`, bankalar ve 4K/Steam CDN'leri direkt fiber hızında |
 | **AB Konum Gerektiren Siteler** | Bölge kilitli veya ücretli sunucu | **Paralel Avrupa Tor + Snowflake WebRTC köprüsü** (sıfır harici kurulum) |
 | **Ev İçi Telefon / TV Paylaşımı** | Router ayarı veya ek uygulama | **Tek tıkla LAN Proxy Paylaşımı** (`192.168.x.x:10808`, opt-in) |
@@ -208,15 +227,21 @@ irm https://raw.githubusercontent.com/KeremKalyoncu/ozevpn/main/scripts/install.
 
 > Kurulum betiği en son sürümü GitHub Releases'tan indirir, `OzeVPN.exe.sha256` ile **SHA-256 özetini otomatik doğrular**, `%LOCALAPPDATA%\OzeVPN\` içine kurar ve masaüstü kısayolu oluşturur.
 
-### Seçenek 2 — Taşınabilir Tek Dosya (`.exe`) veya Winget
+### Seçenek 2 — Windows Tek Dosya (`.exe`) veya Winget
 
-1. [GitHub Releases (`v6.1.2`)](https://github.com/KeremKalyoncu/ozevpn/releases/tag/v6.1.2) sayfasından `OzeVPN.exe` dosyasını indirip çift tıklayın.
-2. Tam sistem / oyun UDP / Kill Switch koruması için üst çubuktan **Oyun TUN** butonuna tıklayın.
-3. Aynı Wi-Fi'deki telefon/TV'ler için **Ev Ağıyla Paylaş** anahtarını açın.
+1. [GitHub Releases (`v6.2.0`)](https://github.com/KeremKalyoncu/ozevpn/releases/tag/v6.2.0) sayfasından `OzeVPN.exe` dosyasını indirip çift tıklayın.
+2. Tam sistem / oyun UDP / Kill Switch koruması için üst çubuktan **Oyun TUN** butonuna tıklayın (tek seferlik arka plan yönetici göreviyle bir daha UAC sormaz).
+3. Aynı Wi-Fi'deki TV/cihazlar için **Ev Ağıyla Paylaş** anahtarını açın.
 4. **Tam Temiz Kaldırma:** `.\OzeVPN.exe -uninstall`
 5. **Winget:** Paket manifestleri [microsoft/winget-pkgs#491333](https://github.com/microsoft/winget-pkgs/pull/491333) üzerinde incelemede (`winget install KeremKalyoncu.OzeVPN`).
 
-### Seçenek 3 — Kaynaktan Derleme, OpenWrt Router & Kendi VPS'in
+### Seçenek 3 — Android Uygulaması (`.apk`, Android 10+ / Root Gerektirmez)
+
+1. Telefonundan [GitHub Releases (`v6.2.0`)](https://github.com/KeremKalyoncu/ozevpn/releases/tag/v6.2.0) sayfasına girip **`OzeVPN-Android-arm64.apk`** (`26.5 MB` — neredeyse tüm modern Android telefonlar için) dosyasını indirip kurun *(veya tüm mimariler için `OzeVPN-Android-universal.apk`)*.
+2. Uygulamayı açıp ortadaki **Anadolu Vaşağı** butonuna dokunun ve tek seferlik Android VPN iznini onaylayın.
+3. **Neler Dahil?** Avrupa POP öncelikli Cloudflare WARP WireGuard (`Discord UDP + Roblox + tüm internet`), dual-stack **IPv4 + IPv6 TUN** (4.5G/5G sızıntı koruması), otomatik **Wi-Fi ↔ 4.5G/5G geçişi**, `sing-box` Watchdog, **Tam Koruma / Hibrit TR** modları, 28 ağlı Reklam Kalkanı, Hızlı Ayarlar kutucuğu ve tek tık canlı erişim testi.
+
+### Seçenek 4 — Kaynaktan Derleme, OpenWrt Router & Kendi VPS'in
 
 <details>
 <summary><b>💻 Geliştirici Derleme, Test, OpenWrt ve VPS Komutlarını Göster</b></summary>
@@ -253,15 +278,20 @@ go run ./tools/bench -samples 10 -bytes 3000000
 İndirdiğiniz her sürümü bağımsız olarak doğrulayabilirsiniz:
 
 ```powershell
-# 1. İndirilen OzeVPN.exe için SHA-256 doğrulaması (v6.1.2 beklenen özet)
+# 1. İndirilen OzeVPN.exe için SHA-256 doğrulaması (v6.2.0 beklenen özet)
 (Get-FileHash .\OzeVPN.exe -Algorithm SHA256).Hash
-# Beklenen: 64D4962541966E18F7D935B6D2E97CA8BEBF4CD587B61128E774D4330A1DCB34
+# Beklenen: 3430E0363646DE2EF6E031BA45372948FD84E68DDCE2975AB737BE627E12082A
 
-# 2. Sigstore SLSA Build Provenance kriptografik doğrulama (GitHub CLI ile)
+# 2. Android APK SHA-256 doğrulaması (v6.2.0)
+(Get-FileHash .\OzeVPN-Android-arm64.apk -Algorithm SHA256).Hash
+# Beklenen: 4321BDE766F6F4A62E93520A22052AD3AD349CDA96EEE56AA4CD7A303651E4B9
+
+# 3. Sigstore SLSA Build Provenance kriptografik doğrulama (GitHub CLI ile)
 gh attestation verify OzeVPN-core.exe -R KeremKalyoncu/ozevpn
 ```
 
-- **VirusTotal (`v6.1.1`):** [Canlı SHA-256 Tarama Raporu](https://www.virustotal.com/gui/file/37ea85b678e37bfa02958fdd16d4513026e585351a9530d2899cfa287d931558)
+- **Android Kalıcı İmza Sertifikası (SHA-256):** `05:F7:B3:D9:28:4F:B0:2B:7D:FD:E8:4A:34:5B:78:46:67:5E:93:81:6E:DD:0C:3B:17:98:44:B1:90:D7:4C:45` (`CN=OzeVPN Release, O=OzeVPN, C=TR`)
+- **VirusTotal:** [Canlı SHA-256 Tarama Raporu](https://www.virustotal.com/gui/file/37ea85b678e37bfa02958fdd16d4513026e585351a9530d2899cfa287d931558)
 - **Yazılım Malzeme Listesi (SBOM):** Her sürümde `sbom.cdx.json` (CycloneDX 1.5)
 - **Kod İmzalama Politikası:** [CODE_SIGNING_POLICY.md](CODE_SIGNING_POLICY.md) *(ücretsiz açık kaynak Windows Authenticode imzalama için [SignPath.io](https://signpath.io/) / [SignPath Foundation](https://signpath.org/) başvurusu aktif)*
 
@@ -281,8 +311,9 @@ ozevpn/
 │   ├── server/            # Loopback HTTP API, 256-bit token/CSRF/rate-limit middleware ve testler
 │   ├── warp/              # Saf-Go Cloudflare WARP WireGuard kaydı ve anahtar yönetimi
 │   └── ...                # Tor/Snowflake, WinINET proxy, OpenWrt dışa aktarım, sağlık/tanılama
-├── web/                   # Gömülü Signal Cockpit UI (<= 120 KB bütçe, sıfır framework)
-├── assets/                # Koyu/açık vektör banner, sertifika/mimari SVG kartları ve ikonlar
+├── web/                   # Gömülü 4-sekmeli Anadolu Vaşağı UI (<= 120 KB bütçe, sıfır framework)
+├── android/               # Yerel Kotlin + Jetpack Compose root'suz Android VPN uygulaması (APK)
+├── assets/                # Koyu/açık vektör banner, Anadolu Vaşağı ikonları ve SVG kartlar
 ├── packaging/winget/      # Windows Package Manager (Winget 1.10 en-US + tr-TR) manifestleri
 ├── scripts/               # Tek satır install.ps1 ve 5/5 SHA-256 doğrulamalı build-single-exe.ps1
 ├── router/ & vps/         # OpenWrt router ve Ubuntu WireGuard + PQ PSK VPS otomasyonu

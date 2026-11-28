@@ -45,6 +45,8 @@ data class TunnelSnapshot(
     val lastError: String = "",
     val probes: List<ProbeItem> = emptyList(),
     val probing: Boolean = false,
+    val updateVersion: String = "",
+    val updateUrl: String = "",
 )
 
 object TunnelStateHolder {
