@@ -2,11 +2,21 @@
 
 package tray
 
+type VisualState int
+
+const (
+	StateDisconnected VisualState = iota
+	StateConnecting
+	StateConnected
+)
+
 type Options struct {
 	GetState         func() (connected bool, tooltip string)
+	GetVisualState   func() (state VisualState, tooltip string)
 	OnOpenPanel      func()
 	OnToggleConnect  func()
 	OnEmergencyReset func()
+	OnPowerResume    func()
 	OnQuit           func()
 }
 

@@ -90,15 +90,15 @@ func handleSingleInstance(listenAddr, baseURL, tokenPath string, takeover, noBro
 
 func startSystemTray(store *config.Store, eng *engine.Manager, authURL string, gracefulExit func()) *tray.Tray {
 	return tray.Start(tray.Options{
-		GetState: func() (bool, string) {
+		GetVisualState: func() (tray.VisualState, string) {
 			st := eng.Status()
 			switch strings.ToLower(st.State) {
 			case "connected":
-				return true, "OzeVPN v6 — Bağlı (Engelsiz İnternet)"
+				return tray.StateConnected, "OzeVPN — Bağlı (Anadolu Vaşağı Aktif)"
 			case "connecting":
-				return false, "OzeVPN v6 — Bağlanıyor..."
+				return tray.StateConnecting, "OzeVPN — Bağlanıyor (En Hızlı WARP Seçiliyor)..."
 			default:
-				return false, "OzeVPN v6 — Bağlı Değil"
+				return tray.StateDisconnected, "OzeVPN — Bağlı Değil"
 			}
 		},
 		OnOpenPanel: func() {

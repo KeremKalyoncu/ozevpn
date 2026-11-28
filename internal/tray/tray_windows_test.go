@@ -13,15 +13,20 @@ func TestNotifyIconDataABISizeAndIconLoad(t *testing.T) {
 		t.Fatalf("unexpected NOTIFYICONDATAW size: got %d, want 976", sz)
 	}
 
-	hIdle := createIconFromICOBytes(idleICO, 16, 16)
-	if hIdle == 0 {
-		t.Fatal("failed to create Win32 HICON from embedded ozevpn.ico")
+	icons := []struct {
+		name string
+		raw  []byte
+	}{
+		{"ozevpn.ico", appICO},
+		{"ozevpn-idle.ico", idleICO},
+		{"ozevpn-connecting.ico", connectingICO},
+		{"ozevpn-connected.ico", connectedICO},
 	}
-	procDestroyIcon.Call(hIdle)
-
-	hConn := createIconFromICOBytes(connectedICO, 16, 16)
-	if hConn == 0 {
-		t.Fatal("failed to create Win32 HICON from embedded ozevpn-connected.ico")
+	for _, ic := range icons {
+		h := createIconFromICOBytes(ic.raw, 16, 16)
+		if h == 0 {
+			t.Fatalf("failed to create Win32 HICON from embedded %s", ic.name)
+		}
+		procDestroyIcon.Call(h)
 	}
-	procDestroyIcon.Call(hConn)
 }

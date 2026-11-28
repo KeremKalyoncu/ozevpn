@@ -14,12 +14,24 @@ import (
 )
 
 var (
-	idleICO      = assets.IconIdle
-	connectedICO = assets.IconConnected
+	appICO        = assets.IconApp
+	idleICO       = assets.IconIdle
+	connectingICO = assets.IconConnecting
+	connectedICO  = assets.IconConnected
+)
+
+// VisualState controls which of the 3 live Anatolian Lynx icons appears in the Windows System Tray.
+type VisualState int
+
+const (
+	StateDisconnected VisualState = iota
+	StateConnecting
+	StateConnected
 )
 
 type Options struct {
 	GetState         func() (connected bool, tooltip string)
+	GetVisualState   func() (state VisualState, tooltip string)
 	OnOpenPanel      func()
 	OnToggleConnect  func()
 	OnEmergencyReset func()
@@ -28,17 +40,18 @@ type Options struct {
 }
 
 type Tray struct {
-	mu            sync.Mutex
-	opts          Options
-	hwnd          uintptr
-	iconIdle      uintptr
-	iconConnected uintptr
-	lastConnected bool
-	lastTooltip   string
-	taskbarMsg    uint32
-	stopCh        chan struct{}
-	doneCh        chan struct{}
-	closed        bool
+	mu             sync.Mutex
+	opts           Options
+	hwnd           uintptr
+	iconIdle       uintptr
+	iconConnecting uintptr
+	iconConnected  uintptr
+	lastState      VisualState
+	lastTooltip    string
+	taskbarMsg     uint32
+	stopCh         chan struct{}
+	doneCh         chan struct{}
+	closed         bool
 }
 
 const (
@@ -244,7 +257,11 @@ func (t *Tray) runLoop() {
 		cy = 16
 	}
 
-	idleIcon := loadTrayIcon(hInst, 1, idleICO, int32(cx), int32(cy))
+	idleIcon := loadTrayIcon(hInst, 4, idleICO, int32(cx), int32(cy))
+	connectingIcon := loadTrayIcon(hInst, 3, connectingICO, int32(cx), int32(cy))
+	if connectingIcon == 0 {
+		connectingIcon = idleIcon
+	}
 	connIcon := loadTrayIcon(hInst, 2, connectedICO, int32(cx), int32(cy))
 	if connIcon == 0 {
 		connIcon = idleIcon
@@ -253,28 +270,29 @@ func (t *Tray) runLoop() {
 	t.mu.Lock()
 	t.hwnd = hwnd
 	t.iconIdle = idleIcon
+	t.iconConnecting = connectingIcon
 	t.iconConnected = connIcon
 	t.mu.Unlock()
 
 	t.addOrUpdateIcon(nimAdd)
 
-	// Background state watcher refreshes tray icon & tooltip whenever VPN connects/disconnects
+	// Background state watcher refreshes tray icon & tooltip whenever VPN disconnects, connects, or establishes
 	go func() {
-		ticker := time.NewTicker(2 * time.Second)
+		ticker := time.NewTicker(1 * time.Second)
 		defer ticker.Stop()
 		for {
 			select {
 			case <-t.stopCh:
 				return
 			case <-ticker.C:
-				if t.opts.GetState == nil {
+				st, tip, ok := t.pollState()
+				if !ok {
 					continue
 				}
-				conn, tip := t.opts.GetState()
 				t.mu.Lock()
-				changed := conn != t.lastConnected || tip != t.lastTooltip
+				changed := st != t.lastState || tip != t.lastTooltip
 				if changed {
-					t.lastConnected = conn
+					t.lastState = st
 					t.lastTooltip = tip
 				}
 				h := t.hwnd
@@ -300,17 +318,42 @@ func (t *Tray) runLoop() {
 	if idleIcon != 0 {
 		procDestroyIcon.Call(idleIcon)
 	}
-	if connIcon != 0 && connIcon != idleIcon {
+	if connectingIcon != 0 && connectingIcon != idleIcon {
+		procDestroyIcon.Call(connectingIcon)
+	}
+	if connIcon != 0 && connIcon != idleIcon && connIcon != connectingIcon {
 		procDestroyIcon.Call(connIcon)
 	}
+}
+
+func (t *Tray) pollState() (VisualState, string, bool) {
+	if t.opts.GetVisualState != nil {
+		st, tip := t.opts.GetVisualState()
+		return st, tip, true
+	}
+	if t.opts.GetState != nil {
+		conn, tip := t.opts.GetState()
+		if conn {
+			return StateConnected, tip, true
+		}
+		return StateDisconnected, tip, true
+	}
+	return StateDisconnected, "", false
 }
 
 func (t *Tray) addOrUpdateIcon(action uintptr) {
 	t.mu.Lock()
 	hwnd := t.hwnd
 	icon := t.iconIdle
-	if t.lastConnected && t.iconConnected != 0 {
-		icon = t.iconConnected
+	switch t.lastState {
+	case StateConnected:
+		if t.iconConnected != 0 {
+			icon = t.iconConnected
+		}
+	case StateConnecting:
+		if t.iconConnecting != 0 {
+			icon = t.iconConnecting
+		}
 	}
 	tip := t.lastTooltip
 	t.mu.Unlock()
@@ -352,8 +395,8 @@ func (t *Tray) showContextMenu(hwnd uintptr) {
 	defer procDestroyMenu.Call(hMenu)
 
 	connected := false
-	if t.opts.GetState != nil {
-		connected, _ = t.opts.GetState()
+	if st, _, ok := t.pollState(); ok {
+		connected = st == StateConnected
 	}
 
 	appendMenuItem(hMenu, mfString, cmdOpenPanel, "Paneli Aç (OzeVPN v6)")
