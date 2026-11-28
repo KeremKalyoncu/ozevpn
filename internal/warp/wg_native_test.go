@@ -28,7 +28,8 @@ func TestParseCloudflareTraceAndSelectBestProbeResult(t *testing.T) {
 	if err != nil {
 		t.Fatalf("SelectBestProbeResult failed: %v", err)
 	}
-	if best.Endpoint != "162.159.192.1" || best.RTTMs != 41 || best.Colo != "IST" || best.ReachableCount != 3 || best.TestedCount != 4 {
+	// European FRA (68ms) must be preferred over Istanbul IST (41ms) so Roblox stays unblocked.
+	if best.Endpoint != "188.114.97.1" || best.RTTMs != 68 || best.Colo != "FRA" || best.ReachableCount != 3 || best.TestedCount != 4 {
 		t.Fatalf("unexpected winner: %+v", best)
 	}
 }

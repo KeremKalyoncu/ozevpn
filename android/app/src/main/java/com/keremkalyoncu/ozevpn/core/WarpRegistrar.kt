@@ -14,15 +14,17 @@ import java.util.Base64
 data class WarpEndpointCandidate(val host: String, val port: Int)
 
 object WarpRegistrar {
+    // Prioritize 188.114.96-99.1 pools which route to European POPs (unblocking Roblox & TR-geo-restricted sites);
+    // keep 162.159.x.x as fallback only if all European pools are unreachable.
     val defaultCandidates: List<WarpEndpointCandidate> = listOf(
-        WarpEndpointCandidate("162.159.192.1", 2408),
-        WarpEndpointCandidate("162.159.192.1", 500),
-        WarpEndpointCandidate("162.159.193.1", 2408),
-        WarpEndpointCandidate("162.159.195.1", 4500),
-        WarpEndpointCandidate("188.114.96.1", 2408),
         WarpEndpointCandidate("188.114.97.1", 2408),
+        WarpEndpointCandidate("188.114.96.1", 2408),
         WarpEndpointCandidate("188.114.98.1", 1701),
         WarpEndpointCandidate("188.114.99.1", 854),
+        WarpEndpointCandidate("188.114.96.1", 500),
+        WarpEndpointCandidate("188.114.97.1", 4500),
+        WarpEndpointCandidate("162.159.195.1", 4500),
+        WarpEndpointCandidate("162.159.192.1", 2408),
     )
 
     private val regUrls = listOf(

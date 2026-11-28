@@ -35,7 +35,10 @@ object EndpointRacer {
         profile: WarpProfile,
     ): RaceOutcome? = withContext(Dispatchers.IO) {
         val nowSec = System.currentTimeMillis() / 1000L
-        if (profile.lastProbedEpochSec > 0 &&
+        val isTrPop = profile.lastColo.equals("IST", ignoreCase = true) ||
+            profile.endpoint.startsWith("162.159.")
+        if (!isTrPop &&
+            profile.lastProbedEpochSec > 0 &&
             (nowSec - profile.lastProbedEpochSec) < FAST_CACHE_TTL_SEC &&
             profile.lastRttMs in 1..FAST_CACHE_MAX_RTT_MS
         ) {
@@ -82,7 +85,9 @@ object EndpointRacer {
                 }
             }.orEmpty()
 
-            results.minByOrNull { it.rttMs }
+            // Always prefer non-TR European POPs (unblocks Roblox + geo-blocked sites); fall back to IST only if none reachable.
+            val nonTr = results.filter { !isTurkishPop(it.colo, it.country, it.endpoint) }
+            (nonTr.ifEmpty { results }).minByOrNull { it.rttMs }
         } catch (_: Throwable) {
             null
         } finally {
@@ -90,6 +95,11 @@ object EndpointRacer {
             cfgFile.delete()
         }
     }
+
+    internal fun isTurkishPop(colo: String, country: String, endpoint: String): Boolean =
+        colo.equals("IST", ignoreCase = true) ||
+            country.equals("TR", ignoreCase = true) ||
+            endpoint.startsWith("162.159.")
 
     private fun probeOne(cand: WarpEndpointCandidate, proxyPort: Int): RaceOutcome? {
         val resp = ConnectivityTester.httpsGetViaConnectProxy(

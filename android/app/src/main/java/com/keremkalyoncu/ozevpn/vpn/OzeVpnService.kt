@@ -136,6 +136,15 @@ class OzeVpnService : VpnService() {
                     lastProbedEpochSec = System.currentTimeMillis() / 1000L,
                 )
                 store.saveWarpProfile(profile)
+            } else if (profile.endpoint.startsWith("162.159.")) {
+                // Never stay pinned to an Istanbul/TR 162.159.x.x endpoint where Roblox is geo-blocked
+                val euFallback = WarpRegistrar.defaultCandidates.first()
+                profile = profile.copy(
+                    endpoint = euFallback.host,
+                    port = euFallback.port,
+                    lastColo = "",
+                )
+                store.saveWarpProfile(profile)
             }
 
             TunnelStateHolder.update {

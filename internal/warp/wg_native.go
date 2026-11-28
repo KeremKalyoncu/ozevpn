@@ -56,15 +56,17 @@ type wgEndpointCandidate struct {
 }
 
 // Official Cloudflare WARP engage.cloudflareclient.com Anycast IPv4 pools and standard UDP ports.
+// European-routed 188.114.96-99.1 pools are listed first because Istanbul (IST/162.159.x.x) exits
+// remain geo-blocked for Roblox; 162.159.x.x stays as fallback if European pools are unreachable.
 var defaultWarpWGCandidates = []wgEndpointCandidate{
-	{"162.159.192.1", 2408},
-	{"162.159.192.1", 500},
-	{"162.159.193.1", 2408},
-	{"162.159.195.1", 4500},
-	{"188.114.96.1", 2408},
 	{"188.114.97.1", 2408},
+	{"188.114.96.1", 2408},
 	{"188.114.98.1", 1701},
 	{"188.114.99.1", 854},
+	{"188.114.96.1", 500},
+	{"188.114.97.1", 4500},
+	{"162.159.195.1", 4500},
+	{"162.159.192.1", 2408},
 }
 
 const (
@@ -286,9 +288,10 @@ func ProbeBestNativeWG(sbBin string, prof *NativeWGProfile, forceFullRace bool) 
 	}
 	defer os.RemoveAll(tmpDir)
 
-	// Fast path: if cached endpoint was recently benchmarked with low latency (<= 95ms),
+	// Fast path: if cached non-TR endpoint was recently benchmarked with low latency (<= 95ms),
 	// verify it directly (~0.35s) and only run the full race if it degraded or failed.
-	cacheFresh := !forceFullRace && prof.LastProbedUnix > 0 &&
+	isTrCached := strings.EqualFold(prof.LastColo, "IST") || strings.HasPrefix(prof.Endpoint, "162.159.")
+	cacheFresh := !forceFullRace && !isTrCached && prof.LastProbedUnix > 0 &&
 		time.Since(time.Unix(prof.LastProbedUnix, 0)) < fastCacheTTL &&
 		prof.LastRTTMs > 0 && prof.LastRTTMs <= fastPathMaxRTTMs
 	if cacheFresh && len(candidates) > 0 {
@@ -425,7 +428,12 @@ func ParseCloudflareTrace(body string) (warpOn bool, colo string) {
 	return warpOn, colo
 }
 
-// SelectBestProbeResult chooses the lowest-RTT reachable endpoint deterministically.
+func isTurkishWarpSample(s singleEndpointSample) bool {
+	return strings.EqualFold(s.colo, "IST") || strings.HasPrefix(s.cand.addr, "162.159.")
+}
+
+// SelectBestProbeResult chooses the lowest-RTT reachable European/non-TR endpoint deterministically
+// (preferring non-IST/188.114.x.x exits so Roblox and TR-geo-restricted services stay unblocked).
 func SelectBestProbeResult(samples []singleEndpointSample) (ProbeResult, error) {
 	var okSamples []singleEndpointSample
 	var lastErr error
@@ -443,6 +451,11 @@ func SelectBestProbeResult(samples []singleEndpointSample) (ProbeResult, error) 
 		return ProbeResult{}, lastErr
 	}
 	sort.SliceStable(okSamples, func(i, j int) bool {
+		iTR := isTurkishWarpSample(okSamples[i])
+		jTR := isTurkishWarpSample(okSamples[j])
+		if iTR != jTR {
+			return !iTR
+		}
 		if okSamples[i].rtt != okSamples[j].rtt {
 			return okSamples[i].rtt < okSamples[j].rtt
 		}
@@ -520,8 +533,8 @@ func runSingleProcessRace(sbBin, tmpDir string, prof *NativeWGProfile, candidate
 				goto done
 			}
 			samples = append(samples, s)
-			if s.err == nil && graceTimer == nil {
-				// First healthy endpoint arrived; give fast peers a short grace window then decide.
+			if s.err == nil && !isTurkishWarpSample(s) && graceTimer == nil {
+				// First healthy European endpoint arrived; give fast peers a short grace window then decide.
 				graceTimer = time.NewTimer(multiProbeGrace)
 				graceCh = graceTimer.C
 			}
