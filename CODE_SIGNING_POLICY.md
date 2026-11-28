@@ -4,7 +4,7 @@ This project follows strict supply-chain security practices for all published Wi
 
 ## Signing Provider
 
-OzeVPN is applying for / intends to use free open-source Windows Authenticode code signing provided by [SignPath.io](https://signpath.io/), with the signing certificate issued by the [SignPath Foundation](https://signpath.org/).
+OzeVPN signs Android releases with a dedicated 4096-bit RSA release keystore (SHA-256 fingerprint `05:F7:B3:D9:28:4F:B0:2B:7D:FD:E8:4A:34:5B:78:46:67:5E:93:81:6E:DD:0C:3B:17:98:44:B1:90:D7:4C:45`) and signs Windows CI releases with keyless Sigstore Cosign + SLSA Build Provenance. For future Windows Authenticode signing, OzeVPN intends to reapply to the free open-source [SignPath Foundation](https://signpath.org/) program via [SignPath.io](https://signpath.io/) once community visibility requirements are met.
 
 In addition to Authenticode signing, all GitHub releases provide:
 - SHA-256 checksums (`OzeVPN.exe.sha256`) verified by [`scripts/install.ps1`](scripts/install.ps1)
